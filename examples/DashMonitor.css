@@ -1,0 +1,92 @@
+.c-DashMonitor {
+	background: rgba(128, 128, 128, .2);
+	position: relative;
+	min-height: 15px;
+	border-left: 1px solid #CCC;
+	border-right: 1px solid #CCC;
+	border-bottom: 1px solid #CCC;
+	display: none;
+}
+
+.c-DashMonitor.hasData {
+	display: block;
+}
+
+.c-DashMonitor .row {
+	line-height: 15px;
+	height: 15px;
+	position: relative;
+	border-top: 1px solid #CCC;
+	font-family: Segoe UI;
+	font-weight: bold;
+	font-size: 11px;
+}
+
+.c-DashMonitor .segmentData {
+	position: relative;
+}
+
+.c-DashMonitor .seekContainer {
+	margin-left: 3px;
+}
+.c-DashMonitor .seekBar {
+	position: absolute;
+	top: 0;
+	left: 0%;
+	width: 3px;
+	margin-left: -3px;
+	background: rgba(0,0,0,.5);
+	height: 100%;
+}
+
+.c-DashMonitor .rowHeader {
+	position: absolute;
+	width: 80px;
+	text-align: right;
+}
+
+.c-DashMonitor .rowRequests,
+.c-DashMonitor .seekContainer {
+	position: absolute;
+	top: 0;
+	left: 85px;
+	right: 0;
+	bottom: 0;
+}
+
+.c-DashMonitor .rowRequest {
+	position: absolute;
+	top: 2px;
+	bottom: 2px;
+	border-radius: 4px;	
+}
+
+.c-DashMonitor .key {
+	box-shadow: inset 0 8px 11px -10px;
+	font-size: 11px;
+	padding: 10px;
+}
+
+
+.c-DashMonitor .keyItem {
+	display: inline-block;
+	margin-right: 10px;
+}
+
+.c-DashMonitor .keyBox {
+	display: inline-block;
+	position: relative;
+	top: -1px;
+	width: 10px;
+	height: 10px;
+	margin: 0 5px;
+	border: 1px solid #888;
+	vertical-align: middle;
+}
+
+.c-DashMonitor .pending { background: rgb(173, 173, 173); }
+.c-DashMonitor .downloading { background: rgb(114, 114, 114); }
+.c-DashMonitor .downloaded { background: rgb(133, 185, 143); }
+.c-DashMonitor .appended { background: rgb(0, 189, 36); }
+.c-DashMonitor .error { background: rgb(223, 66, 66); }
+

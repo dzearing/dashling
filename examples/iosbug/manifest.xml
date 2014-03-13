@@ -1,0 +1,29 @@
+<MPD type="static" maxSegmentDuration="PT5.000S" profiles="urn:mpeg:dash:profile:isoff-live:2011" mediaPresentationDuration="PT0H0M56.903S" minBufferTime="PT4.500S" xmlns="urn:mpeg:DASH:schema:MPD:2011">
+  <BaseURL>iosbug/</BaseURL>
+  <Period>
+    <AdaptationSet id="0" contentType="audio" mimeType="audio/mp4" segmentAlignment="true" bitstreamSwitching="true" codecs="mp4a.40.2">
+      <SegmentTemplate timescale="44100" initialization="init-$RepresentationID$.bin" media="$RepresentationID$-$Time$.bin">
+        <SegmentTimeline>
+          <S d="220500" r="10" />
+          <S d="83937" />
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="audio-low" audioSamplingRate="44100" bandwidth="96000" codecs="mp4a.40.2" />
+      <Representation id="audio-medium" audioSamplingRate="44100" bandwidth="128000" codecs="mp4a.40.2" />
+      <Representation id="audio-high" audioSamplingRate="44100" bandwidth="192000" codecs="mp4a.40.2" />
+    </AdaptationSet>
+    <AdaptationSet id="1" contentType="video" mimeType="video/mp4" segmentAlignment="true" bitstreamSwitching="true" maxFrameRate="2500000/83409" maxWidth="1080" maxHeight="1920" codecs="avc1.4d0028">
+      <SegmentTemplate timescale="29972" initialization="init-$RepresentationID$.bin" media="$RepresentationID$-$Time$.bin">
+        <SegmentTimeline>
+          <S d="149863" r="10" />
+          <S d="57048" />
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="video-240p" width="240" height="426" frameRate="2500000/83409" bandwidth="360000" codecs="avc1.4d401e" />
+      <Representation id="video-360p" width="360" height="640" frameRate="2500000/83409" bandwidth="672000" codecs="avc1.4d401e" />
+      <Representation id="video-480p" width="480" height="852" frameRate="2500000/83409" bandwidth="1200000" codecs="avc1.4d001f" />
+      <Representation id="video-720p" width="720" height="1280" frameRate="2500000/83409" bandwidth="2704000" codecs="avc1.4d001f" />
+      <Representation id="video-1080p" width="1080" height="1920" frameRate="2500000/83409" bandwidth="6072000" codecs="avc1.4d0028" />
+    </AdaptationSet>
+  </Period>
+</MPD>
