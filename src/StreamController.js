@@ -9,7 +9,6 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
     _this._mediaSource = mediaSource;
     _this._settings = settings;
 
-    _this._mediaSource.
     _this._audioStream = new Dashling.Stream("audio", mediaSource, settings);
     _this._videoStream = new Dashling.Stream("video", mediaSource, settings);
 
@@ -21,7 +20,7 @@ Dashling.StreamController.prototype = {
     _audioDownloadIndex: 0,
     _videoDownloadIndex: 0,
     _simultaneousDownloadsPerStream: 2,
-    _max
+    _maxSegmentsAhead: 2,
 
     dispose: function() {
         var _this = this;
@@ -48,10 +47,13 @@ Dashling.StreamController.prototype = {
         // TODO
     },
 
-    _tryLoadNextFragment: function() {
-        this._assessQuality();
+    _loadNextFragment: function() {
+        var _this = this;
 
-        this._audioStream.loadFragment(this._audioDownloadIndex, this._tryAppendFragments);
+        if (_audioDownloadIndex < this._videoDownloadIndex + 2)
+        _this._audioStream.loadFragment(this._audioDownloadIndex, function() {
+
+        } this._tryAppendFragments);
         this._videoStream.loadFragment(this._videoDownloadIndex, this._tryAppendFragments);
     },
 
@@ -80,6 +82,11 @@ Dashling.StreamController.prototype = {
     },
 
     _tryDownloadFragments: function() {
+        var currentTime = this._videoElement.currentTime;
+        var timeRemainingToPlay = this._manifest.mediaDuration - currentTime;
+        var secondsPerSegment = this._manifest.
+        var bufferSecondsAvailable =
+
 
         this._audioStream.downloadNextFragment();
 
@@ -92,7 +99,9 @@ Dashling.StreamController.prototype = {
                 }
                 this._loadNextFragment();
             }
-    }
+    },
+
+    _assestQuality: function() {}
 };
 
 
