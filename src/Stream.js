@@ -17,7 +17,8 @@ Dashling.Stream = function(streamType, mediaSource, settings) {
         _buffer: null,
         _initSegments: [],
         _delaysPerQuality: {},
-        _maxConcurrentRequestsPerQuality: {}
+        _maxConcurrentRequestsPerQuality: {},
+        _latenciesPerQuality: {}
     });
 
     var fragmentCount = streamInfo.timeline.length;
@@ -155,7 +156,7 @@ Dashling.Stream.prototype = {
 
             var timeDownloading = Math.round(request.timeAtLastByte - (request.timeAtEstimatedFirstByte || request.timeAtFirstByte));
             var timeWaiting = request.timeAtLastByte - timeDownloading;
-            var maxParallelRequests = Math.max(1, Math.min(_this._settings.maxConcurrentRequestsPerStream, Math.ceil(timeWaiting / timeDownloading)));
+            var maxParallelRequests = Math.max(1, Math.min(_this._settings.maxConcurrentRequestsPerStream, Math.round(timeWaiting / timeDownloading)));
             var newDelay = maxParallelRequests > 1 ? Math.max(timeWaiting / maxParallelRequests, timeDownloading) : 0; //  Math.round(Math.max(0, (timeWaiting - timeDownloading) / maxParallelRequests));
 
             console.log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + "index " + request.segmentIndex + " timeDownloading: " + timeDownloading + " timeWaiting:" + timeWaiting + " newDelay: " + newDelay + " maxReq: " + maxParallelRequests);
@@ -174,9 +175,10 @@ Dashling.Stream.prototype = {
 
     assessQuality: function(durationRemaining, currentIndex) {
         var settings = this._settings;
+            var averageBandwidth = this._requestManager.getAverageBandwidth();
 
-        if (!settings.isABREnabled) {
-            this.qualityIndex = this._streamType == "audio" ? settings.targetAudioQuality : settings.targetVideoQuality;
+        if (!settings.isABREnabled || !averageBandwidth) {
+            this.qualityIndex = Math.min(this._streamInfo.qualities.length - 1, settings.targetQuality[ this._streamType]);
             this.canPlay = this._getTimeToDownloadAtQuality(this.qualityIndex, currentIndex) < durationRemaining;
         }
         else {
@@ -200,6 +202,10 @@ Dashling.Stream.prototype = {
                 }
             }
 
+            if (this.qualityIndex != qualityIndex) {
+                console.log("Quality change: " + this._streamType + " from " + this.qualityIndex + " to " + qualityIndex);
+            }
+
             //this.qualityIndex = Math.min(Math.round(Math.random() * maxQuality), maxQuality);
             //this.qualityIndex = Math.min(4, maxQuality);
             this.qualityIndex = qualityIndex;
@@ -221,8 +227,7 @@ Dashling.Stream.prototype = {
         for (var i = fragmentIndex; i < this.fragments.length; i++) {
             var fragment = this.fragments[i];
 
-            // TODO: state >= downloaded
-            if (!fragment.activeRequest || fragment.activeRequest.state != Dashling.appended) {
+            if (!fragment.state < DashlingFragmentState.downloaded) {
                 duration += this._getEstimatedDuration(qualityIndex, fragmentIndex);
             }
         }
@@ -241,21 +246,16 @@ Dashling.Stream.prototype = {
     _getEstimatedDuration: function(qualityIndex, fragmentIndex) {
         var duration = 0;
         var quality = this._streamInfo.qualities[qualityIndex];
-        var qualityLatencies = this._latenciesPerQuality[qualityIndex];
+        var bandwidth = quality.bandwidth / 8;
+        var totalBytes = bandwidth * this._streamInfo.timeline[fragmentIndex].lengthSeconds;
+        var averageBytesPerSecond = (this._requestManager.getAverageBandwidth() * 1000) || 100000;
 
-        if (qualityLatencies && qualityLatencies.length) {
-            duration = _average(qualityLatencies);
-        }
-        else {
-            var bandwidth = quality.bandwidth / 8;
-            var totalBytes = bandwidth * this._streamInfo.timeline[fragmentIndex].lengthSeconds;
-            var averageBandwidth = Dashling.Requests.getAverageBytesPerSecond() || 100000;
+        duration = totalBytes / averageBytesPerSecond;
 
-            duration = totalBytes / averageBandwidth;
-        }
-
-        return (duration + Dashling.Requests.getAverageLatency()) * 1.2;
+        return duration + (this._requestManager.getAverageLatency() / 1000);
     },
+
+
 
     _loadInitSegment: function(qualityIndex, onFragmentAvailable) {
         var _this = this;

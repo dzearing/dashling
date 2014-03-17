@@ -12,10 +12,11 @@ function _bind(obj, func) {
     return function() { return func.apply(obj, arguments); };
 }
 
-function _average(numbers) {
+function _average(numbers, startIndex) {
     var total = 0;
 
-    for (var i = 0; numbers && i < numbers.length; i++) {
+
+    for (var i = Math.max(0, startIndex || 0); numbers && i < numbers.length; i++) {
         total += numbers[i];
     }
 

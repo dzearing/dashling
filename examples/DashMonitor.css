@@ -86,7 +86,7 @@
 
 .c-DashMonitor .pending { background: rgb(173, 173, 173); }
 .c-DashMonitor .downloading { background: rgb(114, 114, 114); }
-.c-DashMonitor .downloaded { background: rgb(91, 116, 160); }
+.c-DashMonitor .downloaded { background: rgb(55, 71, 255); }
 .c-DashMonitor .appending { background: rgb(133, 185, 143); }
 .c-DashMonitor .appended { background: rgb(0, 189, 36); }
 .c-DashMonitor .error { background: rgb(223, 66, 66); }

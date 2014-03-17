@@ -81,6 +81,7 @@ Dashling.StreamController.prototype = {
     _appendNextFragment: function(fragmentLoaded) {
         var _this = this;
         var streams = this._streams;
+        var stream;
         var streamIndex;
 
         if (streams && streams.length) {
@@ -92,8 +93,7 @@ Dashling.StreamController.prototype = {
                 var allStreamsAppended = true;
 
                 for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
-                    var stream = streams[streamIndex];
-
+                    stream = streams[streamIndex];
                     canAppend &= stream.canAppend(_this._appendIndex);
                     allStreamsAppended &= stream.fragments[_this._appendIndex].state == DashlingFragmentState.appended;
                 }
@@ -109,9 +109,23 @@ Dashling.StreamController.prototype = {
                     }
                 }
 
-                // If the append index.
+                // If the append index, and assess quality
                 if (allStreamsAppended) {
+                    var canPlay = true;
+
                     _this._appendIndex++;
+                    for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
+                        var secondsRemaining = _this._settings.manifest.mediaDuration - _this._videoElement.currentTime;
+                        var stream = streams[streamIndex];
+
+                        stream.assessQuality(secondsRemaining, _this._appendIndex);
+                        canPlay &= stream.canPlay;
+                    }
+
+                    if (canPlay && this._settings.shouldAutoPlay && !this._hasAutoPlayed) {
+                        this._hasAutoPlayed = true;
+                        this._videoElement.play();
+                    }
                 }
                 else {
                     break;
@@ -123,20 +137,17 @@ Dashling.StreamController.prototype = {
     },
 
    _getDownloadList: function() {
+        var _this = this;
         var downloadList = [];
-        var streamIndex = this._nextStreamIndex;
-        var fragmentIndex = this._appendIndex;
-        var maxFragmentIndex = Math.min(this._appendIndex + this._settings.maxDownloadsBeyondAppendPosition, this._streams[0].fragments.length - 1);
-        var now = new Date().getTime();
-        var downloadCount = 0;
-        var addedDownloads = true;
+        var settings = _this._settings;
+        var maxFragmentIndex = Math.min(this._appendIndex + settings.maxDownloadsBeyondAppendPosition, _this._streams[0].fragments.length - 1);
 
-        for (var streamIndex = 0; streamIndex < this._streams.length; streamIndex++) {
-            var stream = this._streams[streamIndex];
+        for (var streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
+            var stream = _this._streams[streamIndex];
             var maxDownloads = stream._getMaxConcurrentRequests(stream.qualityIndex);
             var pendingDownloads = 0;
 
-            for (var fragmentIndex = this._appendIndex; fragmentIndex <= maxFragmentIndex && pendingDownloads < maxDownloads; fragmentIndex++) {
+            for (var fragmentIndex = _this._appendIndex; fragmentIndex <= maxFragmentIndex && pendingDownloads < maxDownloads; fragmentIndex++) {
                 var fragment = stream.fragments[fragmentIndex];
 
                 if (fragment.state == DashlingFragmentState.downloading) {

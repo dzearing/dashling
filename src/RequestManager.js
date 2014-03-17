@@ -4,10 +4,19 @@ Dashling.RequestManager = function() {
     this._bandwidths = [];
 };
 
+var RequestManagerState = {
+    noPendingRequests: 0,
+    waitingForResponse: 1,
+    receivingData: 2,
+    receivingParallelData: 3
+};
+
 Dashling.RequestManager.prototype = {
     maxRetries: 3,
     delayBetweenRetries: [ 200, 1500, 3000 ],
     _requestIndex: 0,
+    _state: RequestManagerState.noPendingRequests,
+
     _xhrType: XMLHttpRequest,
 
     dispose: function() {
@@ -55,26 +64,22 @@ Dashling.RequestManager.prototype = {
                     request.timeAtLastByte = new Date().getTime() - request.startTime;
                     request.bytesLoaded = isArrayBuffer ? xhr.response.byteLength : xhr.responseText.length;
 
-                    if (request.timeAtFirstByte < 0) {
-                        // There was only one response returned.
-                        request.timeAtFirstByte = new Date().getTime() - request.startTime;
-                    }
+                    // Ensure we've recorded firstbyte time.
+                    xhr.onreadystatechange();
 
                     if (request.progressEvents.length > 1) {
                         var lastEvent = request.progressEvents[request.progressEvents.length - 1];
                         var firstEvent = request.progressEvents[0];
                         var timeDifference = lastEvent.timeFromStart - firstEvent.timeFromStart;
                         var bytesLoaded = lastEvent.bytesLoaded - firstEvent.bytesLoaded;
-                        var bytesPerMillisecond = bytesLoaded / timeDifference;
 
-                        request.timeAtEstimatedFirstByte = request.timeAtLastByte - (request.bytesLoaded / bytesPerMillisecond);
+                        request.bytesPerMillisecond = bytesLoaded / timeDifference;
+                        request.timeAtEstimatedFirstByte = request.timeAtLastByte - (request.bytesLoaded / request.bytesPerMillisecond);
 
                         if (bytesLoaded > 10000 && timeDifference > 5) {
-                            _this._bandwidths.push(bytesPerMillisecond);
+                            _this._bandwidths.push(request.bytesPerMillisecond);
+                            _this._latencies.push(request.timeAtEstimatedFirstByte);
                         }
-
-
-
                     }
 
                     request.data = isArrayBuffer ? new Uint8Array(xhr.response) : xhr.responseText;
@@ -116,10 +121,10 @@ Dashling.RequestManager.prototype = {
     },
 
     getAverageLatency: function() {
-        return _average(this._latencies) / 1000;
+        return _average(this._latencies, this._bandwidths.length - 5);
     },
 
     getAverageBandwidth: function() {
-        return _average(this._bandwidths);
+        return _average(this._bandwidths, this._bandwidths.length - 5);
     }
 };
