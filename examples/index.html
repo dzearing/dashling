@@ -5,14 +5,14 @@
     <meta charset="utf-8"/>
     <title>Dashling.js Test</title>
     <meta name="description" content="" />
-    
-    <script type="text/javascript" src="../dist/dashling.min.js"></script>
-    
+
+    <script type="text/javascript" src="../dist/dashling.full.js"></script>
+
     <link rel="stylesheet" type="text/css" href="DashMonitor.css"></link>
     <script type="text/javascript" src="DashMonitor.js"></script>
 
     <script>
-        var monitor, 
+        var monitor,
             dashling;
 
         function initPage() {
@@ -21,18 +21,18 @@
             videoElement.addEventListener("error", function(ev) { alert("Video element threw: " + ev); });
         }
 
-        function loadDashling() {            
+        function loadDashling() {
             dashling = new Dashling();
 
             var qualitySelect = document.querySelector("#qualitySelect");
             var startingQuality = Number(qualitySelect.options[qualitySelect.selectedIndex].value);
-            
+
             var useABR = document.querySelector("#autoAdjust").checked;
 
             var selection = document.querySelector("#videoSelect");
             var url = selection.options[selection.selectedIndex].value;
 
-            dashling.settings.targetVideoQuality = startingQuality;
+            dashling.settings.targetQuality.video = startingQuality;
             dashling.settings.isABREnabled = useABR;
 
             dashling.load(document.querySelector("video"), url);
@@ -42,8 +42,8 @@
         function initMonitor() {
             monitor = new DashMonitor();
             document.getElementById("monitorContainer").innerHTML = monitor.renderHtml();
-            monitor.activate();     
-            monitor.observeVideoElement(document.querySelector("video"));            
+            monitor.activate();
+            monitor.observeVideoElement(document.querySelector("video"));
             setInterval(updateMonitor, 200);
         }
 
@@ -53,40 +53,43 @@
 
         function getStatsFromDashling(player) {
             var context = {};
-            var manifest = player._manifest;
+            var controller = player._streamController;
+            var manifest = player.settings.manifest;
 
-            if (manifest && player._audioStream && player._videoStream) {
-                var streamMaps = [ player._audioStream._streamMap, player._videoStream._streamMap];
+            if (manifest && controller) {
+                var fragmentList = [ controller._streams[0].fragments, controller._streams[1].fragments];
                 var qualityDictionary = {};
 
                 context.videoDuration = manifest.mediaDuration;
                 context.qualities = [];
 
-                for (var streamIndex = 0 ; streamIndex< streamMaps.length; streamIndex++) {
-                    var streamMap = streamMaps[streamIndex];
+                for (var fragmentListIndex = 0 ; fragmentListIndex< fragmentList.length; fragmentListIndex++) {
+                    var fragments = fragmentList[fragmentListIndex];
 
-                    for (var segmentIndex = 0; segmentIndex < streamMap.length; segmentIndex++) {
-                        var segment = streamMap[segmentIndex];
+                    for (var fragmentIndex = 0; fragmentIndex < fragments.length; fragmentIndex++) {
+                        var fragment = fragments[fragmentIndex];
 
-                        for (var requestIndex = 0; requestIndex < segment.requests.length; requestIndex++) {
-                            var segmentRequest = segment.requests[requestIndex];
+                        for (var requestIndex = 0; requestIndex < fragment.requests.length; requestIndex++) {
+                            var fragmentRequest = fragment.requests[requestIndex];
 
-                            var qualityEntry = qualityDictionary[segmentRequest.qualityId];
+                            var qualityEntry = qualityDictionary[fragmentRequest.qualityId];
 
                             if (!qualityEntry) {
-                                qualityEntry = qualityDictionary[segmentRequest.qualityId] = {
-                                    name: segmentRequest.qualityId,
+                                qualityEntry = qualityDictionary[fragmentRequest.qualityId] = {
+                                    name: fragmentRequest.qualityId,
                                     requests: []
                                 };
 
                                 context.qualities.push(qualityEntry);
                             }
 
+
+                            var stateStrings = [""];
                             var stat = {
-                                state: segmentRequest.state,
-                                segmentPosition: segment.time.startSeconds,
-                                segmentDuration: segment.time.lengthSeconds,
-                                requentIndex: requestIndex
+                                state: _findInEnum(fragment.state, Dashling.FragmentState),
+                                segmentPosition: fragment.time.startSeconds,
+                                segmentDuration: fragment.time.lengthSeconds,
+                                requestIndex: requestIndex
                             };
 
                             qualityEntry.requests.push(stat);
@@ -98,13 +101,22 @@
             return context;
         }
 
+        function _findInEnum(val, en) {
+            for (var i in en) {
+                if (en[i] == val) {
+                    return i;
+                }
+            }
+            return "";
+        }
+
         function toggleBenefits() {
             var benefits = document.getElementById("benefits");
             benefits.className = benefits.className == "hidden" ? "" : "hidden";
         }
 
     </script>
-    
+
     <style>
         body {
             font-family: Segoe UI;
@@ -116,9 +128,9 @@
             font-family: Segoe UI Light;
             font-weight: lighter;
             font-size: 20px;
-            
+
             margin: 0;
-            padding: 5px 10px;           
+            padding: 5px 10px;
             margin-bottom: 5px;
             background: #eee;
         }
@@ -129,13 +141,13 @@
         input {
             vertical-align: middle;
             margin: 0 5px 2px 0;
-            
+
         }
 
         .content {
-            padding: 5px 10px;           
+            padding: 5px 10px;
         }
-        
+
         .hidden {
             display: none;
         }
@@ -155,19 +167,19 @@
                 <h2>Benefits over dash.js:</h2>
                 <ul>
                     <li>No scheduler, which causes delays in between requests.</li>
-                    <li>No nasty dupe segment download bugs.</li>
+                    <li>No nasty dupe fragment download bugs.</li>
                     <li>Retries with better delays. (500, 1500ms in between.)</li>
                     <li>Audio/video fragments are appended to MSE as a pair only when both are available, avoiding undefined browser behaviors.</li>
-                    <li>No init segments are requested if they're not needed.</li>
+                    <li>No init fragments are requested if they're not needed.</li>
                     <li>No requests are canceled unnecessarily, only on seeking.</li>
                     <li>On seeks that require downloading new content, pending requests are canceled.</li>
                     <li>Can specify a default current position on startup, allowing for "reboots" if necessary, as well as sending "position" hyperlinks.</li>
-                    <li>Quality rules are much more predictable: if you don't have enough buffer, we will be more conservative about quality. As your buffer amount grows, we increase quality. We can also do things like "avoid quality changes for X number of segments."</li>
+                    <li>Quality rules are much more predictable: if you don't have enough buffer, we will be more conservative about quality. As your buffer amount grows, we increase quality. We can also do things like "avoid quality changes for X number of fragments."</li>
                     <li>Supports avoiding manifest request by default, if you have alternative means to provide necessary data.
                     Smaller code, avoids things we don't need to support.</li>
                 </ul>
-            </div>              
-            
+            </div>
+
             <select id="videoSelect">
                 <option value="iosbug/manifest.xml">IOS bug video</option>
             </select>
@@ -175,9 +187,9 @@
             <div>
                 <span>Starting video quality:</span>
                 <select id="qualitySelect">
-                    <option value="4">4</option>
+                    <option value="4" selected="selected">4</option>
                     <option value="3">3</option>
-                    <option value="2" selected="selected">2</option>
+                    <option value="2">2</option>
                     <option value="1">1</option>
                     <option value="0">0</option>
                 </select>

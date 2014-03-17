@@ -1,4 +1,4 @@
-var EventingMixin = {
+window.EventingMixin = {
     on: function(eventName, callback) {
         this.__events = this.__events || {};
         var eventList = this.__events[eventName] = this.__events[eventName] || [];
@@ -21,6 +21,6 @@ var EventingMixin = {
             if (events[i].call(this, args) === false) {
                 break;
             }
-        } 
+        }
     }
 };

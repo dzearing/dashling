@@ -2,20 +2,36 @@ window.Dashling = function() {
     /// <summary></summary>
 
     this.settings = {
-        targetQuality: { audio: 0, video: 0 },
+        targetQuality: { audio: 5, video: 5 },
         isABREnabled: true,
         shouldAutoPlay: true,
         safeBufferSeconds: 15,
         maxBufferSeconds: 180,
+
+        // The number of concurrent downloads per stream.
+        maxConcurrentRequestsPerStream: 4,
+
+        // The number of segments to download beyond the current append cursor.
+        maxDownloadsBeyondAppendPosition: 3,
         manifest: null
     };
 };
 
+mix(Dashling, {
+    Event: DashlingEvent,
+    SessionState: DashlingSessionState,
+    FragmentState: DashlingFragmentState,
+    Error: DashlingError,
+});
+
 Dashling.prototype = {
+    // Private members
+    _streamController: null,
     _sessionIndex: 0,
     _lastError: null,
     _state: DashlingSessionState.idle,
 
+    // Public methods
     load: function (videoElement, url) {
         /// <summary></summary>
         /// <param name="videoElement"></param>
@@ -35,24 +51,26 @@ Dashling.prototype = {
     reset: function() {
         /// <summary></summary>
 
-        if (this._streamController) {
-            this._streamController.dispose();
-            this._streamController = null;
+        var _this = this;
+
+        if (_this._streamController) {
+            _this._streamController.dispose();
+            _this._streamController = null;
         }
 
-        if (this._parser) {
-            this._parser.dispose();
-            this._parser = null;
+        if (_this._parser) {
+            _this._parser.dispose();
+            _this._parser = null;
         }
 
-        if (this._videoElement) {
+        if (_this._videoElement) {
             try {
-                this._videoElement.stop();
-                this._videoElement.src = "";
+                _this._videoElement.stop();
+                _this._videoElement.src = "";
             }
             catch (e) {}
 
-            this._videoElement = null;
+            _this._videoElement = null;
         }
 
         _this.videoElement = null;
@@ -60,7 +78,7 @@ Dashling.prototype = {
 
         _this._mediaSource = null;
 
-        this._setState(DashlingSessionState.idle);
+        _this._setState(DashlingSessionState.idle);
     },
 
     getPlayingQuality: function(streamType) {
@@ -86,13 +104,13 @@ Dashling.prototype = {
         var sessionIndex = _this._sessionIndex;
         var mediaSource;
 
-        _this.raiseEvent(DashlingEvents.initMediaSourceStart);
+        _this.raiseEvent(DashlingEvent.initMediaSourceStart);
 
         try {
             mediaSource = new MediaSource();
         }
         catch (e) {
-            _this._setState(DashlingSessionState.error, DashlingError.mediaSourceInit);
+            _this._setState(DashlingSessionState.error, DashlingSessionError.mediaSourceInit);
         }
 
         mediaSource.addEventListener("sourceopen", _onOpened, false);
@@ -103,7 +121,7 @@ Dashling.prototype = {
         function _onOpened() {
             mediaSource.removeEventListener("sourceopen", _onOpened);
 
-            if (_this._sessionIndex = sessionIndex) {
+            if (_this._sessionIndex == sessionIndex) {
                 _this._mediaSource = mediaSource;
                 _this._tryStart();
             }
@@ -131,7 +149,7 @@ Dashling.prototype = {
 
         function _onManifestFailed(error) {
             if (_this._loadIndex == _loadIndex) {
-                _this._setState(DashlingSessionState.error, DashlingError.manifestFailed);
+                _this._setState(DashlingSessionState.error, DashlingSessionError.manifestFailed);
             }
         }
     },
@@ -155,5 +173,5 @@ Dashling.prototype = {
     }
 };
 
-mix(Dashling, EventingMixin);
+mix(Dashling.prototype, EventingMixin);
 

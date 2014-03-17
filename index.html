@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+<head>
+    <title>Dashling.js</title>
+    <style>
+        body {
+            font-family: Segoe UI;
+            font-size: 12px;
+            margin: 0;
+            padding: 0;
+        }
+        h1 {
+            font-family: Segoe UI Light;
+            font-weight: lighter;
+            font-size: 20px;
+
+            margin: 0;
+            padding: 5px 10px;
+            margin-bottom: 5px;
+            background: #eee;
+        }
+        h2 {
+            font-weight: bold;
+        }
+
+        input {
+            vertical-align: middle;
+            margin: 0 5px 2px 0;
+
+        }
+
+        .content {
+            padding: 5px 10px;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Dashling Test Page</h1>
+
+    <div class="content">
+        <p>
+            Dashling is a <b>Dynamic Adaptive Streaming over HTTP</b> (DASH) implementation. It downloads media fragments and pushes them into media buffers
+            provided by the browsers <b>Media Source Extension</b> support. As latency is more understood and buffer availability changes, quality is adjusted appropriately.
+            <a href="#" onclick="toggleBenefits()">See benefits over dash.js.</a>
+        </p>
+        <p><a href="examples/index.html">See example page</a></p>
+        <p><a href="test/runner.html">Run unit tests</a></p>
+    </div>
+
+</body>
+</html>

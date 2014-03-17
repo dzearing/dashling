@@ -2,9 +2,9 @@ var _instance = 0;
 
 // Utility functions.
 function byId(id) { return document.getElementById(id); }
-function ce(tag, className, text, parentEl) { 
-	var el = document.createElement(tag); 
-	
+function ce(tag, className, text, parentEl) {
+	var el = document.createElement(tag);
+
 	el.className = className;
 	el.textContent = text || "";
 	parentEl && parentEl.appendChild(el);
@@ -42,23 +42,24 @@ window.DashMonitor.prototype = {
 	},
 
 	renderHtml: function() {
-		var html = "<div id=\"" + this.id + "\" class=\"c-DashMonitor\">" + 
+		var html = "<div id=\"" + this.id + "\" class=\"c-DashMonitor\">" +
 			"<div class=\"segmentData\">" +
-				"<div id=\"" + this.id + "_1" + "\"></div>" + 
-				"<div class=\"seekContainer\"><div id=\"" + this.id + "_2" + "\" class=\"seekBar\"></div></div>" + 
+				"<div id=\"" + this.id + "_1" + "\"></div>" +
+				"<div class=\"seekContainer\"><div id=\"" + this.id + "_2" + "\" class=\"seekBar\"></div></div>" +
 			"</div>" +
 			"<div class=\"key\">" +
 				"<div class=\"keyItem\"><div class=\"keyBox pending\"></div><span>Waiting for response</span></div>" +
 				"<div class=\"keyItem\"><div class=\"keyBox downloading\"></div><span>Receiving bytes</span></div>" +
 				"<div class=\"keyItem\"><div class=\"keyBox downloaded\"></div><span>Downloaded</span></div>" +
+				"<div class=\"keyItem\"><div class=\"keyBox appending\"></div><span>Appending</span></div>" +
 				"<div class=\"keyItem\"><div class=\"keyBox appended\"></div><span>Appended</span></div>" +
 				"<div class=\"keyItem\"><div class=\"keyBox error\"></div><span>Error</span></div>" +
-			"</div>" + 
+			"</div>" +
 		"</div>";
 
 		return html;
 	},
-	
+
 	activate: function() {
 		this.element = byId(this.id);
 		this.qualityContainer = byId(this.id + "_1");
@@ -101,7 +102,7 @@ window.DashMonitor.prototype = {
 
 			this.qualityContainer.rowElements = this.qualityContainer.rowElements || {};
 
-			this.element.className = "c-DashMonitor hasData";	
+			this.element.className = "c-DashMonitor hasData";
 
 			for (i = 0; i < qualities.length; i++) {
 				var quality = qualities[i];
@@ -113,13 +114,13 @@ window.DashMonitor.prototype = {
 					rowElement.rowRequestsElement = ce("div", "rowRequests", null, rowElement);
 					rowElement.rowRequests = {};
 				}
-				
+
 				var rowRequestsElement = rowElement.rowRequestsElement;
 
 				for (var j = 0; j < quality.requests.length; j++) {
 					var request = quality.requests[j];
 
-					if (request.segmentPosition != NaN) {					
+					if (request.segmentPosition != NaN) {
 						var requestElement = rowElement.rowRequests[request.segmentPosition];
 
 						if (!requestElement) {
@@ -128,7 +129,7 @@ window.DashMonitor.prototype = {
 							requestElement.style.width = (100 * request.segmentDuration / videoDuration) + "%";
 						}
 
-						requestElement.className = "rowRequest " + request.state;			
+						requestElement.className = "rowRequest " + request.state;
 					}
 				}
 			}

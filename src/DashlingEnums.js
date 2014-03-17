@@ -1,8 +1,18 @@
-window.DashlingEvent = {
+var DashlingEvent = {
     sessionStateChange: "sessionstatechange"
 };
 
-window.DashlingSessionState = {
+var DashlingError = {
+    manifestDownload: "manifestDownload",
+    manifestParse: "manifestParse",
+    mediaSourceInit: "mediaSourceInit",
+    mediaSourceAppend: "mediaSourceAppend",
+    initSegmentDownload: "initSegmentDownload",
+    mediaSegmentDownload: "fragmentDownload",
+    append: "append"
+};
+
+var DashlingSessionState = {
     error: -1,
     idle: 0,
     intializing: 1,
@@ -11,25 +21,11 @@ window.DashlingSessionState = {
     paused: 5
 };
 
-window.DashlingError = {
-    manifestDownload: "manifestDownload",
-    manifestParse: "manifestParse",
-    mediaSourceInit: "mediaSourceInit",
-    mediaSourceAppend: "mediaSourceAppend",
-    initSegmentDownload: "initSegmentDownload",
-    mediaSegmentDownload: "fragmentDownload"
-};
-
-window.DashlingFragmentState = {
+var DashlingFragmentState = {
     error: -1,
     idle: 0,
     downloading: 1,
     downloaded: 2,
     appending: 3,
     appended: 4
-};
-
-window.DashlingFragmentError = {
-    download: "download",
-    append: "append"
 };

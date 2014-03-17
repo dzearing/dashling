@@ -1,21 +1,29 @@
+/// <summary>
+/// </summary>
+
 Dashling.StreamController = function(videoElement, mediaSource, settings) {
     var _this = this;
 
     // Provide a bound instanced callback to attach to the seek event.
     _this._onVideoSeeking = bind(_this, _this._onVideoSeeking);
+    _this._appendNextFragment = bind(_this, _this._appendNextFragment);
 
     _this._videoElement = videoElement;
-    _this._videoElement.addEventListener("seeking" _this._onVideoSeeking);
+    _this._videoElement.addEventListener("seeking", _this._onVideoSeeking);
+
     _this._mediaSource = mediaSource;
     _this._settings = settings;
 
-    _this._audioStream = new Dashling.Stream("audio", mediaSource, settings);
-    _this._videoStream = new Dashling.Stream("video", mediaSource, settings);
+    _this._streams = [
+        _this._audioStream = new Dashling.Stream("audio", mediaSource, settings),
+        _this._videoStream = new Dashling.Stream("video", mediaSource, settings)
+    ];
 
     _this._loadNextFragment();
 };
 
 Dashling.StreamController.prototype = {
+    _nextStreamIndex: 0,
     _appendIndex: 0,
     _audioDownloadIndex: 0,
     _videoDownloadIndex: 0,
@@ -43,94 +51,115 @@ Dashling.StreamController.prototype = {
 
     },
 
-    _onVideoSeeking: function() {
-        // TODO
-    },
-
     _loadNextFragment: function() {
         var _this = this;
+        var downloads = _this._getDownloadList();
 
-        if (_audioDownloadIndex < this._videoDownloadIndex + 2)
-        _this._audioStream.loadFragment(this._audioDownloadIndex, function() {
+        for (var i = 0; i < downloads.length; i++) {
 
-        } this._tryAppendFragments);
-        this._videoStream.loadFragment(this._videoDownloadIndex, this._tryAppendFragments);
-    },
+            var download = downloads[i];
+            var stream = _this._streams[download.streamIndex];
+            var fragment = stream.fragments[download.fragmentIndex];
+            var previousFragment = stream.fragments[download.fragmentIndex - 1];
+            var previousRequest = previousFragment && previousFragment.activeRequest && previousFragment.activeRequest.state == DashlingFragmentState.downloading ? previousFragment.activeRequest : null;
+            var now = new Date().getTime();
+            var minDelay = stream._getMinDelayBetweenRequests(stream.qualityIndex);
+            var timeSincePreviousFragment = previousRequest ? now - previousRequest.startTime : 0;
 
-    _appendNextFragment: function() {
-        if (this._audioStream && this._videoStream) {
-
-            var audioState = this._audioStream.getState(this._appendIndex);
-            var videoState = this._videoStream.getState(this._appendIndex);
-
-            // Skip already appended fragments if necessary.
-            while (audioState && audioState == DashlingFragmentState.appended &&
-                videoState && videoState == DashlingFragmentState.appended) {
-                this._appendIndex++;
-                audioState = this._audioStream.getState(this._appendIndex);
-                videoState = this._videoStream.getState(this._appendIndex);
+            if ((!previousRequest && this._appendIndex == download.fragmentIndex) || timeSincePreviousFragment > minDelay) {
+                stream.load(download.fragmentIndex, this._appendNextFragment);
             }
-
-            // If the both streams are available, append.
-            if (audioState && audioState == DashlingFragmentState.downloaded &&
-                videoState == DashlingFragmentState.downloaded) {
-                // If both audio and video buffers are downloaded, append both together.
-                this._audioStream.append(this._fragmentIndex, this._tryAppendFragments);
-                this._videoStream.append(this._fragmentIndex, this._tryAppendFragments);
+            else if (!_this._timerId) {
+                _this._timerId = setTimeout(function() {
+                    _this._timerId = 0;
+                    _this._loadNextFragment();
+                }, minDelay - timeSincePreviousFragment);
             }
         }
     },
 
-    _tryDownloadFragments: function() {
-        var currentTime = this._videoElement.currentTime;
-        var timeRemainingToPlay = this._manifest.mediaDuration - currentTime;
-        var secondsPerSegment = this._manifest.
-        var bufferSecondsAvailable =
+    _appendNextFragment: function(fragmentLoaded) {
+        var _this = this;
+        var streams = this._streams;
+        var streamIndex;
 
+        if (streams && streams.length) {
+            var streamsAppendable = true;
 
-        this._audioStream.downloadNextFragment();
+            while (_this._appendIndex < streams[0].fragments.length) {
+                // Try to append the current index.
+                var canAppend = true;
+                var allStreamsAppended = true;
 
-        while (this._audioStream.pendingDownloads < this._settings.concurrentRequestsPerStream)
-        this._audioStream.getNextDownloadIndex();
+                for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
+                    var stream = streams[streamIndex];
 
-                this._assessQuality();
-                if (this._audioStream.canPlay && this._videoStream.canPlay) {
-                    this._videoElement.play();
+                    canAppend &= stream.canAppend(_this._appendIndex);
+                    allStreamsAppended &= stream.fragments[_this._appendIndex].state == DashlingFragmentState.appended;
                 }
-                this._loadNextFragment();
+
+                if (canAppend) {
+                    allStreamsAppended = false;
+
+                    for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
+                        var stream = streams[streamIndex];
+
+                        stream.append(_this._appendIndex, _this._appendNextFragment);
+                        allStreamsAppended &= stream.fragments[_this._appendIndex].state == DashlingFragmentState.appended;
+                    }
+                }
+
+                // If the append index.
+                if (allStreamsAppended) {
+                    _this._appendIndex++;
+                }
+                else {
+                    break;
+                }
             }
+
+            _this._loadNextFragment();
+        }
     },
 
-    _assestQuality: function() {}
-};
+   _getDownloadList: function() {
+        var downloadList = [];
+        var streamIndex = this._nextStreamIndex;
+        var fragmentIndex = this._appendIndex;
+        var maxFragmentIndex = Math.min(this._appendIndex + this._settings.maxDownloadsBeyondAppendPosition, this._streams[0].fragments.length - 1);
+        var now = new Date().getTime();
+        var downloadCount = 0;
+        var addedDownloads = true;
 
+        for (var streamIndex = 0; streamIndex < this._streams.length; streamIndex++) {
+            var stream = this._streams[streamIndex];
+            var maxDownloads = stream._getMaxConcurrentRequests(stream.qualityIndex);
+            var pendingDownloads = 0;
 
+            for (var fragmentIndex = this._appendIndex; fragmentIndex <= maxFragmentIndex && pendingDownloads < maxDownloads; fragmentIndex++) {
+                var fragment = stream.fragments[fragmentIndex];
 
-        _assessQuality: function() {
-            var timeRemainingToPlay = this._manifest.mediaDuration - this._videoElement.currentTime;
-
-            this._audioStream.assessQuality(timeRemainingToPlay, this._fragmentIndex);
-            this._videoStream.assessQuality(timeRemainingToPlay, this._fragmentIndex);
-        },
-
-        _tryAppendFragments: function() {
-            var audioState = this._audioStream.getState(this._fragmentIndex);
-            var videoState = this._videoStream.getState(this._fragmentIndex);
-
-            if (audioState == Dashling.FragmentState.downloaded && videoState == Dashling.FragmentState.downloaded) {
-                this._audioStream.append(this._fragmentIndex, this._tryAppendFragments);
-                this._videoStream.append(this._fragmentIndex, this._tryAppendFragments);
-            }
-            else if (audioState == Dashling.FragmentState.appended && videoState == Dashling.FragmentState.appended) {
-                this._fragmentIndex++;
-                this._assessQuality();
-                if (this._audioStream.canPlay && this._videoStream.canPlay) {
-                    this._videoElement.play();
+                if (fragment.state == DashlingFragmentState.downloading) {
+                    pendingDownloads++;
                 }
-                this._loadNextFragment();
+                else if (fragment.state == DashlingFragmentState.idle) {
+                    downloadList.push({ streamIndex: streamIndex, fragmentIndex: fragmentIndex });
+                    pendingDownloads++;
+                }
             }
-        },
 
-        _tryStartPlaying: function() {
+        }
 
-        },
+        return downloadList;
+    },
+
+    _isFragmentDownloadable: function(fragment) {
+        return (fragment.state == DashlingFragmentState.idle);
+    },
+
+    _onVideoSeeking: function() {
+        // TODO
+    }
+
+
+};

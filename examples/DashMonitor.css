@@ -58,7 +58,7 @@
 	position: absolute;
 	top: 2px;
 	bottom: 2px;
-	border-radius: 4px;	
+	border-radius: 4px;
 }
 
 .c-DashMonitor .key {
@@ -86,7 +86,8 @@
 
 .c-DashMonitor .pending { background: rgb(173, 173, 173); }
 .c-DashMonitor .downloading { background: rgb(114, 114, 114); }
-.c-DashMonitor .downloaded { background: rgb(133, 185, 143); }
+.c-DashMonitor .downloaded { background: rgb(91, 116, 160); }
+.c-DashMonitor .appending { background: rgb(133, 185, 143); }
 .c-DashMonitor .appended { background: rgb(0, 189, 36); }
 .c-DashMonitor .error { background: rgb(223, 66, 66); }
 

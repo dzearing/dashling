@@ -1,14 +1,14 @@
 Dashling.ManifestParser = function() {
-    this._requests = new Dashling.Requests();
+    this._requestManager = new Dashling.RequestManager();
 };
 
-Dashling.prototype = {
+Dashling.ManifestParser.prototype = {
     _parseIndex: 0,
 
     dispose: function() {
-        if (this._requests) {
-            this._requests.dispose();
-            this._requests = null;
+        if (this._requestManager) {
+            this._requestManager.dispose();
+            this._requestManager = null;
         }
     },
 
@@ -17,7 +17,7 @@ Dashling.prototype = {
         var parseIndex = ++_this._parseIndex;
         var request = { url: url };
 
-        this._requests.load(request, false, _onSuccess, _onError);
+        this._requestManager.load(request, false, _onSuccess, _onError);
 
         function _onSuccess() {
             if (_this._parseIndex == parseIndex) {

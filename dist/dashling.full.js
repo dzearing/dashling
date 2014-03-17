@@ -1,620 +1,968 @@
 (function() {
 
-	function mix(dest, source) {
-		for (var i in source) {
-			if (source.hasOwnProperty(i)) {
-				dest[i] = source[i];
-			}
-		}
-	}
-
-    function bind(obj, func) { return function() { return func.apply(obj, arguments); }; }
-
-	var EventingMixin = {
-		on: function(eventName, callback) {
-			this.__events = this.__events || {};
-			var eventList = this.__events[eventName] = this.__events[eventName] || [];
-
-			eventList.push(callback);
-		},
-
-		off: function(eventName, callback) {
-			var eventList = this.__events && this.__events[eventName];
-
-			if (eventList) {
-				var index = eventList.indexOf(callback);
-			}
-		},
-
-		raiseEvent: function(eventName, args) {
-			var events = this.__events && this.__events[eventName];
-
-			for (var i = 0; events && i < events.length; i++) {
-				if (events[i].call(this, args) === false) {
-					break;
-				}
-			} 
-		}
-	};
-
-	window.Dashling = function() {
-        this._tryAppendFragments = bind(this, this._tryAppendFragments);
-
-        this.settings = {
-            targetAudioQuality: 0,
-            targetVideoQuality: 0,
-            isABREnabled: true
-        };
-    };
-
-	Dashling.prototype = {
-		_videoElement: null,
-		_mediaSource: null,
-		_audioStream: null,
-		_videoStream: null,
-		_fragmentIndex: 0,
-
-		load: function (videoElement, url) {
-			this._videoElement = videoElement;		
-			this._initializeMediaSource(videoElement);
-			this._loadManifest(url);
-		},
-
-		_initializeMediaSource: function(videoElement) {
-			var _this = this;
-	        var ms = new MediaSource();
-			
-			ms.addEventListener("sourceopen", _onOpened, false);	        
-	        videoElement.addEventListener("error", _onError, false);
-	        videoElement.autoplay = false;
-
-	        videoElement.src = window.URL.createObjectURL(ms);
-
-	        function _onOpened() {
-	        	_this._mediaSource = ms;
-	        	_this._tryStart();	        	
-	        }
-
-	        function _onError() {
-	        	// TODO
-	        	alert("error initializing media source");
-	        }
-		},
-
-		_loadManifest: function(url) {
-            var _this = this;
-            var request = { url: url };
-
-            Dashling.Requests.load(request, false, _onSuccess, _onError);
-			
-            function _onSuccess(responseText) {
-                _this._manifest = _this._parseManifest(request.data);
-                _this._tryStart();
-            }
-
-            function _onError() {
-                // TODO
-            }
-		},
-
-        _parseManifest: function (manifestText) {
-            var manifest = {};
-            var parser = new DOMParser();
-            var xmlDoc = parser.parseFromString(manifestText,"text/xml");
-            var i;
-
-            manifest.baseUrl = _getXmlNodeValue(xmlDoc, "BaseURL", "");
-            manifest.mediaDuration = _fromISOToSeconds(xmlDoc.documentElement.getAttribute("mediaPresentationDuration"));
-            manifest.streams = {};
-
-            var adaptations = [
-                xmlDoc.querySelector("AdaptationSet[contentType='audio']"),
-                xmlDoc.querySelector("AdaptationSet[contentType='video']")
-            ];
-
-            for (var adaptIndex = 0 ; adaptIndex < adaptations.length; adaptIndex++) {
-                var adaptationElement = adaptations[adaptIndex];
-
-                if (adaptationElement) {
-                    var contentType = adaptationElement.getAttribute("contentType");
-                    var representationElements = adaptationElement.querySelectorAll("Representation");
-                    var segmentTemplateElement = adaptationElement.querySelector("SegmentTemplate");
-                    var timelineElements = adaptationElement.querySelectorAll("S");
-                    var stream = manifest.streams[contentType] = {
-                        streamType: contentType,
-                        mimeType: adaptationElement.getAttribute("mimeType"),
-                        codecs: adaptationElement.getAttribute("codecs"),
-                        initUrlFormat: segmentTemplateElement.getAttribute("initialization"),
-                        fragUrlFormat: segmentTemplateElement.getAttribute("media"),
-                        qualities: [],
-                        timeline: []
-                    };
-
-                    var timeScale = segmentTemplateElement.getAttribute("timescale");
-
-
-                    for (var repIndex = 0; repIndex < representationElements.length; repIndex++) {
-                        var repElement = representationElements[repIndex];
-                        var quality = {
-                            id: repElement.getAttribute("id"),
-                            bandwidth: repElement.getAttribute("bandwidth"),
-                        };
-
-                        if (repElement.getAttribute("height")) {
-                            quality.width = Number(repElement.getAttribute("width"));
-                            quality.height = Number(repElement.getAttribute("height"));
-                        }
-
-                        stream.qualities.push(quality);
-                    }
-
-                    var startTime = 0;
-
-                    for (var timelineIndex = 0; timelineIndex < timelineElements.length; timelineIndex++) {
-                        var timelineElement = timelineElements[timelineIndex];                        
-                        var repeatCount = Number(timelineElement.getAttribute("r")) || 0;
-                        var duration = Number(timelineElement.getAttribute("d"));
-
-                        for (i = 0; i <= repeatCount; i++) {
-                            stream.timeline.push({
-                                start: startTime,
-                                startSeconds: startTime / timeScale,
-                                length: duration,
-                                lengthSeconds: duration / timeScale });
-
-                            startTime += duration;
-                        }                        
-                    }
-                }
-            }
-            
-            return manifest;
-        },
-
-		_tryStart: function() {
-			var manifest = this._manifest;
-			var mediaSource = this._mediaSource;
-
-			if (manifest && mediaSource && !this._audioStream && !this._videoStream) {
-				
-				mediaSource.duration = manifest.mediaDuration;
-
-				this._audioStream = new Dashling.Stream(mediaSource, manifest, "audio", this.settings);
-				this._videoStream = new Dashling.Stream(mediaSource, manifest, "video", this.settings);
-
-				this._loadNextFragment();
-			}			
-		},
-
-		_loadNextFragment: function() {
-			this._audioStream.loadFragment(this._fragmentIndex, this._tryAppendFragments);
-			this._videoStream.loadFragment(this._fragmentIndex, this._tryAppendFragments);				
-		},
-
-        _assessQuality: function() {
-            var timeRemainingToPlay = this._manifest.mediaDuration - this._videoElement.currentTime;
-
-            this._audioStream.assessQuality(timeRemainingToPlay, this._fragmentIndex);
-            this._videoStream.assessQuality(timeRemainingToPlay, this._fragmentIndex);
-        },
-
-		_tryAppendFragments: function() {			
-            var audioState = this._audioStream.getState(this._fragmentIndex);
-            var videoState = this._videoStream.getState(this._fragmentIndex);
-
-			if (audioState == Dashling.FragmentState.downloaded && videoState == Dashling.FragmentState.downloaded) {
-				this._audioStream.append(this._fragmentIndex, this._tryAppendFragments);
-				this._videoStream.append(this._fragmentIndex, this._tryAppendFragments);			
-			}
-            else if (audioState == Dashling.FragmentState.appended && videoState == Dashling.FragmentState.appended) {
-				this._fragmentIndex++;
-                this._assessQuality();
-                if (this._audioStream.canPlay && this._videoStream.canPlay) {
-                	this._videoElement.play();
-                }
-				this._loadNextFragment();
-			}
-		},
-
-		_tryStartPlaying: function() {
-
-		},
-
-		reset: function() {
-			this.manifestLoader.cancelAll();
-			this.fragmentLoader.cancelAll();		
-		}
-	};
-
-    Dashling.FragmentState = {
-        error: "error",
-        idle: "idle",
-        waiting: "waiting",
-        downloading: "downloading",
-        downloaded: "downloaded",
-        appending: "appending",
-        appended: "appended"
-    };
-
-    Dashling.FragmentStateIndex = {
-        error: -1,
-        idle: 0,
-        waiting: 1,
-        downloading: 2,
-        downloaded: 3,
-        appending: 4,
-        appended: 5
+window.mix = function(dest, source) {
+    for (var i in source) {
+        if (source.hasOwnProperty(i)) {
+            dest[i] = source[i];
+        }
+    }
 };
 
-	Dashling.Stream = function(mediaSource, manifest, streamType, settings) {
-		var streamInfo = this._streamInfo = manifest.streams[streamType];
-        var mediaDuration = manifest.mediaDuration;
-		var fragmentTargetDuration = manifest.fragmentDuration;
-		var fragmentCount = streamInfo.timeline.length;
+window.bind = function(obj, func) {
+    return function() { return func.apply(obj, arguments); };
+};
 
-        this._settings = settings;
-        this._manifest = manifest;
-        this._mediaSource = mediaSource;
-		this._buffer = null;
-		this._streamType = streamType;
-		this._streamMap = [];
-		this._initSegments = [];
-        this._qualityIndex = Math.max(0, Math.min(streamInfo.qualities.length - 1, streamType == "audio" ? settings.targetAudioQuality : settings.targetVideoQuality));
-        this._latenciesPerQuality = {};
+window.EventingMixin = {
+    on: function(eventName, callback) {
+        this.__events = this.__events || {};
+        var eventList = this.__events[eventName] = this.__events[eventName] || [];
 
-		for (var i = 0; i < fragmentCount; i++) {
-			this._streamMap.push({
-				qualityIndex: -1,
-				qualityId: "",
-                time: streamInfo.timeline[i],
-                activeRequest: null,
-				requests: []
-			});
-		}
-	};
+        eventList.push(callback);
+    },
 
-	Dashling.Stream.prototype = {
-		insertIndex: 0,
-		canPlay: false,
+    off: function(eventName, callback) {
+        var eventList = this.__events && this.__events[eventName];
 
-		getState: function (segmentIndex) {
-			var streamEntry = this._streamMap[segmentIndex];
-            var activeRequest = streamEntry.activeRequest;
-            var maxQualityIndex = this._streamInfo.qualities.length - 1;            
-            var maxInitSegment = this._initSegments[maxQualityIndex];
-            var initSegment = activeRequest ? this._initSegments[activeRequest.qualityIndex] : null;
-            var state = Dashling.FragmentState.idle;
+        if (eventList) {
+            var index = eventList.indexOf(callback);
+        }
+    },
 
-            var requestState = activeRequest ? Dashling.FragmentStateIndex[activeRequest.state] : Dashling.FragmentStateIndex.idle;
-            var initState = initSegment ? Dashling.FragmentStateIndex[initSegment.state] : Dashling.FragmentStateIndex.idle;
-            var maxInitState = maxInitSegment ? Dashling.FragmentStateIndex[maxInitSegment.state] : Dashling.FragmentStateIndex.idle;
+    raiseEvent: function(eventName, args) {
+        var events = this.__events && this.__events[eventName];
 
-            var stateIndex = Math.min(requestState, Math.min(maxInitState, initState));
+        for (var i = 0; events && i < events.length; i++) {
+            if (events[i].call(this, args) === false) {
+                break;
+            }
+        }
+    }
+};
 
-            for (var i in Dashling.FragmentStateIndex) {
-                if (Dashling.FragmentStateIndex[i] === stateIndex) {
-                    state = i;
+var DashlingEvent = {
+    sessionStateChange: "sessionstatechange"
+};
+
+var DashlingError = {
+    manifestDownload: "manifestDownload",
+    manifestParse: "manifestParse",
+    mediaSourceInit: "mediaSourceInit",
+    mediaSourceAppend: "mediaSourceAppend",
+    initSegmentDownload: "initSegmentDownload",
+    mediaSegmentDownload: "fragmentDownload",
+    append: "append"
+};
+
+var DashlingSessionState = {
+    error: -1,
+    idle: 0,
+    intializing: 1,
+    loading: 2,
+    playbackInProgress: 4,
+    paused: 5
+};
+
+var DashlingFragmentState = {
+    error: -1,
+    idle: 0,
+    downloading: 1,
+    downloaded: 2,
+    appending: 3,
+    appended: 4
+};
+
+window.Dashling = function() {
+    /// <summary></summary>
+
+    this.settings = {
+        targetQuality: { audio: 5, video: 5 },
+        isABREnabled: true,
+        shouldAutoPlay: true,
+        safeBufferSeconds: 15,
+        maxBufferSeconds: 180,
+
+        // The number of concurrent downloads per stream.
+        maxConcurrentRequestsPerStream: 4,
+
+        // The number of segments to download beyond the current append cursor.
+        maxDownloadsBeyondAppendPosition: 3,
+        manifest: null
+    };
+};
+
+mix(Dashling, {
+    Event: DashlingEvent,
+    SessionState: DashlingSessionState,
+    FragmentState: DashlingFragmentState,
+    Error: DashlingError,
+});
+
+Dashling.prototype = {
+    // Private members
+    _streamController: null,
+    _sessionIndex: 0,
+    _lastError: null,
+    _state: DashlingSessionState.idle,
+
+    // Public methods
+    load: function (videoElement, url) {
+        /// <summary></summary>
+        /// <param name="videoElement"></param>
+        /// <param name="url"></param>
+
+        var _this = this;
+
+        _this.reset();
+
+        _this._setState(Dashling.intializing);
+
+        _this._videoElement = videoElement;
+        _this._initializeMediaSource(videoElement);
+        _this._initializeManifest(url);
+    },
+
+    reset: function() {
+        /// <summary></summary>
+
+        var _this = this;
+
+        if (_this._streamController) {
+            _this._streamController.dispose();
+            _this._streamController = null;
+        }
+
+        if (_this._parser) {
+            _this._parser.dispose();
+            _this._parser = null;
+        }
+
+        if (_this._videoElement) {
+            try {
+                _this._videoElement.stop();
+                _this._videoElement.src = "";
+            }
+            catch (e) {}
+
+            _this._videoElement = null;
+        }
+
+        _this.videoElement = null;
+        _this.settings.manifest = null;
+
+        _this._mediaSource = null;
+
+        _this._setState(DashlingSessionState.idle);
+    },
+
+    getPlayingQuality: function(streamType) {
+        return this._streamController ? this._streamController.getPlayingQuality(streamType) : this.settings[streamType];
+    },
+
+    getBufferingQuality: function(streamType) {
+        return this._streamController ? this._streamController.getBufferingQuality(streamType) : this.settings[streamType];
+    },
+
+    _setState: function(state, error) {
+        if (this._state != state) {
+
+            this._state = state;
+            this._lastError = error;
+
+            this.raiseEvent(DashlingEvent.sessionStateChange, { state: state, error: error });
+        }
+    },
+
+    _initializeMediaSource: function(videoElement) {
+        var _this = this;
+        var sessionIndex = _this._sessionIndex;
+        var mediaSource;
+
+        _this.raiseEvent(DashlingEvent.initMediaSourceStart);
+
+        try {
+            mediaSource = new MediaSource();
+        }
+        catch (e) {
+            _this._setState(DashlingSessionState.error, DashlingSessionError.mediaSourceInit);
+        }
+
+        mediaSource.addEventListener("sourceopen", _onOpened, false);
+
+        videoElement.autoplay = false;
+        videoElement.src = window.URL.createObjectURL(mediaSource);
+
+        function _onOpened() {
+            mediaSource.removeEventListener("sourceopen", _onOpened);
+
+            if (_this._sessionIndex == sessionIndex) {
+                _this._mediaSource = mediaSource;
+                _this._tryStart();
+            }
+        }
+    },
+
+    _initializeManifest: function(url) {
+        var _this = this;
+        var loadIndex = _this._loadIndex;
+
+        if (_this.settings.manifest) {
+            _onManifestParsed(_this.settings.manifest);
+        }
+        else {
+            this._parser = new Dashling.ManifestParser();
+            this._parser.parse(url, _onManifestParsed, _onManifestFailed);
+        }
+
+        function _onManifestParsed(manifest) {
+            if (_this._loadIndex == loadIndex && _this.state != DashlingSessionState.error) {
+                _this.settings.manifest = manifest;
+                _this._tryStart();
+            }
+        }
+
+        function _onManifestFailed(error) {
+            if (_this._loadIndex == _loadIndex) {
+                _this._setState(DashlingSessionState.error, DashlingSessionError.manifestFailed);
+            }
+        }
+    },
+
+    _tryStart: function() {
+        var _this = this;
+
+        if (_this._state != DashlingSessionState.error &&
+            _this._mediaSource &&
+            _this.settings.manifest) {
+
+            _this._setState(DashlingSessionState.loading);
+
+            _this._mediaSource.duration = _this.settings.manifest.mediaDuration;
+
+            _this._streamController = new Dashling.StreamController(
+                _this._videoElement,
+                _this._mediaSource,
+                _this.settings);
+        }
+    }
+};
+
+mix(Dashling.prototype, EventingMixin);
+
+
+Dashling.ManifestParser = function() {
+    this._requestManager = new Dashling.RequestManager();
+};
+
+Dashling.ManifestParser.prototype = {
+    _parseIndex: 0,
+
+    dispose: function() {
+        if (this._requestManager) {
+            this._requestManager.dispose();
+            this._requestManager = null;
+        }
+    },
+
+    parse: function(url, onSuccess, onError) {
+        var _this = this;
+        var parseIndex = ++_this._parseIndex;
+        var request = { url: url };
+
+        this._requestManager.load(request, false, _onSuccess, _onError);
+
+        function _onSuccess() {
+            if (_this._parseIndex == parseIndex) {
+                onSuccess(_this._parseManifest(request.data));
+            }
+        }
+
+        function _onError() {
+            if (_this._parseIndex == parseIndex) {
+                onError(request);
+            }
+        }
+    },
+
+    _parseManifest: function(manifestText) {
+        var manifest = {};
+        var parser = new DOMParser();
+        var xmlDoc = parser.parseFromString(manifestText,"text/xml");
+        var i;
+
+        manifest.baseUrl = _getXmlNodeValue(xmlDoc, "BaseURL", "");
+        manifest.mediaDuration = _fromISOToSeconds(xmlDoc.documentElement.getAttribute("mediaPresentationDuration"));
+        manifest.streams = {};
+
+        var adaptations = [
+            xmlDoc.querySelector("AdaptationSet[contentType='audio']"),
+            xmlDoc.querySelector("AdaptationSet[contentType='video']")
+        ];
+
+        for (var adaptIndex = 0 ; adaptIndex < adaptations.length; adaptIndex++) {
+            var adaptationElement = adaptations[adaptIndex];
+
+            if (adaptationElement) {
+                var contentType = adaptationElement.getAttribute("contentType");
+                var representationElements = adaptationElement.querySelectorAll("Representation");
+                var segmentTemplateElement = adaptationElement.querySelector("SegmentTemplate");
+                var timelineElements = adaptationElement.querySelectorAll("S");
+                var stream = manifest.streams[contentType] = {
+                    streamType: contentType,
+                    mimeType: adaptationElement.getAttribute("mimeType"),
+                    codecs: adaptationElement.getAttribute("codecs"),
+                    initUrlFormat: segmentTemplateElement.getAttribute("initialization"),
+                    fragUrlFormat: segmentTemplateElement.getAttribute("media"),
+                    qualities: [],
+                    timeline: []
+                };
+
+                var timeScale = segmentTemplateElement.getAttribute("timescale");
+
+
+                for (var repIndex = 0; repIndex < representationElements.length; repIndex++) {
+                    var repElement = representationElements[repIndex];
+                    var quality = {
+                        id: repElement.getAttribute("id"),
+                        bandwidth: repElement.getAttribute("bandwidth"),
+                    };
+
+                    if (repElement.getAttribute("height")) {
+                        quality.width = Number(repElement.getAttribute("width"));
+                        quality.height = Number(repElement.getAttribute("height"));
+                    }
+
+                    stream.qualities.push(quality);
+                }
+
+                var startTime = 0;
+
+                for (var timelineIndex = 0; timelineIndex < timelineElements.length; timelineIndex++) {
+                    var timelineElement = timelineElements[timelineIndex];
+                    var repeatCount = Number(timelineElement.getAttribute("r")) || 0;
+                    var duration = Number(timelineElement.getAttribute("d"));
+
+                    for (i = 0; i <= repeatCount; i++) {
+                        stream.timeline.push({
+                            start: startTime,
+                            startSeconds: startTime / timeScale,
+                            length: duration,
+                            lengthSeconds: duration / timeScale });
+
+                        startTime += duration;
+                    }
+                }
+            }
+        }
+
+        return manifest;
+    }
+};
+
+
+/// <summary>
+/// </summary>
+
+Dashling.StreamController = function(videoElement, mediaSource, settings) {
+    var _this = this;
+
+    // Provide a bound instanced callback to attach to the seek event.
+    _this._onVideoSeeking = bind(_this, _this._onVideoSeeking);
+    _this._appendNextFragment = bind(_this, _this._appendNextFragment);
+
+    _this._videoElement = videoElement;
+    _this._videoElement.addEventListener("seeking", _this._onVideoSeeking);
+
+    _this._mediaSource = mediaSource;
+    _this._settings = settings;
+
+    _this._streams = [
+        _this._audioStream = new Dashling.Stream("audio", mediaSource, settings),
+        _this._videoStream = new Dashling.Stream("video", mediaSource, settings)
+    ];
+
+    _this._loadNextFragment();
+};
+
+Dashling.StreamController.prototype = {
+    _nextStreamIndex: 0,
+    _appendIndex: 0,
+    _audioDownloadIndex: 0,
+    _videoDownloadIndex: 0,
+    _simultaneousDownloadsPerStream: 2,
+    _maxSegmentsAhead: 2,
+
+    dispose: function() {
+        var _this = this;
+
+        if (_this._videoElement) {
+            _this._videoElement.removeEventListener("seeking", _this._onVideoSeeking);
+            _this._videoElement = null;
+        }
+
+        _this._mediaSource = null;
+        _this._audioStream = null;
+        _this._videoStream = null;
+    },
+
+    getPlayingQuality: function(streamType) {
+
+    },
+
+    getBufferingQuality: function(streamType) {
+
+    },
+
+    _loadNextFragment: function() {
+        var _this = this;
+        var downloads = _this._getDownloadList();
+
+        for (var i = 0; i < downloads.length; i++) {
+
+            var download = downloads[i];
+            var stream = _this._streams[download.streamIndex];
+            var fragment = stream.fragments[download.fragmentIndex];
+            var previousFragment = stream.fragments[download.fragmentIndex - 1];
+            var previousRequest = previousFragment && previousFragment.activeRequest && previousFragment.activeRequest.state == DashlingFragmentState.downloading ? previousFragment.activeRequest : null;
+            var now = new Date().getTime();
+            var minDelay = stream._getMinDelayBetweenRequests(stream.qualityIndex);
+            var timeSincePreviousFragment = previousRequest ? now - previousRequest.startTime : 0;
+
+            if ((!previousRequest && this._appendIndex == download.fragmentIndex) || timeSincePreviousFragment > minDelay) {
+                stream.load(download.fragmentIndex, this._appendNextFragment);
+            }
+            else if (!_this._timerId) {
+                _this._timerId = setTimeout(function() {
+                    _this._timerId = 0;
+                    _this._loadNextFragment();
+                }, minDelay - timeSincePreviousFragment);
+            }
+        }
+    },
+
+    _appendNextFragment: function(fragmentLoaded) {
+        var _this = this;
+        var streams = this._streams;
+        var streamIndex;
+
+        if (streams && streams.length) {
+            var streamsAppendable = true;
+
+            while (_this._appendIndex < streams[0].fragments.length) {
+                // Try to append the current index.
+                var canAppend = true;
+                var allStreamsAppended = true;
+
+                for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
+                    var stream = streams[streamIndex];
+
+                    canAppend &= stream.canAppend(_this._appendIndex);
+                    allStreamsAppended &= stream.fragments[_this._appendIndex].state == DashlingFragmentState.appended;
+                }
+
+                if (canAppend) {
+                    allStreamsAppended = false;
+
+                    for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
+                        var stream = streams[streamIndex];
+
+                        stream.append(_this._appendIndex, _this._appendNextFragment);
+                        allStreamsAppended &= stream.fragments[_this._appendIndex].state == DashlingFragmentState.appended;
+                    }
+                }
+
+                // If the append index.
+                if (allStreamsAppended) {
+                    _this._appendIndex++;
+                }
+                else {
                     break;
                 }
             }
 
-			return state;
-		},
+            _this._loadNextFragment();
+        }
+    },
 
-		append: function(segmentIndex, onComplete) {
-			var streamEntry = this._streamMap[segmentIndex];
-            var buffer = this._buffer;
-            var fragmentsToAppend = [];
-            var qualityIndex = streamEntry.qualityIndex;
-			var maxQualityIndex = this._streamInfo.qualities.length - 1;
+   _getDownloadList: function() {
+        var downloadList = [];
+        var streamIndex = this._nextStreamIndex;
+        var fragmentIndex = this._appendIndex;
+        var maxFragmentIndex = Math.min(this._appendIndex + this._settings.maxDownloadsBeyondAppendPosition, this._streams[0].fragments.length - 1);
+        var now = new Date().getTime();
+        var downloadCount = 0;
+        var addedDownloads = true;
 
+        for (var streamIndex = 0; streamIndex < this._streams.length; streamIndex++) {
+            var stream = this._streams[streamIndex];
+            var maxDownloads = stream._getMaxConcurrentRequests(stream.qualityIndex);
+            var pendingDownloads = 0;
+
+            for (var fragmentIndex = this._appendIndex; fragmentIndex <= maxFragmentIndex && pendingDownloads < maxDownloads; fragmentIndex++) {
+                var fragment = stream.fragments[fragmentIndex];
+
+                if (fragment.state == DashlingFragmentState.downloading) {
+                    pendingDownloads++;
+                }
+                else if (fragment.state == DashlingFragmentState.idle) {
+                    downloadList.push({ streamIndex: streamIndex, fragmentIndex: fragmentIndex });
+                    pendingDownloads++;
+                }
+            }
+
+        }
+
+        return downloadList;
+    },
+
+    _isFragmentDownloadable: function(fragment) {
+        return (fragment.state == DashlingFragmentState.idle);
+    },
+
+    _onVideoSeeking: function() {
+        // TODO
+    }
+
+
+};
+
+Dashling.Stream = function(streamType, mediaSource, settings) {
+
+    var _this = this;
+    var streamInfo = settings.manifest.streams[streamType];
+
+    mix(_this, {
+        fragments: [],
+        qualityIndex:  Math.max(0, Math.min(streamInfo.qualities.length - 1, settings.targetQuality[streamType])),
+
+        _initializedQualityIndex: -1,
+        _requestManager: new Dashling.RequestManager(),
+        _streamType: streamType,
+        _mediaSource: mediaSource,
+        _settings: settings,
+        _manifest: settings.manifest,
+        _streamInfo: streamInfo,
+        _buffer: null,
+        _initSegments: [],
+        _delaysPerQuality: {},
+        _maxConcurrentRequestsPerQuality: {}
+    });
+
+    var fragmentCount = streamInfo.timeline.length;
+
+    for (var i = 0; i < fragmentCount; i++) {
+        _this.fragments.push({
+            state: DashlingFragmentState.idle,
+            qualityIndex: -1,
+            qualityId: "",
+            time: streamInfo.timeline[i],
+            activeRequest: null,
+            requests: []
+        });
+    }
+};
+
+Dashling.Stream.prototype = {
+
+    canAppend: function(fragmentIndex) {
+        var fragment = this.fragments[fragmentIndex];
+        var initSegment = fragment ? this._initSegments[fragment.qualityIndex] : null;
+        var maxInitSegment = this._initSegments[this._streamInfo.qualities.length - 1];
+
+        return fragment && fragment.state == DashlingFragmentState.downloaded &&
+            initSegment && initSegment.state == DashlingFragmentState.downloaded &&
+            maxInitSegment && maxInitSegment.state == DashlingFragmentState.downloaded;
+    },
+
+    append: function(segmentIndex, onComplete) {
+        var _this = this;
+        var fragment = _this.fragments[segmentIndex];
+        var maxQualityIndex = _this._streamInfo.qualities.length - 1;
+        var fragmentsToAppend = [];
+        var buffer = _this._buffer;
+
+        if (!_this._isAppending && fragment && fragment.state === DashlingFragmentState.downloaded) {
+            // We only append one segment at a time.
+            _this._isAppending = true;
+            fragment.state = DashlingFragmentState.appending;
+
+            // On first time initialization, add the top quality init segment.
             if (!buffer) {
-            	buffer = this._buffer = this._mediaSource.addSourceBuffer(this._streamInfo.mimeType + ";codecs=" + this._streamInfo.codecs);
-            	if (maxQualityIndex > qualityIndex) {
-            		fragmentsToAppend.push(this._initSegments[maxQualityIndex]);	
-            	}            	
+                buffer = _this._getSourceBuffer();
+                if (maxQualityIndex > fragment.qualityIndex) {
+                    fragmentsToAppend.push(_this._initSegments[maxQualityIndex]);
+                }
             }
 
-            if (streamEntry.activeRequest && streamEntry.activeRequest.state == Dashling.FragmentState.downloaded) {
-    			if (segmentIndex == 0 || qualityIndex != this._streamMap[segmentIndex - 1].qualityIndex) {
-    				fragmentsToAppend.push(this._initSegments[qualityIndex]);
-    			}
-
-   				fragmentsToAppend.push(streamEntry.activeRequest);
-
-    			_appendNextEntry();
+            // append initsegment if changing qualities.
+            if (_this._initializedQualityIndex != fragment.qualityIndex) {
+                fragmentsToAppend.push(_this._initSegments[fragment.qualityIndex]);
             }
 
-			function _appendNextEntry()	{
-                var request = fragmentsToAppend[0];
+            fragmentsToAppend.push(fragment.activeRequest);
+            _appendNextEntry();
+        }
 
-				if (fragmentsToAppend.length) {
-                    
-                    request.state = Dashling.FragmentState.appending;
-					
-                    buffer.addEventListener("update", _onAppendComplete);		
 
-                    try {
-                    	buffer.appendBuffer(fragmentsToAppend[0].data);	                    	
+        function _appendNextEntry() {
+            var request = fragmentsToAppend[0];
+
+            if (fragmentsToAppend.length) {
+                buffer.addEventListener("update", _onAppendComplete);
+
+                try {
+                    console.log("Append started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""));
+                    buffer.appendBuffer(request.data);
+                }
+                catch (e) {
+                    fragment.state = DashlingFragmentState.error;
+                    _this._isAppending = false;
+                    // TODO: Fire error?
+                }
+            }
+            else {
+                fragment.state = DashlingFragmentState.appended;
+                _this._isAppending = false;
+                onComplete();
+            }
+        }
+
+        function _onAppendComplete() {
+            var request = fragmentsToAppend[0];
+
+            buffer.removeEventListener("update", _onAppendComplete);
+
+            request.timeAtAppended = new Date().getTime() - request.startTime;
+            (request.clearDataAfterAppend) && (request.data = null);
+
+            if (request.fragmentType === "init") {
+                _this._initializedQualityIndex = request.qualityIndex;
+            }
+
+            console.log("Append complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""));
+            fragmentsToAppend.shift();
+
+            _appendNextEntry();
+        }
+    },
+
+    load: function(segmentIndex, onFragmentAvailable) {
+        var _this = this;
+        var fragment = this.fragments[segmentIndex];
+
+        if (fragment && fragment.state == DashlingFragmentState.idle) {
+            if (!fragment.activeRequest) {
+
+                fragment.state = DashlingFragmentState.downloading;
+                fragment.qualityIndex = _this.qualityIndex;
+                fragment.qualityId = this._streamInfo.qualities[fragment.qualityIndex].id;
+
+                _this._loadInitSegment(this.qualityIndex, onFragmentAvailable);
+
+                var request = {
+                    url: _this._getUrl(segmentIndex, fragment),
+                    state: DashlingFragmentState.downloading,
+                    segmentIndex: segmentIndex,
+                    fragmentType: "media",
+                    qualityIndex: fragment.qualityIndex,
+                    qualityId: fragment.qualityId,
+                    clearDataAfterAppend: true
+                };
+
+                fragment.activeRequest = request;
+                fragment.requests.push(request);
+
+                console.log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""));
+
+                _this._requestManager.load(request, true, _onSuccess, _onFailure);
+            }
+        }
+
+        function _onSuccess(request) {
+            fragment.state = DashlingFragmentState.downloaded;
+
+            var timeDownloading = Math.round(request.timeAtLastByte - (request.timeAtEstimatedFirstByte || request.timeAtFirstByte));
+            var timeWaiting = request.timeAtLastByte - timeDownloading;
+            var maxParallelRequests = Math.max(1, Math.min(_this._settings.maxConcurrentRequestsPerStream, Math.ceil(timeWaiting / timeDownloading)));
+            var newDelay = maxParallelRequests > 1 ? Math.max(timeWaiting / maxParallelRequests, timeDownloading) : 0; //  Math.round(Math.max(0, (timeWaiting - timeDownloading) / maxParallelRequests));
+
+            console.log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + "index " + request.segmentIndex + " timeDownloading: " + timeDownloading + " timeWating:" + timeWaiting + " newDelay: " + newDelay + " maxReq: " + maxParallelRequests);
+
+            _this._maxConcurrentRequestsPerQuality[request.qualityIndex] = maxParallelRequests;
+            _this._delaysPerQuality[request.qualityIndex] = newDelay;
+
+            onFragmentAvailable(fragment);
+        }
+
+        function _onFailure() {
+
+            // TODO bubble error.
+        }
+    },
+
+    assessQuality: function(durationRemaining, currentIndex) {
+        var settings = this._settings;
+
+        if (!settings.isABREnabled) {
+            this.qualityIndex = this._streamType == "audio" ? settings.targetAudioQuality : settings.targetVideoQuality;
+            this.canPlay = this._getTimeToDownloadAtQuality(this.qualityIndex, currentIndex) < durationRemaining;
+        }
+        else {
+            var qualityIndex = 0;
+            var maxQuality = this._streamInfo.qualities.length - 1;
+            var timeToDownload = 0;
+            var canPlay = false;
+
+            for (; qualityIndex <= maxQuality; qualityIndex++) {
+                timeToDownload = this._getTimeToDownloadAtQuality(qualityIndex, currentIndex);
+
+                if (timeToDownload >= durationRemaining) {
+                    qualityIndex = Math.max(0, qualityIndex - 1);
+                    break;
+                }
+
+                canPlay = true;
+
+                if (qualityIndex == maxQuality) {
+                    break;
+                }
+            }
+
+            //this.qualityIndex = Math.min(Math.round(Math.random() * maxQuality), maxQuality);
+            //this.qualityIndex = Math.min(4, maxQuality);
+            this.qualityIndex = qualityIndex;
+            this.canPlay = canPlay;
+        }
+    },
+
+    _getSourceBuffer: function() {
+        if (!this._buffer) {
+            this._buffer = this._mediaSource.addSourceBuffer(this._streamInfo.mimeType + ";codecs=" + this._streamInfo.codecs);
+        }
+
+        return this._buffer;
+    },
+
+    _getTimeToDownloadAtQuality: function(qualityIndex, fragmentIndex) {
+        var duration = 0;
+
+        for (var i = fragmentIndex; i < this.fragments.length; i++) {
+            var fragment = this.fragments[i];
+
+            // TODO: state >= downloaded
+            if (!fragment.activeRequest || fragment.activeRequest.state != Dashling.appended) {
+                duration += this._getEstimatedDuration(qualityIndex, fragmentIndex);
+            }
+        }
+
+        return duration;
+    },
+
+    _getMaxConcurrentRequests: function(qualityIndex) {
+        return this._maxConcurrentRequestsPerQuality[qualityIndex] || 1;
+    },
+
+    _getMinDelayBetweenRequests: function(qualityIndex) {
+        return this._delaysPerQuality[qualityIndex] || 1000;
+    },
+
+    _getEstimatedDuration: function(qualityIndex, fragmentIndex) {
+        var duration = 0;
+        var quality = this._streamInfo.qualities[qualityIndex];
+        var qualityLatencies = this._latenciesPerQuality[qualityIndex];
+
+        if (qualityLatencies && qualityLatencies.length) {
+            duration = _average(qualityLatencies);
+        }
+        else {
+            var bandwidth = quality.bandwidth / 8;
+            var totalBytes = bandwidth * this._streamInfo.timeline[fragmentIndex].lengthSeconds;
+            var averageBandwidth = Dashling.Requests.getAverageBytesPerSecond() || 100000;
+
+            duration = totalBytes / averageBandwidth;
+        }
+
+        return (duration + Dashling.Requests.getAverageLatency()) * 1.2;
+    },
+
+    _loadInitSegment: function(qualityIndex, onFragmentAvailable) {
+        var _this = this;
+        var maxQualityIndex = this._streamInfo.qualities.length - 1;
+
+        // Ensure we always have the max init segment loaded.
+        if (qualityIndex != maxQualityIndex) {
+            _this._loadInitSegment(maxQualityIndex, onFragmentAvailable);
+        }
+
+        //
+        if (!_this._initSegments[qualityIndex]) {
+            var request = _this._initSegments[qualityIndex] = {
+                url: this._getInitUrl(qualityIndex),
+                state: DashlingFragmentState.downloading,
+                timeAtDownloadStarted: new Date().getTime(),
+                fragmentType: "init",
+                qualityIndex: qualityIndex,
+                qualityId: this._streamInfo.qualities[qualityIndex].id
+            };
+
+            console.log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""));
+
+            _this._requestManager.load(request, true, _onSuccess, _onFailure);
+        }
+
+        function _onSuccess() {
+            request.state = DashlingFragmentState.downloaded;
+
+            console.log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""));
+
+            onFragmentAvailable(request);
+        }
+
+        function _onFailure(response) {
+            request.state = DashlingFragmentState.error;
+        }
+    },
+
+    _getInitUrl: function(qualityIndex) {
+        var urlPart = this._streamInfo.initUrlFormat.replace("$RepresentationID$", this._streamInfo.qualities[qualityIndex].id);
+
+        return this._manifest.baseUrl + urlPart;
+    },
+
+    _getUrl: function(segmentIndex, fragment) {
+        var urlPart = this._streamInfo.fragUrlFormat.replace("$RepresentationID$", fragment.qualityId).replace("$Time$", fragment.time.start);
+
+        return this._manifest.baseUrl + urlPart;
+    }
+
+};
+
+mix(Dashling.Stream.prototype, EventingMixin);
+
+Dashling.RequestManager = function() {
+    this._activeRequests = {};
+    this._latencies = [];
+    this._bandwidths = [];
+};
+
+Dashling.RequestManager.prototype = {
+    maxRetries: 3,
+    delayBetweenRetries: [ 200, 1500, 3000 ],
+    _requestIndex: 0,
+    _xhrType: XMLHttpRequest,
+
+    dispose: function() {
+        for (var requestIndex in this._activeRequests) {
+            this._activeRequests[requestIndex].abort();
+        }
+        this._activeRequests = {};
+    },
+
+    load: function(request, isArrayBuffer, onSuccess, onFailure) {
+        var _this = this;
+        var maxRetries = this.maxRetries;
+        var retryIndex = -1;
+        var delayBetweenRetries = this.delayBetweenRetries;
+
+        request.retryCount = 0;
+        _startRequest();
+
+        function _startRequest() {
+            var xhr = new _this._xhrType();
+            var requestIndex = ++_this._requestIndex;
+
+            _this._activeRequests[requestIndex] = xhr;
+
+            xhr.open("GET", request.url, true);
+            isArrayBuffer && (xhr.responseType = "arraybuffer");
+
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState > 0 && request.timeAtFirstByte < 0) {
+                    request.timeAtFirstByte = new Date().getTime() - request.startTime
+                }
+            };
+
+            xhr.onprogress = function(ev) {
+                request.progressEvents.push({
+                    timeFromStart: new Date().getTime() - request.startTime,
+                    bytesLoaded: ev.lengthComputable ? ev.loaded : -1
+                });
+            };
+
+            xhr.onloadend = function() {
+                delete _this._activeRequests[requestIndex];
+
+                if (xhr.status >= 200 && xhr.status <= 299) {
+                    request.timeAtLastByte = new Date().getTime() - request.startTime;
+                    request.bytesLoaded = isArrayBuffer ? xhr.response.byteLength : xhr.responseText.length;
+
+                    if (request.timeAtFirstByte < 0) {
+                        // There was only one response returned.
+                        request.timeAtFirstByte = new Date().getTime() - request.startTime;
                     }
-                    catch (e) {
-                    	streamEntry.state = Dashling.FragmentState.error;
+
+                    if (request.progressEvents.length > 1) {
+                        var lastEvent = request.progressEvents[request.progressEvents.length - 1];
+                        var firstEvent = request.progressEvents[0];
+                        var timeDifference = lastEvent.timeFromStart - firstEvent.timeFromStart;
+                        var bytesLoaded = lastEvent.bytesLoaded - firstEvent.bytesLoaded;
+                        var bytesPerMillisecond = bytesLoaded / timeDifference;
+
+                        request.timeAtEstimatedFirstByte = request.timeAtLastByte - (request.bytesLoaded / bytesPerMillisecond);
+
+                        if (bytesLoaded > 10000 && timeDifference > 5) {
+                            _this._bandwidths.push(bytesPerMillisecond);
+                        }
+
+
+
                     }
-					
-				}
+
+                    request.data = isArrayBuffer ? new Uint8Array(xhr.response) : xhr.responseText;
+                    request.statusCode = xhr.status;
+                    request.state = DashlingFragmentState.downloaded;
+
+                    onSuccess && onSuccess(request);
+                }
                 else {
-                    streamEntry.state = Dashling.FragmentState.appended;
-                    onComplete();
+                    _onError(request);
                 }
-			}
+            };
 
-			function _onAppendComplete() {                
-                var request = fragmentsToAppend[0];
+            function _onError() {
+                if (++retryIndex < maxRetries) {
+                    request.timeAtFirstByte = -1;
+                    request.timeAtLastByte = -1;
 
-				buffer.removeEventListener("update", _onAppendComplete);
-
-                request.state = Dashling.FragmentState.appended;
-                request.timeAtAppended = new Date().getTime();
-
-                (request.clearDataAfterAppend) && (request.data = null);
-                
-                fragmentsToAppend.shift();
-
-				_appendNextEntry();
-			}
-		},
-
-		loadFragment: function(segmentIndex, onFragmentAvailable) {
-			var _this = this;
-			var mapEntry = this._streamMap[segmentIndex];
-
-            if (mapEntry) {
-    			if (mapEntry.activeRequest && mapEntry.activeRequest.state == Dashling.FragmentState.appended) {
-    				onFragmentAvailable();
-    			}
-    			else if (!mapEntry.activeRequest) {
-    				
-    				mapEntry.qualityIndex = _this._qualityIndex;
-    				mapEntry.qualityId = this._streamInfo.qualities[mapEntry.qualityIndex].id;
-
-    				_this._loadInitSegment(this._qualityIndex, onFragmentAvailable);
-
-                    var request = {
-                        url: _this._getUrl(segmentIndex, mapEntry),
-                        state: Dashling.FragmentState.downloading,                    
-                        timeAtSesssionStarted: new Date().getTime(),
-                        segmentIndex: segmentIndex,
-                        qualityIndex: mapEntry.qualityIndex,
-                        qualityId: mapEntry.qualityId,
-                        retryCount: 0,
-                        timeAtDownloadStarted: -1,
-                        timeAtFirstByte: -1,
-                        timeAtLastByte: -1,
-                        timeAtAppended: -1,
-                        clearDataAfterAppend: true,
-                        data: null,
-                        errorCode: null
-                    };
-
-                    mapEntry.activeRequest = request;
-                    mapEntry.requests.push(request);
-
-    				Dashling.Requests.load(request, true, _onSuccess, _onFailure);
-    			}
-            }
-
-            function _onSuccess() {
-                (!_this._latenciesPerQuality[request.qualityIndex]) && (_this._latenciesPerQuality[request.qualityIndex] = []);
-                _this._latenciesPerQuality[request.qualityIndex].push((request.timeAtLastByte - request.timeAtDownloadStarted) / 1000);
-
-                onFragmentAvailable();
-            }
-
-			function _onFailure() {
-
-                // TODO failure?
-			}
-		},
-
-        assessQuality: function(durationRemaining, currentIndex) {
-            var settings = this._settings;
-
-            if (!settings.isABREnabled) {
-                this._qualityIndex = this._streamType == "audio" ? settings.targetAudioQuality : settings.targetVideoQuality;
-                this.canPlay = this._getTimeToDownloadAtQuality(this._qualityIndex, currentIndex) < durationRemaining;
-            }
-            else {
-                var qualityIndex = 0;
-                var maxQuality = this._streamInfo.qualities.length - 1;
-                var timeToDownload = 0;
-                var canPlay = false;
-
-                for (; qualityIndex <= maxQuality; qualityIndex++) {
-                    timeToDownload = this._getTimeToDownloadAtQuality(qualityIndex, currentIndex);
-
-                    if (timeToDownload >= durationRemaining) {
-                        qualityIndex = Math.max(0, qualityIndex - 1);                    
-                        break;
-                    }
-
-                    canPlay = true;
-                    
-                    if (qualityIndex == maxQuality) {
-                        break;
-                    }
+                    request.retryCount++;
+                    setTimeout(_startRequest, delayBetweenRetries[Math.min(delayBetweenRetries.length - 1, retryIndex)]);
                 }
+                else {
+                    request.state = DashlingFragmentState.error;
+                    request.statusCode = xhr.status;
 
-    			//this._qualityIndex = Math.min(Math.round(Math.random() * maxQuality), maxQuality);
-    			//this._qualityIndex = Math.min(4, maxQuality);
-                this._qualityIndex = qualityIndex;
-                this.canPlay = canPlay;
-            }
-        },
-
-        _getTimeToDownloadAtQuality: function(qualityIndex, fragmentIndex) {
-            var duration = 0; 
-
-            for (var i = fragmentIndex; i < this._streamMap.length; i++) {
-                var mapEntry = this._streamMap[i];
-
-                // TODO: state >= downloaded
-                if (!mapEntry.activeRequest || mapEntry.activeRequest.state != Dashling.appended) {
-                    duration += this._getEstimatedDuration(qualityIndex, fragmentIndex);
+                    onFailure && onFailure(request);
                 }
-            }
+            };
 
-            return duration;
-        },
+            request.state = DashlingFragmentState.downloading;
 
-        _getEstimatedDuration: function(qualityIndex, fragmentIndex) {
-            var duration = 0;
-            var quality = this._streamInfo.qualities[qualityIndex];            
-            var qualityLatencies = this._latenciesPerQuality[qualityIndex];
+            request.progressEvents = [];
+            request.timeAtFirstByte = -1;
+            request.timeAtLastByte = -1;
+            request.startTime = new Date().getTime();
 
-            if (qualityLatencies && qualityLatencies.length) {
-                duration = _average(qualityLatencies);
-            }
-            else {
-                var bandwidth = quality.bandwidth / 8;
-                var totalBytes = bandwidth * this._streamInfo.timeline[fragmentIndex].lengthSeconds;
-                var averageBandwidth = Dashling.Requests.getAverageBytesPerSecond() || 100000;
-                
-                duration = totalBytes / averageBandwidth;
-            }
+            xhr.send();
+        }
+    },
 
-            return (duration + Dashling.Requests.getAverageLatency()) * 1.2;
-        },
+    getAverageLatency: function() {
+        return _average(this._latencies) / 1000;
+    },
 
-		_loadInitSegment: function(qualityIndex, onFragmentAvailable) {
-			var maxQualityIndex = this._streamInfo.qualities.length - 1;
-
-            if (qualityIndex != maxQualityIndex) {
-            	this._loadInitSegment(maxQualityIndex, onFragmentAvailable);
-            }
-
-			if (!this._initSegments[qualityIndex]) {				
-				var segmentEntry = this._initSegments[qualityIndex] = {
-                    url: this._getInitUrl(qualityIndex),
-                    state: Dashling.FragmentState.idle,                    
-                    timeAtDownloadStarted: new Date().getTime(),
-                    qualityIndex: qualityIndex,
-                    qualityId: this._streamInfo.qualities[qualityIndex].id,
-                    data: null,
-                    errorCode: null
-                };
-
-				Dashling.Requests.load(segmentEntry, true, onFragmentAvailable, _onFailure);
-			}
-
-			function _onFailure(response) {
-
-			}
-		},
-
-		_getInitUrl: function(qualityIndex) {
-			var urlPart = this._streamInfo.initUrlFormat.replace("$RepresentationID$", this._streamInfo.qualities[qualityIndex].id);
-
-			return this._manifest.baseUrl + urlPart;
-		},
-
-		_getUrl: function(segmentIndex, mapEntry) {	
-			var urlPart = this._streamInfo.fragUrlFormat.replace("$RepresentationID$", mapEntry.qualityId).replace("$Time$", mapEntry.time.start);
-
-			return this._manifest.baseUrl + urlPart;
-		}
-
-	};
-
-	mix(Dashling.Stream.prototype, EventingMixin);
-
-	Dashling.Requests = {
-        
-        _latencies: [],
-        _bandwidths: [],
-
-        getAverageLatency: function() {
-            return _average(this._latencies) / 1000;
-        },
-
-        getAverageBytesPerSecond: function() {
-            return _average(this._bandwidths);
-        },
-
-		load: function(request, isArrayBuffer, onSuccess, onFailure) {
-			var _this = this;
-			var maxRetries = 5;		
-			var retryIndex = -1;
-			var delayBetweenRetries = [ 200, 1500, 3000 ];
-
-            request.retryCount = 0;
-            _startRequest();
-
-			function _startRequest() {
-				var xhr = new XMLHttpRequest();
-
-				xhr.open("GET", request.url, true);
-				isArrayBuffer && (xhr.responseType = "arraybuffer");
-				
-                xhr.onreadystatechange = function() {
-                    if (xhr.readyState > 0 && request.timeAtFirstByte < 0) {
-                        request.timeAtFirstByte = new Date().getTime()
-                    }
-                };
-
-				xhr.onprogress = function() {
-                    (request.timeAtFirstByte < 0) && (request.timeAtFirstByte = new Date().getTime());                    
-				};
-
-				xhr.onload = function() {				
-
-					if (xhr.status >= 200 && xhr.status <= 299) {
-                        request.timeAtLastByte = new Date().getTime();                        
-                        request.bytesDownloaded = isArrayBuffer ? xhr.response.byteLength : xhr.responseText.length;
-    
-                        if (request.timeAtFirstByte < 0) {
-                            // There was only one response returned.
-                            request.timeAtFirstByte = new Date().getTime();
-                        }
-
-                        request.latency = request.timeAtFirstByte - request.timeAtDownloadStarted;
-                        request.bandwidth = (1000 * request.bytesDownloaded)  / (request.timeAtLastByte - request.timeAtDownloadStarted);
-
-
-                        if (request.bytesDownloaded > 50000) {
-                            _this._latencies.push(request.latency);
-                            _this._bandwidths.push(request.bandwidth);                            
-                        }
-
-                        request.data = isArrayBuffer ? new Uint8Array(xhr.response) : xhr.responseText;
-                        request.state = Dashling.FragmentState.downloaded;
-						onSuccess();
-					}
-                    else { 
-                        _onError();
-                    }
-				};
-
-				function _onError() {
-					if (++retryIndex < maxRetries) {
-                        request.timeAtFirstByte = -1;
-                        request.timeAtLastByte = -1;
-                        request.timeAtDownloadStarted = -1;
-                        request.retryCount++;
-						setTimeout(_startRequest, delayBetweenRetries[Math.min(delayBetweenRetries.length - 1, retryIndex)]);
-					}
-					else {
-                        request.state = Dashling.FragmentState.error;                        
-                        request.errorCode = xhr.status;
-						onFailure(request);
-					}
-				};
-
-                request.state = Dashling.FragmentState.downloading;
-                request.timeAtDownloadStarted = new Date().getTime();
-				xhr.send();
-			}
-		}
-	};
+    getAverageBandwidth: function() {
+        return _average(this._bandwidths);
+    }
+};
 
     function _average(numbers) {
         var total = 0;
@@ -657,4 +1005,5 @@
 
         return seconds;
     }
+
 })();
