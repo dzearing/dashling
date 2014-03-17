@@ -685,7 +685,7 @@ Dashling.Stream.prototype = {
             var maxParallelRequests = Math.max(1, Math.min(_this._settings.maxConcurrentRequestsPerStream, Math.ceil(timeWaiting / timeDownloading)));
             var newDelay = maxParallelRequests > 1 ? Math.max(timeWaiting / maxParallelRequests, timeDownloading) : 0; //  Math.round(Math.max(0, (timeWaiting - timeDownloading) / maxParallelRequests));
 
-            console.log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + "index " + request.segmentIndex + " timeDownloading: " + timeDownloading + " timeWating:" + timeWaiting + " newDelay: " + newDelay + " maxReq: " + maxParallelRequests);
+            console.log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + "index " + request.segmentIndex + " timeDownloading: " + timeDownloading + " timeWaiting:" + timeWaiting + " newDelay: " + newDelay + " maxReq: " + maxParallelRequests);
 
             _this._maxConcurrentRequestsPerQuality[request.qualityIndex] = maxParallelRequests;
             _this._delaysPerQuality[request.qualityIndex] = newDelay;
