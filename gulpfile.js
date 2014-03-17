@@ -7,8 +7,7 @@ var qunit = require("gulp-qunit");
 var paths = {
     scripts: inDirectory("src/", [
         "Start.js",
-        "Mix.js",
-        "Bind.js",
+        "Utilities.js",
         "EventingMixin.js",
         "DashlingEnums.js",
         "Dashling.js",
@@ -16,7 +15,6 @@ var paths = {
         "StreamController.js",
         "Stream.js",
         "RequestManager.js",
-        "Utilities.js",
         "End.js"
     ]),
     testHosts: [ "test/*.html" ],

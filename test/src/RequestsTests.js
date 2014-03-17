@@ -13,7 +13,7 @@ asyncTest("Request.load success", function() {
         ok(true, "Called success callback");
         equal(request.data, "success", "Response data was correct")
         equal(request.statusCode, 200, "Response status code was correct");
-        equal(request.state, DashlingFragmentState.downloaded, "Response has correct dashling state");
+        equal(request.state, Dashling.FragmentState.downloaded, "Response has correct dashling state");
 
         start();
     });
@@ -33,7 +33,7 @@ asyncTest("Request.load failure", function() {
     requests.load(request, false, null, function() {
         ok(true, "Called failure callback");
         equal(request.statusCode, 500, "Response status code was correct");
-        equal(request.state, DashlingFragmentState.error, "Response has correct dashling state");
+        equal(request.state, Dashling.FragmentState.error, "Response has correct dashling state");
 
         start();
      });

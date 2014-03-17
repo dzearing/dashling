@@ -1,18 +1,62 @@
 (function() {
 
-window.mix = function(dest, source) {
+function _mix(dest, source) {
     for (var i in source) {
         if (source.hasOwnProperty(i)) {
             dest[i] = source[i];
         }
     }
-};
 
-window.bind = function(obj, func) {
+    return dest;
+}
+
+function _bind(obj, func) {
     return function() { return func.apply(obj, arguments); };
-};
+}
 
-window.EventingMixin = {
+function _average(numbers) {
+    var total = 0;
+
+    for (var i = 0; numbers && i < numbers.length; i++) {
+        total += numbers[i];
+    }
+
+    return total / (numbers.length || 1);
+}
+
+function _getXmlNodeValue(xmlDoc, elementName, defaultValue) {
+    var element = xmlDoc.getElementsByTagName(elementName)[0];
+    var elementText = element ? element.childNodes[0] : null;
+
+    return elementText ? elementText.nodeValue : defaultValue;
+}
+
+function _fromISOToSeconds(isoString) {
+    // "PT0H0M29.367S";
+    var seconds = 0;
+    var tempString = isoString.substring("2"); // Remove PT
+    var tempIndex = tempString.indexOf("H");
+
+    if (tempIndex > -1) {
+        seconds += Number(tempString.substring(0, tempIndex)) * 60 * 60;
+        tempString = tempString.substring(tempIndex + 1);
+    }
+
+    tempIndex = tempString.indexOf("M");
+    if (tempIndex > -1) {
+        seconds += Number(tempString.substring(0, tempIndex)) * 60;
+        tempString = tempString.substring(tempIndex + 1);
+    }
+
+    tempIndex = tempString.indexOf("S");
+    if (tempIndex > -1) {
+        seconds += Number(tempString.substring(0, tempIndex));
+    }
+
+    return seconds;
+}
+
+var EventingMixin = {
     on: function(eventName, callback) {
         this.__events = this.__events || {};
         var eventList = this.__events[eventName] = this.__events[eventName] || [];
@@ -90,7 +134,7 @@ window.Dashling = function() {
     };
 };
 
-mix(Dashling, {
+_mix(Dashling, {
     Event: DashlingEvent,
     SessionState: DashlingSessionState,
     FragmentState: DashlingFragmentState,
@@ -246,7 +290,7 @@ Dashling.prototype = {
     }
 };
 
-mix(Dashling.prototype, EventingMixin);
+_mix(Dashling.prototype, EventingMixin);
 
 
 Dashling.ManifestParser = function() {
@@ -366,8 +410,8 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
     var _this = this;
 
     // Provide a bound instanced callback to attach to the seek event.
-    _this._onVideoSeeking = bind(_this, _this._onVideoSeeking);
-    _this._appendNextFragment = bind(_this, _this._appendNextFragment);
+    _this._onVideoSeeking = _bind(_this, _this._onVideoSeeking);
+    _this._appendNextFragment = _bind(_this, _this._appendNextFragment);
 
     _this._videoElement = videoElement;
     _this._videoElement.addEventListener("seeking", _this._onVideoSeeking);
@@ -530,7 +574,7 @@ Dashling.Stream = function(streamType, mediaSource, settings) {
     var _this = this;
     var streamInfo = settings.manifest.streams[streamType];
 
-    mix(_this, {
+    _mix(_this, {
         fragments: [],
         qualityIndex:  Math.max(0, Math.min(streamInfo.qualities.length - 1, settings.targetQuality[streamType])),
 
@@ -836,7 +880,7 @@ Dashling.Stream.prototype = {
 
 };
 
-mix(Dashling.Stream.prototype, EventingMixin);
+_mix(Dashling.Stream.prototype, EventingMixin);
 
 Dashling.RequestManager = function() {
     this._activeRequests = {};
@@ -963,47 +1007,5 @@ Dashling.RequestManager.prototype = {
         return _average(this._bandwidths);
     }
 };
-
-    function _average(numbers) {
-        var total = 0;
-
-        for (var i = 0; numbers && i < numbers.length; i++) {
-            total += numbers[i];
-        }
-
-        return total / (numbers.length || 1);
-    }
-
-    function _getXmlNodeValue(xmlDoc, elementName, defaultValue) {
-        var element = xmlDoc.getElementsByTagName(elementName)[0];
-        var elementText = element ? element.childNodes[0] : null;
-
-        return elementText ? elementText.nodeValue : defaultValue;
-    }
-
-    function _fromISOToSeconds(isoString) {
-        // "PT0H0M29.367S";
-        var seconds = 0;
-        var tempString = isoString.substring("2"); // Remove PT
-        var tempIndex = tempString.indexOf("H");
-
-        if (tempIndex > -1) {
-            seconds += Number(tempString.substring(0, tempIndex)) * 60 * 60;
-            tempString = tempString.substring(tempIndex + 1);
-        }
-
-        tempIndex = tempString.indexOf("M");
-        if (tempIndex > -1) {
-            seconds += Number(tempString.substring(0, tempIndex)) * 60;            
-            tempString = tempString.substring(tempIndex + 1);
-        }
-
-        tempIndex = tempString.indexOf("S");
-        if (tempIndex > -1) {
-            seconds += Number(tempString.substring(0, tempIndex));
-        }
-
-        return seconds;
-    }
 
 })();

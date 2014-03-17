@@ -17,7 +17,7 @@ window.Dashling = function() {
     };
 };
 
-mix(Dashling, {
+_mix(Dashling, {
     Event: DashlingEvent,
     SessionState: DashlingSessionState,
     FragmentState: DashlingFragmentState,
@@ -173,5 +173,5 @@ Dashling.prototype = {
     }
 };
 
-mix(Dashling.prototype, EventingMixin);
+_mix(Dashling.prototype, EventingMixin);
 

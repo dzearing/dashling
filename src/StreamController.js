@@ -5,8 +5,8 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
     var _this = this;
 
     // Provide a bound instanced callback to attach to the seek event.
-    _this._onVideoSeeking = bind(_this, _this._onVideoSeeking);
-    _this._appendNextFragment = bind(_this, _this._appendNextFragment);
+    _this._onVideoSeeking = _bind(_this, _this._onVideoSeeking);
+    _this._appendNextFragment = _bind(_this, _this._appendNextFragment);
 
     _this._videoElement = videoElement;
     _this._videoElement.addEventListener("seeking", _this._onVideoSeeking);

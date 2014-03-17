@@ -3,7 +3,7 @@ Dashling.Stream = function(streamType, mediaSource, settings) {
     var _this = this;
     var streamInfo = settings.manifest.streams[streamType];
 
-    mix(_this, {
+    _mix(_this, {
         fragments: [],
         qualityIndex:  Math.max(0, Math.min(streamInfo.qualities.length - 1, settings.targetQuality[streamType])),
 
@@ -309,4 +309,4 @@ Dashling.Stream.prototype = {
 
 };
 
-mix(Dashling.Stream.prototype, EventingMixin);
+_mix(Dashling.Stream.prototype, EventingMixin);
