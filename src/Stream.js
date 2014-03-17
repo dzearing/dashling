@@ -8,6 +8,7 @@ Dashling.Stream = function(streamType, mediaSource, settings) {
         qualityIndex:  Math.max(0, Math.min(streamInfo.qualities.length - 1, settings.targetQuality[streamType])),
 
         _initializedQualityIndex: -1,
+        _initRequestManager: new Dashling.RequestManager(),
         _requestManager: new Dashling.RequestManager(),
         _streamType: streamType,
         _mediaSource: mediaSource,
@@ -279,7 +280,7 @@ Dashling.Stream.prototype = {
 
             console.log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""));
 
-            _this._requestManager.load(request, true, _onSuccess, _onFailure);
+            _this._initRequestManager.load(request, true, _onSuccess, _onFailure);
         }
 
         function _onSuccess() {
