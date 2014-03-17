@@ -89,6 +89,10 @@ Dashling.prototype = {
         return this._streamController ? this._streamController.getBufferingQuality(streamType) : this.settings[streamType];
     },
 
+    getMaxQuality: function(streamType) {
+        return this.settings.manifest ? this.manifest.streams[streamType].qualities.length - 1 : 0;
+    },
+
     _setState: function(state, error) {
         if (this._state != state) {
 
