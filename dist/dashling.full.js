@@ -454,9 +454,9 @@ Dashling.StreamController.prototype = {
     },
 
     getPlayingQuality: function(streamType) {
-        var currentPosition = this._videoElement.currentPosition;
+        var currentTime = this._videoElement.currentTime;
         var stream = streamType == "video" ? this._videoStream : streamType._audioStream;
-        var fragmentIndex = Math.floor(currentPosition / stream.fragments[0].lengthSeconds);
+        var fragmentIndex = Math.floor(currentTime / stream.fragments[0].lengthSeconds);
         var qualityIndex = stream.fragments[fragmentIndex].qualityIndex;
 
         return qualityIndex >= 0 ? qualityIndex : stream.qualityIndex;
