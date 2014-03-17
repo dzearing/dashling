@@ -53,7 +53,7 @@ Dashling.StreamController.prototype = {
     },
 
     getBufferingQuality: function(streamType) {
-        var stream = streamType == "video" ? this._videoStream : streamType._audioStream;
+        var stream = streamType == "video" ? this._videoStream : this._audioStream;
 
         return stream.qualityIndex;
     },
