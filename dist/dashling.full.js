@@ -208,7 +208,7 @@ Dashling.prototype = {
     },
 
     getMaxQuality: function(streamType) {
-        return this.settings.manifest ? this.manifest.streams[streamType].qualities.length - 1 : 0;
+        return this.settings.manifest ? this.settings.manifest.streams[streamType].qualities.length - 1 : 0;
     },
 
     _setState: function(state, error) {
