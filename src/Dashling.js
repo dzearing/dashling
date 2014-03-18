@@ -21,7 +21,7 @@ _mix(Dashling, {
     Event: DashlingEvent,
     SessionState: DashlingSessionState,
     FragmentState: DashlingFragmentState,
-    Error: DashlingError,
+    Error: DashlingError
 });
 
 Dashling.prototype = {

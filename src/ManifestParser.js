@@ -72,7 +72,7 @@ Dashling.ManifestParser.prototype = {
                     var repElement = representationElements[repIndex];
                     var quality = {
                         id: repElement.getAttribute("id"),
-                        bandwidth: repElement.getAttribute("bandwidth"),
+                        bandwidth: repElement.getAttribute("bandwidth")
                     };
 
                     if (repElement.getAttribute("height")) {

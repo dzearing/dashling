@@ -145,7 +145,7 @@ _mix(Dashling, {
     Event: DashlingEvent,
     SessionState: DashlingSessionState,
     FragmentState: DashlingFragmentState,
-    Error: DashlingError,
+    Error: DashlingError
 });
 
 Dashling.prototype = {
@@ -378,7 +378,7 @@ Dashling.ManifestParser.prototype = {
                     var repElement = representationElements[repIndex];
                     var quality = {
                         id: repElement.getAttribute("id"),
-                        bandwidth: repElement.getAttribute("bandwidth"),
+                        bandwidth: repElement.getAttribute("bandwidth")
                     };
 
                     if (repElement.getAttribute("height")) {
