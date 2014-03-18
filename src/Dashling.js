@@ -70,7 +70,6 @@ Dashling.prototype = {
         if (_this._videoElement) {
             try {
                 _this._videoElement.pause();
-                _this._videoElement.src = "";
             }
             catch (e) {}
 

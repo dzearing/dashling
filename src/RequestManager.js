@@ -25,8 +25,12 @@ Dashling.RequestManager.prototype = {
 
     abortAll: function() {
         for (var requestIndex in this._activeRequests) {
-            this._activeRequests[requestIndex].isAborted = true;
-            this._activeRequests[requestIndex].abort();
+            var xhr = this._activeRequests[requestIndex];
+
+            _log("Aborting request: " + xhr.url)
+            xhr.isAborted = true;
+            xhr.abort();
+
         }
 
         this._activeRequests = {};
@@ -47,6 +51,7 @@ Dashling.RequestManager.prototype = {
 
             _this._activeRequests[requestIndex] = xhr;
 
+            xhr.url = request.url;
             xhr.open("GET", request.url, true);
             isArrayBuffer && (xhr.responseType = "arraybuffer");
 
@@ -64,45 +69,44 @@ Dashling.RequestManager.prototype = {
             };
 
             xhr.onloadend = function() {
-                if (!xhr.isAborted) {
-                    delete _this._activeRequests[requestIndex];
+                delete _this._activeRequests[requestIndex];
 
-                    if (xhr.status >= 200 && xhr.status <= 299) {
-                        request.timeAtLastByte = new Date().getTime() - request.startTime;
-                        request.bytesLoaded = isArrayBuffer ? xhr.response.byteLength : xhr.responseText.length;
+                if (xhr.status >= 200 && xhr.status <= 299) {
+                    request.timeAtLastByte = new Date().getTime() - request.startTime;
+                    request.bytesLoaded = isArrayBuffer ? xhr.response.byteLength : xhr.responseText.length;
 
-                        // Ensure we've recorded firstbyte time.
-                        xhr.onreadystatechange();
+                    // Ensure we've recorded firstbyte time.
+                    xhr.onreadystatechange();
 
-                        if (request.progressEvents.length > 1) {
-                            var lastEvent = request.progressEvents[request.progressEvents.length - 1];
-                            var firstEvent = request.progressEvents[0];
-                            var timeDifference = lastEvent.timeFromStart - firstEvent.timeFromStart;
-                            var bytesLoaded = lastEvent.bytesLoaded - firstEvent.bytesLoaded;
+                    if (request.progressEvents.length > 1) {
+                        var lastEvent = request.progressEvents[request.progressEvents.length - 1];
+                        var firstEvent = request.progressEvents[0];
+                        var timeDifference = lastEvent.timeFromStart - firstEvent.timeFromStart;
+                        var bytesLoaded = lastEvent.bytesLoaded - firstEvent.bytesLoaded;
 
-                            request.bytesPerMillisecond = bytesLoaded / timeDifference;
-                            request.timeAtEstimatedFirstByte = request.timeAtLastByte - (request.bytesLoaded / request.bytesPerMillisecond);
+                        request.bytesPerMillisecond = bytesLoaded / timeDifference;
+                        request.timeAtEstimatedFirstByte = request.timeAtLastByte - (request.bytesLoaded / request.bytesPerMillisecond);
 
-                            if (bytesLoaded > 10000 && timeDifference > 5) {
-                                _this._bandwidths.push(request.bytesPerMillisecond);
-                                _this._latencies.push(request.timeAtEstimatedFirstByte);
-                            }
+                        if (bytesLoaded > 10000 && timeDifference > 5) {
+                            _this._bandwidths.push(request.bytesPerMillisecond);
+                            _this._latencies.push(request.timeAtEstimatedFirstByte);
                         }
-
-                        request.data = isArrayBuffer ? new Uint8Array(xhr.response) : xhr.responseText;
-                        request.statusCode = xhr.status;
-                        request.state = DashlingFragmentState.downloaded;
-
-                        onSuccess && onSuccess(request);
                     }
-                    else {
-                        _onError(request);
-                    }
+
+                    request.data = isArrayBuffer ? new Uint8Array(xhr.response) : xhr.responseText;
+                    request.statusCode = xhr.status;
+                    request.state = DashlingFragmentState.downloaded;
+
+                    onSuccess && onSuccess(request);
+                }
+                else {
+                    _onError(request);
                 }
             };
 
             function _onError() {
-                if (++retryIndex < maxRetries) {
+
+                if (!xhr.isAborted && ++retryIndex < maxRetries) {
                     request.timeAtFirstByte = -1;
                     request.timeAtLastByte = -1;
 
@@ -111,8 +115,7 @@ Dashling.RequestManager.prototype = {
                 }
                 else {
                     request.state = DashlingFragmentState.error;
-                    request.statusCode = xhr.status;
-
+                    request.statusCode = xhr.isAborted ? "aborted": xhr.status;
                     onFailure && onFailure(request);
                 }
             };

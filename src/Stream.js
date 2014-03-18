@@ -44,6 +44,10 @@ Dashling.Stream.prototype = {
          }
     },
 
+    abortAll: function() {
+        this._requestManager.abortAll();
+    },
+
     canAppend: function(fragmentIndex) {
         var fragment = this.fragments[fragmentIndex];
         var initSegment = fragment ? this._initSegments[fragment.qualityIndex] : null;
@@ -75,9 +79,9 @@ Dashling.Stream.prototype = {
             }
 
             // append initsegment if changing qualities.
-            if (_this._initializedQualityIndex != fragment.qualityIndex) {
+            //if (_this._initializedQualityIndex != fragment.qualityIndex) {
                 fragmentsToAppend.push(_this._initSegments[fragment.qualityIndex]);
-            }
+            //}
 
             fragmentsToAppend.push(fragment.activeRequest);
             _appendNextEntry();
@@ -130,32 +134,29 @@ Dashling.Stream.prototype = {
         var _this = this;
         var fragment = this.fragments[segmentIndex];
 
-        if (fragment && fragment.state == DashlingFragmentState.idle) {
-            if (!fragment.activeRequest) {
+        if (fragment && fragment.state <= DashlingFragmentState.idle) {
+            fragment.state = DashlingFragmentState.downloading;
+            fragment.qualityIndex = _this.qualityIndex;
+            fragment.qualityId = this._streamInfo.qualities[fragment.qualityIndex].id;
 
-                fragment.state = DashlingFragmentState.downloading;
-                fragment.qualityIndex = _this.qualityIndex;
-                fragment.qualityId = this._streamInfo.qualities[fragment.qualityIndex].id;
+            _this._loadInitSegment(this.qualityIndex, onFragmentAvailable);
 
-                _this._loadInitSegment(this.qualityIndex, onFragmentAvailable);
+            var request = {
+                url: _this._getUrl(segmentIndex, fragment),
+                state: DashlingFragmentState.downloading,
+                segmentIndex: segmentIndex,
+                fragmentType: "media",
+                qualityIndex: fragment.qualityIndex,
+                qualityId: fragment.qualityId,
+                clearDataAfterAppend: true
+            };
 
-                var request = {
-                    url: _this._getUrl(segmentIndex, fragment),
-                    state: DashlingFragmentState.downloading,
-                    segmentIndex: segmentIndex,
-                    fragmentType: "media",
-                    qualityIndex: fragment.qualityIndex,
-                    qualityId: fragment.qualityId,
-                    clearDataAfterAppend: true
-                };
+            fragment.activeRequest = request;
+            fragment.requests.push(request);
 
-                fragment.activeRequest = request;
-                fragment.requests.push(request);
+            _log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""), _this._settings);
 
-                _log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""), _this._settings);
-
-                _this._requestManager.load(request, true, _onSuccess, _onFailure);
-            }
+            _this._requestManager.load(request, true, _onSuccess, _onFailure);
         }
 
         function _onSuccess(request) {
@@ -175,8 +176,11 @@ Dashling.Stream.prototype = {
         }
 
         function _onFailure() {
+            fragment.state = DashlingFragmentState.error;
 
-            // TODO bubble error.
+            if (fragment.state !== "aborted") {
+
+            }
         }
     },
 

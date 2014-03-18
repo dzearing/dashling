@@ -63,12 +63,17 @@
 
                         case "stalled":
                         case "timeupdate":
+                        case "seeking":
                             message += ", currentTime: " + parseFloat(videoElement.currentTime.toFixed(2)) + "s";
                             break;
 
                         case "progress":
                         case "loadeddata":
-                            message += ": " + _getBufferedRanges(videoElement);
+                            message += ", ranges: " + _getBufferedRanges(videoElement);
+                            break;
+
+                        case "error":
+                            message += ", error: " + _getError(videoElement);
                             break;
 
                         case "durationchange":
@@ -79,6 +84,23 @@
                     console.log(message);
                 }, false);
             }
+        }
+
+        function _getError(videoElement) {
+            var error = "";
+
+            if (videoElement && videoElement.error) {
+                var code = error = videoElement.error.code;
+
+                for (var i in videoElement.error) {
+                    if (i != "code" && videoElement.error[i] == code) {
+                        error = i;
+                        break;
+                    }
+                }
+            }
+
+            return error;
         }
 
         function _getBufferedRanges(videoElement) {

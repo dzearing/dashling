@@ -4,9 +4,10 @@
 Dashling.StreamController = function(videoElement, mediaSource, settings) {
     var _this = this;
 
-    // Provide a bound instanced callback to attach to the seek event.
+    // Provide a bound instanced callbacks.
     _this._onVideoSeeking = _bind(_this, _this._onVideoSeeking);
     _this._appendNextFragment = _bind(_this, _this._appendNextFragment);
+    _this._onThrottledSeek = _bind(_this, _this._onThrottledSeek);
 
     _this._videoElement = videoElement;
     _this._videoElement.addEventListener("seeking", _this._onVideoSeeking);
@@ -30,6 +31,7 @@ Dashling.StreamController.prototype = {
     _simultaneousDownloadsPerStream: 2,
     _maxSegmentsAhead: 2,
     _nextRequestTimerId: 0,
+    _seekingTimerId: 0,
 
     dispose: function() {
         var _this = this;
@@ -48,7 +50,12 @@ Dashling.StreamController.prototype = {
             _this._nextRequestTimerId = 0;
         }
 
-       _this._streams = null;
+        if (_this._seekingTimerId) {
+            clearTimeout(_this._seekingTimerId);
+            _this._seekingTimerId = 0;
+        }
+
+        _this._streams = null;
         _this._mediaSource = null;
     },
 
@@ -169,7 +176,7 @@ Dashling.StreamController.prototype = {
                 if (fragment.state == DashlingFragmentState.downloading) {
                     pendingDownloads++;
                 }
-                else if (fragment.state == DashlingFragmentState.idle) {
+                else if (fragment.state <= DashlingFragmentState.idle) {
                     downloadList.push({ streamIndex: streamIndex, fragmentIndex: fragmentIndex });
                     pendingDownloads++;
                 }
@@ -185,8 +192,34 @@ Dashling.StreamController.prototype = {
     },
 
     _onVideoSeeking: function() {
-        // TODO
-    }
+        if (!this._seekingTimerId) {
+            this._seekingTimerId = setTimeout(this._onThrottledSeek, 500);
+        }
+    },
 
+    _onThrottledSeek: function() {
+        var _this = this;
+        var currentTime = _this._videoElement.currentTime;
+        var fragmentIndex = Math.floor(currentTime / _this._streams[0].fragments[0].time.lengthSeconds);
+
+        _this._seekingTimerId = 0;
+        _log("Throttled seek: " + _this._videoElement.currentTime, _this._settings);
+
+        if (_this._nextRequestTimerId) {
+            clearTimeout(_this._nextRequestTimerId);
+            _this._nextRequestTimerId = 0;
+        }
+
+        if (_this._appendIndex < fragmentIndex) {
+
+            // Abortttttt
+            for (var streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
+                _this._streams[streamIndex].abortAll();
+            }
+        }
+
+        _this._appendIndex = fragmentIndex;
+        _this._appendNextFragment();
+    }
 
 };
