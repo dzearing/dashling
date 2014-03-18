@@ -85,7 +85,7 @@ Dashling.Stream.prototype = {
                 buffer.addEventListener("update", _onAppendComplete);
 
                 try {
-                    console.log("Append started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""));
+                    _log("Append started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""), _this._settings);
                     buffer.appendBuffer(request.data);
                 }
                 catch (e) {
@@ -113,7 +113,7 @@ Dashling.Stream.prototype = {
                 _this._initializedQualityIndex = request.qualityIndex;
             }
 
-            console.log("Append complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""));
+            _log("Append complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""), _this._settings);
             fragmentsToAppend.shift();
 
             _appendNextEntry();
@@ -146,7 +146,7 @@ Dashling.Stream.prototype = {
                 fragment.activeRequest = request;
                 fragment.requests.push(request);
 
-                console.log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""));
+                _log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""), _this._settings);
 
                 _this._requestManager.load(request, true, _onSuccess, _onFailure);
             }
@@ -160,7 +160,7 @@ Dashling.Stream.prototype = {
             var maxParallelRequests = Math.max(1, Math.min(_this._settings.maxConcurrentRequestsPerStream, Math.round(timeWaiting / timeDownloading)));
             var newDelay = maxParallelRequests > 1 ? Math.max(timeWaiting / maxParallelRequests, timeDownloading) : 0; //  Math.round(Math.max(0, (timeWaiting - timeDownloading) / maxParallelRequests));
 
-            console.log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + "index " + request.segmentIndex + " timeDownloading: " + timeDownloading + " timeWaiting:" + timeWaiting + " newDelay: " + newDelay + " maxReq: " + maxParallelRequests);
+            _log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + "index " + request.segmentIndex + " timeDownloading: " + timeDownloading + " timeWaiting:" + timeWaiting + " newDelay: " + newDelay + " maxReq: " + maxParallelRequests, _this._settings);
 
             _this._maxConcurrentRequestsPerQuality[request.qualityIndex] = maxParallelRequests;
             _this._delaysPerQuality[request.qualityIndex] = newDelay;
@@ -175,21 +175,22 @@ Dashling.Stream.prototype = {
     },
 
     assessQuality: function(durationRemaining, currentIndex) {
-        var settings = this._settings;
-            var averageBandwidth = this._requestManager.getAverageBandwidth();
+        var _this = this;
+        var settings = _this._settings;
+            var averageBandwidth = _this._requestManager.getAverageBandwidth();
 
         if (!settings.isABREnabled || !averageBandwidth) {
-            this.qualityIndex = Math.min(this._streamInfo.qualities.length - 1, settings.targetQuality[ this._streamType]);
-            this.canPlay = this._getTimeToDownloadAtQuality(this.qualityIndex, currentIndex) < durationRemaining;
+            _this.qualityIndex = Math.min(this._streamInfo.qualities.length - 1, settings.targetQuality[ _this._streamType]);
+            _this.canPlay = _this._getTimeToDownloadAtQuality(_this.qualityIndex, currentIndex) < durationRemaining;
         }
         else {
             var qualityIndex = 0;
-            var maxQuality = this._streamInfo.qualities.length - 1;
+            var maxQuality = _this._streamInfo.qualities.length - 1;
             var timeToDownload = 0;
             var canPlay = false;
 
             for (; qualityIndex <= maxQuality; qualityIndex++) {
-                timeToDownload = this._getTimeToDownloadAtQuality(qualityIndex, currentIndex);
+                timeToDownload = _this._getTimeToDownloadAtQuality(qualityIndex, currentIndex);
 
                 if (timeToDownload >= durationRemaining) {
                     qualityIndex = Math.max(0, qualityIndex - 1);
@@ -204,13 +205,13 @@ Dashling.Stream.prototype = {
             }
 
             if (this.qualityIndex != qualityIndex) {
-                console.log("Quality change: " + this._streamType + " from " + this.qualityIndex + " to " + qualityIndex);
+                _log("Quality change: " + _this._streamType + " from " + _this.qualityIndex + " to " + qualityIndex, _this.settings);
             }
 
             //this.qualityIndex = Math.min(Math.round(Math.random() * maxQuality), maxQuality);
             //this.qualityIndex = Math.min(4, maxQuality);
-            this.qualityIndex = qualityIndex;
-            this.canPlay = canPlay;
+            _this.qualityIndex = qualityIndex;
+            _this.canPlay = canPlay;
         }
     },
 
@@ -278,7 +279,7 @@ Dashling.Stream.prototype = {
                 qualityId: this._streamInfo.qualities[qualityIndex].id
             };
 
-            console.log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""));
+            _log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""), _this._settings);
 
             _this._initRequestManager.load(request, true, _onSuccess, _onFailure);
         }
@@ -286,7 +287,7 @@ Dashling.Stream.prototype = {
         function _onSuccess() {
             request.state = DashlingFragmentState.downloaded;
 
-            console.log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""));
+            _log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""), _this._settings);
 
             onFragmentAvailable(request);
         }

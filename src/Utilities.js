@@ -23,6 +23,12 @@ function _average(numbers, startIndex) {
     return total / (numbers.length || 1);
 }
 
+function _log(message, settings) {
+    if (!settings || settings.logToConsole) {
+        console.log(message);
+    }
+}
+
 function _getXmlNodeValue(xmlDoc, elementName, defaultValue) {
     var element = xmlDoc.getElementsByTagName(elementName)[0];
     var elementText = element ? element.childNodes[0] : null;

@@ -7,7 +7,7 @@ window.Dashling = function() {
         shouldAutoPlay: true,
         safeBufferSeconds: 15,
         maxBufferSeconds: 180,
-
+        logToConsole: true,
         // The number of concurrent downloads per stream.
         maxConcurrentRequestsPerStream: 4,
 

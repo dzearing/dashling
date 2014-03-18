@@ -123,6 +123,7 @@
             font-size: 12px;
             margin: 0;
             padding: 0;
+            background: #F1f1f1;
         }
         h1 {
             font-family: Segoe UI Light;
@@ -148,8 +149,26 @@
 
         }
 
-        .content {
+        .outerContainer {
+            text-align: center;
+        }
+
+        .header {
+
+        }
+
+        .innerContent {
+            display: inline-block;
+            background: white;
             padding: 5px 10px;
+            max-width: 640px;
+            text-align: left;
+            box-shadow: 0px 10px 33px 2px rgba(0,0,0,.2);
+
+        }
+
+        #monitorContainer {
+            margin: 5px 0;
         }
 
         .hidden {
@@ -159,9 +178,13 @@
 </head>
 
 <body onload="initPage()">
-    <div>
-        <h1>Dashling Test Page</h1>
-        <div class="content">
+    <div class="outerContainer">
+
+        <div class="header">
+            <h1>Dashling Test Page</h1>
+        </div>
+
+        <div class="innerContent">
             <p>
                 Dashling is a <b>Dynamic Adaptive Streaming over HTTP</b> (DASH) implementation. It downloads media fragments and pushes them into media buffers
                 provided by the browsers <b>Media Source Extension</b> support. As latency is more understood and buffer availability changes, quality is adjusted appropriately.
@@ -201,10 +224,10 @@
                 <div><input id="autoAdjust" type="checkbox" checked></input><span>Auto adjust quality</span></div>
                 <button type="button" onclick="loadDashling()">Load video</button>
             </div>
-        </div>
 
-        <video controls autoplay width="640" height="480"></video>
-        <div id="monitorContainer" style="width: 640px;"></div>
+            <video controls autoplay width="640" height="480"></video>
+            <div id="monitorContainer" style="width: 640px;"></div>
+        </div>
     </div>
 </body>
 </html>
