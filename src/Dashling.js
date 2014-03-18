@@ -1,5 +1,5 @@
 window.Dashling = function() {
-    /// <summary></summary>
+    /// <summary>Dashling main object.</summary>
 
     this.settings = {
         targetQuality: { audio: 5, video: 5 },
@@ -33,9 +33,9 @@ Dashling.prototype = {
 
     // Public methods
     load: function (videoElement, url) {
-        /// <summary></summary>
-        /// <param name="videoElement"></param>
-        /// <param name="url"></param>
+        /// <summary>Loads a video.</summary>
+        /// <param name="videoElement">The video element to load into.</param>
+        /// <param name="url">Url to manifest xml.</param>
 
         var _this = this;
 
@@ -46,6 +46,10 @@ Dashling.prototype = {
         _this._videoElement = videoElement;
         _this._initializeMediaSource(videoElement);
         _this._initializeManifest(url);
+    },
+
+    dispose: function() {
+        this.reset();
     },
 
     reset: function() {
@@ -65,7 +69,7 @@ Dashling.prototype = {
 
         if (_this._videoElement) {
             try {
-                _this._videoElement.stop();
+                _this._videoElement.pause();
                 _this._videoElement.src = "";
             }
             catch (e) {}

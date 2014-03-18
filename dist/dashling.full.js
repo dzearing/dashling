@@ -123,7 +123,7 @@ var DashlingFragmentState = {
 };
 
 window.Dashling = function() {
-    /// <summary></summary>
+    /// <summary>Dashling main object.</summary>
 
     this.settings = {
         targetQuality: { audio: 5, video: 5 },
@@ -157,9 +157,9 @@ Dashling.prototype = {
 
     // Public methods
     load: function (videoElement, url) {
-        /// <summary></summary>
-        /// <param name="videoElement"></param>
-        /// <param name="url"></param>
+        /// <summary>Loads a video.</summary>
+        /// <param name="videoElement">The video element to load into.</param>
+        /// <param name="url">Url to manifest xml.</param>
 
         var _this = this;
 
@@ -170,6 +170,10 @@ Dashling.prototype = {
         _this._videoElement = videoElement;
         _this._initializeMediaSource(videoElement);
         _this._initializeManifest(url);
+    },
+
+    dispose: function() {
+        this.reset();
     },
 
     reset: function() {
@@ -189,7 +193,7 @@ Dashling.prototype = {
 
         if (_this._videoElement) {
             try {
-                _this._videoElement.stop();
+                _this._videoElement.pause();
                 _this._videoElement.src = "";
             }
             catch (e) {}
@@ -445,6 +449,7 @@ Dashling.StreamController.prototype = {
     _videoDownloadIndex: 0,
     _simultaneousDownloadsPerStream: 2,
     _maxSegmentsAhead: 2,
+    _nextRequestTimerId: 0,
 
     dispose: function() {
         var _this = this;
@@ -454,9 +459,17 @@ Dashling.StreamController.prototype = {
             _this._videoElement = null;
         }
 
+        for (var i = 0; _this._streams && i < _this._streams.length; i++) {
+            _this._streams[i].dispose();
+        }
+
+        if (_this._nextRequestTimerId) {
+            clearTimeout(_this._nextRequestTimerId);
+            _this._nextRequestTimerId = 0;
+        }
+
+       _this._streams = null;
         _this._mediaSource = null;
-        _this._audioStream = null;
-        _this._videoStream = null;
     },
 
     getPlayingQuality: function(streamType) {
@@ -492,9 +505,9 @@ Dashling.StreamController.prototype = {
             if ((!previousRequest && this._appendIndex == download.fragmentIndex) || timeSincePreviousFragment > minDelay) {
                 stream.load(download.fragmentIndex, this._appendNextFragment);
             }
-            else if (!_this._timerId) {
-                _this._timerId = setTimeout(function() {
-                    _this._timerId = 0;
+            else if (!_this._nextRequestTimerId) {
+                _this._nextRequestTimerId = setTimeout(function() {
+                    _this._nextRequestTimerId = 0;
                     _this._loadNextFragment();
                 }, minDelay - timeSincePreviousFragment);
             }
@@ -637,6 +650,12 @@ Dashling.Stream = function(streamType, mediaSource, settings) {
 };
 
 Dashling.Stream.prototype = {
+    dispose: function() {
+        if (this._requestManager) {
+            this._requestManager.dispose();
+            this._requestManager = null;
+         }
+    },
 
     canAppend: function(fragmentIndex) {
         var fragment = this.fragments[fragmentIndex];
@@ -935,9 +954,15 @@ Dashling.RequestManager.prototype = {
     _xhrType: XMLHttpRequest,
 
     dispose: function() {
+        this.abortAll();
+    },
+
+    abortAll: function() {
         for (var requestIndex in this._activeRequests) {
+            this._activeRequests[requestIndex].isAborted = true;
             this._activeRequests[requestIndex].abort();
         }
+
         this._activeRequests = {};
     },
 
@@ -973,38 +998,40 @@ Dashling.RequestManager.prototype = {
             };
 
             xhr.onloadend = function() {
-                delete _this._activeRequests[requestIndex];
+                if (!xhr.isAborted) {
+                    delete _this._activeRequests[requestIndex];
 
-                if (xhr.status >= 200 && xhr.status <= 299) {
-                    request.timeAtLastByte = new Date().getTime() - request.startTime;
-                    request.bytesLoaded = isArrayBuffer ? xhr.response.byteLength : xhr.responseText.length;
+                    if (xhr.status >= 200 && xhr.status <= 299) {
+                        request.timeAtLastByte = new Date().getTime() - request.startTime;
+                        request.bytesLoaded = isArrayBuffer ? xhr.response.byteLength : xhr.responseText.length;
 
-                    // Ensure we've recorded firstbyte time.
-                    xhr.onreadystatechange();
+                        // Ensure we've recorded firstbyte time.
+                        xhr.onreadystatechange();
 
-                    if (request.progressEvents.length > 1) {
-                        var lastEvent = request.progressEvents[request.progressEvents.length - 1];
-                        var firstEvent = request.progressEvents[0];
-                        var timeDifference = lastEvent.timeFromStart - firstEvent.timeFromStart;
-                        var bytesLoaded = lastEvent.bytesLoaded - firstEvent.bytesLoaded;
+                        if (request.progressEvents.length > 1) {
+                            var lastEvent = request.progressEvents[request.progressEvents.length - 1];
+                            var firstEvent = request.progressEvents[0];
+                            var timeDifference = lastEvent.timeFromStart - firstEvent.timeFromStart;
+                            var bytesLoaded = lastEvent.bytesLoaded - firstEvent.bytesLoaded;
 
-                        request.bytesPerMillisecond = bytesLoaded / timeDifference;
-                        request.timeAtEstimatedFirstByte = request.timeAtLastByte - (request.bytesLoaded / request.bytesPerMillisecond);
+                            request.bytesPerMillisecond = bytesLoaded / timeDifference;
+                            request.timeAtEstimatedFirstByte = request.timeAtLastByte - (request.bytesLoaded / request.bytesPerMillisecond);
 
-                        if (bytesLoaded > 10000 && timeDifference > 5) {
-                            _this._bandwidths.push(request.bytesPerMillisecond);
-                            _this._latencies.push(request.timeAtEstimatedFirstByte);
+                            if (bytesLoaded > 10000 && timeDifference > 5) {
+                                _this._bandwidths.push(request.bytesPerMillisecond);
+                                _this._latencies.push(request.timeAtEstimatedFirstByte);
+                            }
                         }
+
+                        request.data = isArrayBuffer ? new Uint8Array(xhr.response) : xhr.responseText;
+                        request.statusCode = xhr.status;
+                        request.state = DashlingFragmentState.downloaded;
+
+                        onSuccess && onSuccess(request);
                     }
-
-                    request.data = isArrayBuffer ? new Uint8Array(xhr.response) : xhr.responseText;
-                    request.statusCode = xhr.status;
-                    request.state = DashlingFragmentState.downloaded;
-
-                    onSuccess && onSuccess(request);
-                }
-                else {
-                    _onError(request);
+                    else {
+                        _onError(request);
+                    }
                 }
             };
 

@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta name="X-UA-Compatible" content="IE=edge" />
+    <title>Dashling.js Test Page</title>
+
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta charset="utf-8"/>
-    <title>Dashling.js Test</title>
-    <meta name="description" content="" />
 
     <script type="text/javascript" src="../dist/dashling.full.js"></script>
 
@@ -15,10 +15,84 @@
         var monitor,
             dashling;
 
-        function initPage() {
-            var videoElement = document.querySelector("video");
+        var videoElementEvents = [
+            "loadstart",
+            "emptied",
+            "canplaythrough",
+            "ended",
+            "ratechange",
+            "progress",
+            "stalled",
+            "playing",
+            "durationchange",
+            "resize",
+            "suspend",
+            "loadedmetadata",
+            "waiting",
+            "timeupdate",
+            "volumechange",
+            "abort",
+            "loadeddata",
+            "seeking",
+            "play",
+            "error",
+            "canplay",
+            "seeked",
+            "pause"
+        ];
 
-            videoElement.addEventListener("error", function(ev) { alert("Video element threw: " + ev); });
+        function listenToVideoElement(videoElement) {
+            var timeAtLoaded = 0;
+
+            for (var i = 0; i < videoElementEvents.length; i++) {
+                var eventName = videoElementEvents[i];
+
+                videoElement.addEventListener(eventName, function(ev) {
+                    var message = "video event: " + ev.type;
+
+                    message += ", fromLoad: " + parseFloat(((new Date().getTime() - timeAtLoaded) / 1000).toFixed(2)) + "s";
+
+                    switch (ev.type) {
+                        case "ratechange":
+                            message += ": " + videoElement.playbackRate;
+                            break;
+
+                        case "loadstart":
+                            timeAtLoaded = new Date().getTime();
+                            break;
+
+                        case "stalled":
+                        case "timeupdate":
+                            message += ", currentTime: " + parseFloat(videoElement.currentTime.toFixed(2)) + "s";
+                            break;
+
+                        case "progress":
+                        case "loadeddata":
+                            message += ": " + _getBufferedRanges(videoElement);
+                            break;
+
+                        case "durationchange":
+                            message += ": " + videoElement.duration;
+                            break;
+                    }
+
+                    console.log(message);
+                }, false);
+            }
+        }
+
+        function _getBufferedRanges(videoElement) {
+            var ranges = "";
+
+            for (var rangeIndex = 0; rangeIndex < videoElement.buffered.length; rangeIndex++) {
+                ranges += "[" + videoElement.buffered.start(rangeIndex) + "-" + videoElement.buffered.end(rangeIndex) + "] ";
+            }
+
+            return ranges;
+        }
+
+        function initPage() {
+            listenToVideoElement(document.querySelector("video"));
         }
 
         function loadDashling() {
@@ -37,6 +111,10 @@
 
             dashling.load(document.querySelector("video"), url);
             initMonitor();
+        }
+
+        function reset() {
+            dashling && dashling.reset();
         }
 
         function initMonitor() {
@@ -223,6 +301,7 @@
 
                 <div><input id="autoAdjust" type="checkbox" checked></input><span>Auto adjust quality</span></div>
                 <button type="button" onclick="loadDashling()">Load video</button>
+                <button type="button" onclick="reset()">Reset</button>
             </div>
 
             <video controls autoplay width="640" height="480"></video>

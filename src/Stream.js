@@ -37,6 +37,12 @@ Dashling.Stream = function(streamType, mediaSource, settings) {
 };
 
 Dashling.Stream.prototype = {
+    dispose: function() {
+        if (this._requestManager) {
+            this._requestManager.dispose();
+            this._requestManager = null;
+         }
+    },
 
     canAppend: function(fragmentIndex) {
         var fragment = this.fragments[fragmentIndex];

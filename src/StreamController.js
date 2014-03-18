@@ -29,6 +29,7 @@ Dashling.StreamController.prototype = {
     _videoDownloadIndex: 0,
     _simultaneousDownloadsPerStream: 2,
     _maxSegmentsAhead: 2,
+    _nextRequestTimerId: 0,
 
     dispose: function() {
         var _this = this;
@@ -38,9 +39,17 @@ Dashling.StreamController.prototype = {
             _this._videoElement = null;
         }
 
+        for (var i = 0; _this._streams && i < _this._streams.length; i++) {
+            _this._streams[i].dispose();
+        }
+
+        if (_this._nextRequestTimerId) {
+            clearTimeout(_this._nextRequestTimerId);
+            _this._nextRequestTimerId = 0;
+        }
+
+       _this._streams = null;
         _this._mediaSource = null;
-        _this._audioStream = null;
-        _this._videoStream = null;
     },
 
     getPlayingQuality: function(streamType) {
@@ -76,9 +85,9 @@ Dashling.StreamController.prototype = {
             if ((!previousRequest && this._appendIndex == download.fragmentIndex) || timeSincePreviousFragment > minDelay) {
                 stream.load(download.fragmentIndex, this._appendNextFragment);
             }
-            else if (!_this._timerId) {
-                _this._timerId = setTimeout(function() {
-                    _this._timerId = 0;
+            else if (!_this._nextRequestTimerId) {
+                _this._nextRequestTimerId = setTimeout(function() {
+                    _this._nextRequestTimerId = 0;
                     _this._loadNextFragment();
                 }, minDelay - timeSincePreviousFragment);
             }
