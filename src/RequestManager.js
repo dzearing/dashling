@@ -136,8 +136,6 @@ Dashling.RequestManager.prototype = {
     },
 
     getAverageBandwidth: function() {
-        console.log(this._bandwidths);
-
         return _average(this._bandwidths, this._bandwidths.length - 5);
     }
 };
