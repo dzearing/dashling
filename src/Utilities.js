@@ -13,14 +13,19 @@ function _bind(obj, func) {
 }
 
 function _average(numbers, startIndex) {
+    startIndex = Math.max(0, startIndex || 0);
+
     var total = 0;
+    var count = numbers ? numbers.length - startIndex : 0;
 
-
-    for (var i = Math.max(0, startIndex || 0); numbers && i < numbers.length; i++) {
-        total += numbers[i];
+    if (count) {
+        for (startIndex; startIndex < numbers.length; startIndex++) {
+            total += numbers[startIndex];
+        }
+        total /= count;
     }
 
-    return total / (numbers.length || 1);
+    return total;
 }
 
 function _log(message, settings) {

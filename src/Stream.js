@@ -1,4 +1,4 @@
-Dashling.Stream = function(streamType, mediaSource, settings) {
+Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
 
     var _this = this;
     var streamInfo = settings.manifest.streams[streamType];
@@ -12,6 +12,7 @@ Dashling.Stream = function(streamType, mediaSource, settings) {
         _requestManager: new Dashling.RequestManager(),
         _streamType: streamType,
         _mediaSource: mediaSource,
+        _videoElement: videoElement,
         _settings: settings,
         _manifest: settings.manifest,
         _streamInfo: streamInfo,
@@ -172,6 +173,8 @@ Dashling.Stream.prototype = {
         var _this = this;
         var fragment = this.fragments[fragmentIndex];
 
+        this.assessQuality2(fragmentIndex);
+
         if (fragment && fragment.state <= DashlingFragmentState.idle) {
             fragment.state = DashlingFragmentState.downloading;
             fragment.qualityIndex = _this.qualityIndex;
@@ -214,11 +217,52 @@ Dashling.Stream.prototype = {
         }
 
         function _onFailure() {
-            fragment.state = DashlingFragmentState.error;
 
-            if (fragment.state !== "aborted") {
-
+            if (fragment.state != "aborted") {
+                fragment.state = DashlingFragmentState.error;
             }
+            else {
+                fragment.state = DashlingFragmentState.idle;
+                fragment.activeRequest = null;
+                fragment.requests = [];
+            }
+        }
+    },
+
+    assessQuality2: function(currentIndex) {
+        var _this = this;
+        var settings = _this._settings;
+        var averageBandwidth = _this._requestManager.getAverageBandwidth();
+        var maxQuality = this._streamInfo.qualities.length - 1;
+
+        if (!settings.isABREnabled || !averageBandwidth) {
+            _this.qualityIndex = Math.min(this._streamInfo.qualities.length - 1, settings.targetQuality[ _this._streamType]);
+            //_this.canPlay = _this._getTimeToDownloadAtQuality(_this.qualityIndex, currentIndex) < durationRemaining;
+        }
+        else {
+            var targetQuality = 0;
+            var logEntry = "Assess " + this._streamType + ": bps=" + Math.round(averageBandwidth * 1000);
+            var segmentLength = this._streamInfo.timeline[0].lengthSeconds;
+            var averageWaitPerSegment = segmentLength * .5;
+
+            for (var qualityIndex = 0; qualityIndex <= maxQuality; qualityIndex++) {
+                var duration = 0;
+                var quality = this._streamInfo.qualities[qualityIndex];
+                var bandwidth = quality.bandwidth / 8;
+                var totalBytes = bandwidth * segmentLength;
+                var averageBytesPerSecond = (averageBandwidth * 1000) || 100000;
+
+                duration = totalBytes / averageBytesPerSecond;
+
+                logEntry += " " + qualityIndex + "=" + Math.round(duration) + "s";
+
+                if ((duration + averageWaitPerSegment) < segmentLength) {
+                    targetQuality = qualityIndex;
+                }
+            }
+
+            _log(logEntry, _this.settings);
+            _this.qualityIndex = targetQuality;
         }
     },
 
@@ -236,9 +280,11 @@ Dashling.Stream.prototype = {
             var maxQuality = _this._streamInfo.qualities.length - 1;
             var timeToDownload = 0;
             var canPlay = false;
+            var logEntry = "Assess " + this._streamType + ": remaining=" + Math.round(durationRemaining) + "s";
 
             for (; qualityIndex <= maxQuality; qualityIndex++) {
                 timeToDownload = _this._getTimeToDownloadAtQuality(qualityIndex, currentIndex);
+                logEntry += " " + qualityIndex + "=" + Math.round(timeToDownload) + "s ";
 
                 if (timeToDownload >= durationRemaining) {
                     qualityIndex = Math.max(0, qualityIndex - 1);
@@ -251,6 +297,8 @@ Dashling.Stream.prototype = {
                     break;
                 }
             }
+
+            _log(logEntry, _this.settings);
 
             if (this.qualityIndex != qualityIndex) {
                 _log("Quality change: " + _this._streamType + " from " + _this.qualityIndex + " to " + qualityIndex, _this.settings);

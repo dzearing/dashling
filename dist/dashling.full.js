@@ -15,14 +15,19 @@ function _bind(obj, func) {
 }
 
 function _average(numbers, startIndex) {
+    startIndex = Math.max(0, startIndex || 0);
+
     var total = 0;
+    var count = numbers ? numbers.length - startIndex : 0;
 
-
-    for (var i = Math.max(0, startIndex || 0); numbers && i < numbers.length; i++) {
-        total += numbers[i];
+    if (count) {
+        for (startIndex; startIndex < numbers.length; startIndex++) {
+            total += numbers[startIndex];
+        }
+        total /= count;
     }
 
-    return total / (numbers.length || 1);
+    return total;
 }
 
 function _log(message, settings) {
@@ -435,8 +440,8 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
     _this._settings = settings;
 
     _this._streams = [
-        _this._audioStream = new Dashling.Stream("audio", mediaSource, settings),
-        _this._videoStream = new Dashling.Stream("video", mediaSource, settings)
+        _this._audioStream = new Dashling.Stream("audio", mediaSource, videoElement, settings),
+        _this._videoStream = new Dashling.Stream("video", mediaSource, videoElement, settings)
     ];
 
     _this._loadNextFragment();
@@ -495,10 +500,10 @@ Dashling.StreamController.prototype = {
 
     _loadNextFragment: function() {
         var _this = this;
+
         var downloads = _this._getDownloadList();
 
         for (var i = 0; i < downloads.length; i++) {
-
             var download = downloads[i];
             var stream = _this._streams[download.streamIndex];
             var fragment = stream.fragments[download.fragmentIndex];
@@ -556,13 +561,6 @@ Dashling.StreamController.prototype = {
                     var canPlay = true;
 
                     _this._appendIndex++;
-                    for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
-                        var secondsRemaining = _this._settings.manifest.mediaDuration - _this._videoElement.currentTime;
-                        var stream = streams[streamIndex];
-
-                        stream.assessQuality(secondsRemaining, _this._appendIndex);
-                        canPlay &= stream.canPlay;
-                    }
 
                     if (canPlay && this._settings.shouldAutoPlay && !this._hasAutoPlayed) {
                         this._hasAutoPlayed = true;
@@ -581,11 +579,15 @@ Dashling.StreamController.prototype = {
    _getDownloadList: function() {
         var _this = this;
         var downloadList = [];
+        var streams = _this._streams;
         var settings = _this._settings;
-        var maxFragmentIndex = Math.min(this._appendIndex + settings.maxDownloadsBeyondAppendPosition, _this._streams[0].fragments.length - 1);
+        var maxFragmentIndex = Math.min(this._appendIndex + settings.maxDownloadsBeyondAppendPosition, streams[0].fragments.length - 1);
+        var secondsRemaining = settings.manifest.mediaDuration - _this._videoElement.currentTime;
+        var streamIndex;
 
-        for (var streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
-            var stream = _this._streams[streamIndex];
+        for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
+            var stream = streams[streamIndex];
+
             var maxDownloads = stream._getMaxConcurrentRequests(stream.qualityIndex);
             var pendingDownloads = 0;
 
@@ -600,9 +602,12 @@ Dashling.StreamController.prototype = {
                     pendingDownloads++;
                 }
             }
-
         }
-
+/*
+        for (streamIndex = 0; downloadList.length && streamIndex < streams.length; streamIndex++) {
+             streams[streamIndex].assessQuality(secondsRemaining, _this._appendIndex);
+        }
+*/
         return downloadList;
     },
 
@@ -639,7 +644,7 @@ Dashling.StreamController.prototype = {
 
 };
 
-Dashling.Stream = function(streamType, mediaSource, settings) {
+Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
 
     var _this = this;
     var streamInfo = settings.manifest.streams[streamType];
@@ -653,6 +658,7 @@ Dashling.Stream = function(streamType, mediaSource, settings) {
         _requestManager: new Dashling.RequestManager(),
         _streamType: streamType,
         _mediaSource: mediaSource,
+        _videoElement: videoElement,
         _settings: settings,
         _manifest: settings.manifest,
         _streamInfo: streamInfo,
@@ -813,6 +819,8 @@ Dashling.Stream.prototype = {
         var _this = this;
         var fragment = this.fragments[fragmentIndex];
 
+        this.assessQuality2(fragmentIndex);
+
         if (fragment && fragment.state <= DashlingFragmentState.idle) {
             fragment.state = DashlingFragmentState.downloading;
             fragment.qualityIndex = _this.qualityIndex;
@@ -855,11 +863,52 @@ Dashling.Stream.prototype = {
         }
 
         function _onFailure() {
-            fragment.state = DashlingFragmentState.error;
 
-            if (fragment.state !== "aborted") {
-
+            if (fragment.state != "aborted") {
+                fragment.state = DashlingFragmentState.error;
             }
+            else {
+                fragment.state = DashlingFragmentState.idle;
+                fragment.activeRequest = null;
+                fragment.requests = [];
+            }
+        }
+    },
+
+    assessQuality2: function(currentIndex) {
+        var _this = this;
+        var settings = _this._settings;
+        var averageBandwidth = _this._requestManager.getAverageBandwidth();
+        var maxQuality = this._streamInfo.qualities.length - 1;
+
+        if (!settings.isABREnabled || !averageBandwidth) {
+            _this.qualityIndex = Math.min(this._streamInfo.qualities.length - 1, settings.targetQuality[ _this._streamType]);
+            //_this.canPlay = _this._getTimeToDownloadAtQuality(_this.qualityIndex, currentIndex) < durationRemaining;
+        }
+        else {
+            var targetQuality = 0;
+            var logEntry = "Assess " + this._streamType + ": bps=" + Math.round(averageBandwidth * 1000);
+            var segmentLength = this._streamInfo.timeline[0].lengthSeconds;
+            var averageWaitPerSegment = segmentLength * .5;
+
+            for (var qualityIndex = 0; qualityIndex <= maxQuality; qualityIndex++) {
+                var duration = 0;
+                var quality = this._streamInfo.qualities[qualityIndex];
+                var bandwidth = quality.bandwidth / 8;
+                var totalBytes = bandwidth * segmentLength;
+                var averageBytesPerSecond = (averageBandwidth * 1000) || 100000;
+
+                duration = totalBytes / averageBytesPerSecond;
+
+                logEntry += " " + qualityIndex + "=" + Math.round(duration) + "s";
+
+                if ((duration + averageWaitPerSegment) < segmentLength) {
+                    targetQuality = qualityIndex;
+                }
+            }
+
+            _log(logEntry, _this.settings);
+            _this.qualityIndex = targetQuality;
         }
     },
 
@@ -877,9 +926,11 @@ Dashling.Stream.prototype = {
             var maxQuality = _this._streamInfo.qualities.length - 1;
             var timeToDownload = 0;
             var canPlay = false;
+            var logEntry = "Assess " + this._streamType + ": remaining=" + Math.round(durationRemaining) + "s";
 
             for (; qualityIndex <= maxQuality; qualityIndex++) {
                 timeToDownload = _this._getTimeToDownloadAtQuality(qualityIndex, currentIndex);
+                logEntry += " " + qualityIndex + "=" + Math.round(timeToDownload) + "s ";
 
                 if (timeToDownload >= durationRemaining) {
                     qualityIndex = Math.max(0, qualityIndex - 1);
@@ -892,6 +943,8 @@ Dashling.Stream.prototype = {
                     break;
                 }
             }
+
+            _log(logEntry, _this.settings);
 
             if (this.qualityIndex != qualityIndex) {
                 _log("Quality change: " + _this._streamType + " from " + _this.qualityIndex + " to " + qualityIndex, _this.settings);
@@ -1091,7 +1144,7 @@ Dashling.RequestManager.prototype = {
                         request.bytesPerMillisecond = bytesLoaded / timeDifference;
                         request.timeAtEstimatedFirstByte = request.timeAtLastByte - (request.bytesLoaded / request.bytesPerMillisecond);
 
-                        if (bytesLoaded > 10000 && timeDifference > 5) {
+                        if (bytesLoaded > 10000) {
                             _this._bandwidths.push(request.bytesPerMillisecond);
                             _this._latencies.push(request.timeAtEstimatedFirstByte);
                         }
@@ -1140,6 +1193,8 @@ Dashling.RequestManager.prototype = {
     },
 
     getAverageBandwidth: function() {
+        console.log(this._bandwidths);
+
         return _average(this._bandwidths, this._bandwidths.length - 5);
     }
 };

@@ -87,7 +87,7 @@ Dashling.RequestManager.prototype = {
                         request.bytesPerMillisecond = bytesLoaded / timeDifference;
                         request.timeAtEstimatedFirstByte = request.timeAtLastByte - (request.bytesLoaded / request.bytesPerMillisecond);
 
-                        if (bytesLoaded > 10000 && timeDifference > 5) {
+                        if (bytesLoaded > 10000) {
                             _this._bandwidths.push(request.bytesPerMillisecond);
                             _this._latencies.push(request.timeAtEstimatedFirstByte);
                         }
@@ -136,6 +136,8 @@ Dashling.RequestManager.prototype = {
     },
 
     getAverageBandwidth: function() {
+        console.log(this._bandwidths);
+
         return _average(this._bandwidths, this._bandwidths.length - 5);
     }
 };
