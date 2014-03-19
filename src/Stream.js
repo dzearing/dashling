@@ -136,6 +136,38 @@ Dashling.Stream.prototype = {
         }
     },
 
+    canLoad: function(fragmentIndex) {
+        var canLoad = false;
+        var fragment = this.fragments[fragmentIndex];
+
+        if (fragment) {
+            if (fragment.state == DashlingFragmentState.appended) {
+                var videoBuffer = this._buffer.buffered;
+                var fragmentTime = fragment.time;
+                var wiggleRoom = 0.05;
+
+                // validate that the buffered area in the video element still contains the fragment.
+                var isBuffered = false;
+
+                for (var bufferedIndex = 0; bufferedIndex < videoBuffer.length; bufferedIndex++) {
+                    if ((videoBuffer.start(bufferedIndex) - wiggleRoom) <= fragmentTime.startSeconds && (videoBuffer.end(bufferedIndex) + wiggleRoom) >= (fragmentTime.startSeconds + fragmentTime.lengthSeconds)) {
+                        isBuffered = true;
+                        break;
+                    }
+                }
+
+                // We found an appended segment no longer in the playlist. move it back to idle.
+                if (!isBuffered) {
+                    fragment.state = DashlingFragmentState.idle;
+                }
+            }
+
+            canLoad = (fragment.state <= DashlingFragmentState.idle);
+        }
+
+        return canLoad;
+    },
+
     load: function(fragmentIndex, onFragmentAvailable) {
         var _this = this;
         var fragment = this.fragments[fragmentIndex];
