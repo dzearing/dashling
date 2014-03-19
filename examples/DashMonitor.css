@@ -84,8 +84,8 @@
 	vertical-align: middle;
 }
 
-.c-DashMonitor .pending { background: rgb(173, 173, 173); }
-.c-DashMonitor .downloading { background: rgb(114, 114, 114); }
+.c-DashMonitor .pending { background: rgb(173, 173, 173) url("pending.gif"); }
+.c-DashMonitor .downloading { background: rgb(114, 114, 114) url("downloading.gif"); }
 .c-DashMonitor .downloaded { background: rgb(55, 71, 255); }
 .c-DashMonitor .appending { background: rgb(133, 185, 143); }
 .c-DashMonitor .appended { background: rgb(0, 189, 36); }
