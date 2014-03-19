@@ -176,7 +176,7 @@ Dashling.StreamController.prototype = {
                 if (fragment.state == DashlingFragmentState.downloading) {
                     pendingDownloads++;
                 }
-                else if (fragment.state <= DashlingFragmentState.idle) {
+                else if (this._isFragmentDownloadable(fragment)) {
                     downloadList.push({ streamIndex: streamIndex, fragmentIndex: fragmentIndex });
                     pendingDownloads++;
                 }
@@ -188,7 +188,29 @@ Dashling.StreamController.prototype = {
     },
 
     _isFragmentDownloadable: function(fragment) {
-        return (fragment.state == DashlingFragmentState.idle);
+
+        if (fragment.state == DashlingFragmentState.appended) {
+            var videoBuffer = this._videoElement.buffered;
+            var fragmentTime = fragment.time;
+            var wiggleRoom = 0.05;
+
+            // validate that the buffered area in the video element still contains the fragment.
+            var isBuffered = false;
+
+            for (var bufferedIndex = 0; bufferedIndex < videoBuffer.length; bufferedIndex++) {
+                if ((videoBuffer.start(bufferedIndex) - wiggleRoom) <= fragmentTime.startSeconds && (videoBuffer.end(bufferedIndex) + wiggleRoom) >= (fragmentTime.startSeconds + fragmentTime.lengthSeconds)) {
+                    isBuffered = true;
+                    break;
+                }
+            }
+
+            // We found an appended segment no longer in the playlist. move it back to idle.
+            if (!isBuffered) {
+                fragment.state = DashlingFragmentState.idle;
+            }
+        }
+
+        return (fragment.state <= DashlingFragmentState.idle);
     },
 
     _onVideoSeeking: function() {

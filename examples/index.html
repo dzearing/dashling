@@ -13,7 +13,8 @@
 
     <script>
         var monitor,
-            dashling;
+            dashling = new Dashling(),
+            logVideoEvents;
 
         var videoElementEvents = [
             "loadstart",
@@ -81,7 +82,9 @@
                             break;
                     }
 
-                    console.log(message);
+                    if (logVideoEvents) {
+                        console.log(message);
+                    }
                 }, false);
             }
         }
@@ -115,11 +118,13 @@
 
         function initPage() {
             listenToVideoElement(document.querySelector("video"));
+            _updateLogging();
+
+            document.querySelector("#logDashling").addEventListener("change", _updateLogging);
+            document.querySelector("#logVideo").addEventListener("change", _updateLogging);
         }
 
         function loadDashling() {
-            dashling = new Dashling();
-
             var qualitySelect = document.querySelector("#qualitySelect");
             var startingQuality = Number(qualitySelect.options[qualitySelect.selectedIndex].value);
 
@@ -186,7 +191,7 @@
 
                             var stateStrings = [""];
                             var stat = {
-                                state: _findInEnum(fragment.state, Dashling.FragmentState),
+                                state: _findInEnum(fragmentRequest.state, Dashling.FragmentState),
                                 segmentPosition: fragment.time.startSeconds,
                                 segmentDuration: fragment.time.lengthSeconds,
                                 requestIndex: requestIndex
@@ -213,6 +218,11 @@
         function toggleBenefits() {
             var benefits = document.getElementById("benefits");
             benefits.className = benefits.className == "hidden" ? "" : "hidden";
+        }
+
+        function _updateLogging() {
+            dashling.settings.logToConsole = document.querySelector("#logDashling").checked;
+            logVideoEvents = document.querySelector("#logVideo").checked;
         }
 
     </script>
@@ -265,6 +275,17 @@
             text-align: left;
             box-shadow: 0px 10px 33px 2px rgba(0,0,0,.2);
 
+        }
+        .videoContainer {
+            margin-top: 10px;
+            width: 640px;
+            height: 480px;
+            background: black;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
         }
 
         #monitorContainer {
@@ -322,11 +343,17 @@
                 </select>
 
                 <div><input id="autoAdjust" type="checkbox" checked></input><span>Auto adjust quality</span></div>
+
+                <div><input id="logDashling" type="checkbox" checked></input><span>Log dashling events to console</span></div>
+                <div><input id="logVideo" type="checkbox"></input><span>Log video events to console</span></div>
+
                 <button type="button" onclick="loadDashling()">Load video</button>
                 <button type="button" onclick="reset()">Reset</button>
             </div>
 
-            <video controls autoplay width="640" height="480"></video>
+            <div class="videoContainer">
+                <video controls></video>
+            </div>
             <div id="monitorContainer" style="width: 640px;"></div>
         </div>
     </div>

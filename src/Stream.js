@@ -29,6 +29,8 @@ Dashling.Stream = function(streamType, mediaSource, settings) {
             state: DashlingFragmentState.idle,
             qualityIndex: -1,
             qualityId: "",
+            fragmentType: "media",
+            fragmentIndex: i,
             time: streamInfo.timeline[i],
             activeRequest: null,
             requests: []
@@ -54,13 +56,13 @@ Dashling.Stream.prototype = {
         var maxInitSegment = this._initSegments[this._streamInfo.qualities.length - 1];
 
         return fragment && fragment.state == DashlingFragmentState.downloaded &&
-            initSegment && initSegment.state == DashlingFragmentState.downloaded &&
-            maxInitSegment && maxInitSegment.state == DashlingFragmentState.downloaded;
+            initSegment && initSegment.state >= DashlingFragmentState.downloaded &&
+            maxInitSegment && maxInitSegment.state >= DashlingFragmentState.downloaded;
     },
 
-    append: function(segmentIndex, onComplete) {
+    append: function(fragmentIndex, onComplete) {
         var _this = this;
-        var fragment = _this.fragments[segmentIndex];
+        var fragment = _this.fragments[fragmentIndex];
         var maxQualityIndex = _this._streamInfo.qualities.length - 1;
         var fragmentsToAppend = [];
         var buffer = _this._buffer;
@@ -95,19 +97,21 @@ Dashling.Stream.prototype = {
                 buffer.addEventListener("update", _onAppendComplete);
 
                 try {
-                    _log("Append started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""), _this._settings);
+                    _log("Append started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
                     buffer.appendBuffer(request.data);
                 }
                 catch (e) {
-                    fragment.state = DashlingFragmentState.error;
+                    request.state = fragment.state = DashlingFragmentState.error;
                     _this._isAppending = false;
+
+                    onComplete();
                     // TODO: Fire error?
                 }
             }
             else {
                 fragment.state = DashlingFragmentState.appended;
                 _this._isAppending = false;
-                onComplete();
+                onComplete(fragment);
             }
         }
 
@@ -117,22 +121,24 @@ Dashling.Stream.prototype = {
             buffer.removeEventListener("update", _onAppendComplete);
 
             request.timeAtAppended = new Date().getTime() - request.startTime;
+            request.state = DashlingFragmentState.appended;
+
             (request.clearDataAfterAppend) && (request.data = null);
 
             if (request.fragmentType === "init") {
                 _this._initializedQualityIndex = request.qualityIndex;
             }
 
-            _log("Append complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""), _this._settings);
+            _log("Append complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
             fragmentsToAppend.shift();
 
             _appendNextEntry();
         }
     },
 
-    load: function(segmentIndex, onFragmentAvailable) {
+    load: function(fragmentIndex, onFragmentAvailable) {
         var _this = this;
-        var fragment = this.fragments[segmentIndex];
+        var fragment = this.fragments[fragmentIndex];
 
         if (fragment && fragment.state <= DashlingFragmentState.idle) {
             fragment.state = DashlingFragmentState.downloading;
@@ -142,9 +148,9 @@ Dashling.Stream.prototype = {
             _this._loadInitSegment(this.qualityIndex, onFragmentAvailable);
 
             var request = {
-                url: _this._getUrl(segmentIndex, fragment),
+                url: _this._getUrl(fragmentIndex, fragment),
                 state: DashlingFragmentState.downloading,
-                segmentIndex: segmentIndex,
+                fragmentIndex: fragmentIndex,
                 fragmentType: "media",
                 qualityIndex: fragment.qualityIndex,
                 qualityId: fragment.qualityId,
@@ -154,7 +160,7 @@ Dashling.Stream.prototype = {
             fragment.activeRequest = request;
             fragment.requests.push(request);
 
-            _log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""), _this._settings);
+            _log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
 
             _this._requestManager.load(request, true, _onSuccess, _onFailure);
         }
@@ -167,7 +173,7 @@ Dashling.Stream.prototype = {
             var maxParallelRequests = Math.max(1, Math.min(_this._settings.maxConcurrentRequestsPerStream, Math.round(timeWaiting / timeDownloading)));
             var newDelay = maxParallelRequests > 1 ? Math.max(timeWaiting / maxParallelRequests, timeDownloading) : 0; //  Math.round(Math.max(0, (timeWaiting - timeDownloading) / maxParallelRequests));
 
-            _log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + "index " + request.segmentIndex + " timeDownloading: " + timeDownloading + " timeWaiting:" + timeWaiting + " newDelay: " + newDelay + " maxReq: " + maxParallelRequests, _this._settings);
+            _log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + "index " + request.fragmentIndex + " timeDownloading: " + timeDownloading + " timeWaiting:" + timeWaiting + " newDelay: " + newDelay + " maxReq: " + maxParallelRequests, _this._settings);
 
             _this._maxConcurrentRequestsPerQuality[request.qualityIndex] = maxParallelRequests;
             _this._delaysPerQuality[request.qualityIndex] = newDelay;
@@ -289,7 +295,7 @@ Dashling.Stream.prototype = {
                 qualityId: this._streamInfo.qualities[qualityIndex].id
             };
 
-            _log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""), _this._settings);
+            _log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
 
             _this._initRequestManager.load(request, true, _onSuccess, _onFailure);
         }
@@ -297,7 +303,7 @@ Dashling.Stream.prototype = {
         function _onSuccess() {
             request.state = DashlingFragmentState.downloaded;
 
-            _log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.segmentIndex !== undefined ? "index " + request.segmentIndex : ""), _this._settings);
+            _log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
 
             onFragmentAvailable(request);
         }
@@ -313,7 +319,7 @@ Dashling.Stream.prototype = {
         return this._manifest.baseUrl + urlPart;
     },
 
-    _getUrl: function(segmentIndex, fragment) {
+    _getUrl: function(fragmentIndex, fragment) {
         var urlPart = this._streamInfo.fragUrlFormat.replace("$RepresentationID$", fragment.qualityId).replace("$Time$", fragment.time.start);
 
         return this._manifest.baseUrl + urlPart;
