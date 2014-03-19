@@ -833,7 +833,7 @@ Dashling.Stream.prototype = {
             fragment.activeRequest = request;
             fragment.requests.push(request);
 
-            _log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + ( request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
+            _log("Download started: " + request.qualityId + " " + request.fragmentType + " " + ( request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
 
             _this._requestManager.load(request, true, _onSuccess, _onFailure);
         }
@@ -843,10 +843,10 @@ Dashling.Stream.prototype = {
 
             var timeDownloading = Math.round(request.timeAtLastByte - (request.timeAtEstimatedFirstByte || request.timeAtFirstByte));
             var timeWaiting = request.timeAtLastByte - timeDownloading;
-            var maxParallelRequests = Math.max(1, Math.min(_this._settings.maxConcurrentRequestsPerStream, Math.round(timeWaiting / timeDownloading)));
-            var newDelay = maxParallelRequests > 1 ? Math.max(timeWaiting / maxParallelRequests, timeDownloading) : 0; //  Math.round(Math.max(0, (timeWaiting - timeDownloading) / maxParallelRequests));
+            var maxParallelRequests = Math.max(2, Math.min(_this._settings.maxConcurrentRequestsPerStream, Math.round(timeWaiting / timeDownloading)));
+            var newDelay = maxParallelRequests > 1 ? Math.round(Math.max(timeWaiting / maxParallelRequests, timeDownloading)) : 0; //  Math.round(Math.max(0, (timeWaiting - timeDownloading) / maxParallelRequests));
 
-            _log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + "index " + request.fragmentIndex + " timeDownloading: " + timeDownloading + " timeWaiting:" + timeWaiting + " newDelay: " + newDelay + " maxReq: " + maxParallelRequests, _this._settings);
+            _log("Download complete: " + request.qualityId + " " + request.fragmentType + " index: " + request.fragmentIndex + " waiting: " + timeWaiting + "ms receiving: " + timeDownloading  + "ms nextDelay: " + newDelay + " maxReq: " + maxParallelRequests, _this._settings);
 
             _this._maxConcurrentRequestsPerQuality[request.qualityIndex] = maxParallelRequests;
             _this._delaysPerQuality[request.qualityIndex] = newDelay;

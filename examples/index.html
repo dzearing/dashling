@@ -49,7 +49,7 @@
                 var eventName = videoElementEvents[i];
 
                 videoElement.addEventListener(eventName, function(ev) {
-                    var message = "video event: " + ev.type;
+                    var message = "Video event: " + ev.type;
 
                     message += ", fromLoad: " + parseFloat(((new Date().getTime() - timeAtLoaded) / 1000).toFixed(2)) + "s";
 
@@ -345,7 +345,7 @@
                 <div><input id="autoAdjust" type="checkbox" checked></input><span>Auto adjust quality</span></div>
 
                 <div><input id="logDashling" type="checkbox" checked></input><span>Log dashling events to console</span></div>
-                <div><input id="logVideo" type="checkbox"></input><span>Log video events to console</span></div>
+                <div><input id="logVideo" type="checkbox"></input><span>Log video element events to console</span></div>
 
                 <button type="button" onclick="loadDashling()">Load video</button>
                 <button type="button" onclick="reset()">Reset</button>
