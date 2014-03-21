@@ -30,19 +30,6 @@ function _average(numbers, startIndex) {
     return total;
 }
 
-var _throttledRequestIds = {};
-
-function _clearThrottle(id) {
-    if (_throttledRequestIds[id]) {
-        clearTimeout(_throttledRequestIds[id]);
-    }
-}
-
-function _throttle(id, minTimePassed, func) {
-    _clearThrottle(id);
-    _throttledRequestIds[id] = setTimeout(func, minTimePassed);
-}
-
 function _log(message, settings) {
     if (!settings || settings.logToConsole) {
         console.log(message);
