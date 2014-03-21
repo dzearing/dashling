@@ -186,7 +186,7 @@ window.Dashling = function() {
     safeBufferSeconds: 15,
 
     // Number of buffered seconds before we stop buffering more.
-    maxBufferSeconds: 178.5,
+    maxBufferSeconds: 119.5,
 
     // Max number of simultaneous requests per stream.
     maxConcurrentRequests: {
