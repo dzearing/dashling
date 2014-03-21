@@ -182,11 +182,11 @@ window.Dashling = function() {
     // Logs debug data to console.
     logToConsole: true,
 
-    // Number of buffered seconds in which we will start to be more aggressive on estimates.
+    // TODO: Number of buffered seconds in which we will start to be more aggressive on estimates.
     safeBufferSeconds: 15,
 
     // Number of buffered seconds before we stop buffering more.
-    maxBufferSeconds: 180,
+    maxBufferSeconds: 178.5,
 
     // Max number of simultaneous requests per stream.
     maxConcurrentRequests: {
@@ -202,11 +202,11 @@ window.Dashling = function() {
 
     // The quality to use if we have ABR disabled, or if default bandwidth is not available.
     targetQuality: {
-      audio: 5,
-      video: 5
+      audio: 2,
+      video: 2
     },
 
-    // bytes per millisecond (480p is around 520 bytes per second.)
+    // Default bytes per millisecond, used to determine default request staggering (480p is around 520 bytes per millisecond.)
     defaultBandwidth: 520
   };
 };
@@ -503,8 +503,7 @@ Dashling.ManifestParser.prototype = {
     return manifest;
   }
 };
-/// <summary>
-/// </summary>
+/// <summary></summary>
 
 Dashling.StreamController = function(videoElement, mediaSource, settings) {
   var _this = this;
@@ -614,6 +613,11 @@ Dashling.StreamController.prototype = {
       }
     }
 
+    // Poll every 300ms for more downloadable content.
+    if (!downloads[0].length && !downloads[1].length && downloads.hitMaxLimit) {
+      _enqueueNextLoad(0, 300);
+    }
+
     function _enqueueNextLoad(index, delay) {
       if (_this._requestTimerIds[index]) {
         clearTimeout(_this._requestTimerIds[index]);
@@ -677,7 +681,6 @@ Dashling.StreamController.prototype = {
   },
 
   _getDownloadCandidates: function() {
-
     var _this = this;
     var downloadList = [
       [],
@@ -686,11 +689,15 @@ Dashling.StreamController.prototype = {
     var streams = _this._streams;
     var settings = _this._settings;
     var streamIndex;
+    var fragmentLength = _this._audioStream.fragments[0].time.lengthSeconds;
+    var currentSegment = Math.floor(_this._videoElement.currentTime / fragmentLength);
+    var maxIndex = currentSegment + Math.ceil(settings.maxBufferSeconds / fragmentLength);
     var maxAudioIndex = -1;
     var maxVideoIndex = -1;
     var fragmentCount = _this._videoStream.fragments.length;
+    var fragmentIndex;
 
-    for (var fragmentIndex = _this._appendIndex; fragmentIndex < fragmentCount; fragmentIndex++) {
+    for (fragmentIndex = _this._appendIndex; fragmentIndex <= maxIndex && fragmentIndex < fragmentCount; fragmentIndex++) {
 
       if (this._audioStream.isMissing(fragmentIndex) || this._videoStream.isMissing(fragmentIndex)) {
         _log("Missing fragment reset: index=" + fragmentIndex, _this._settings);
@@ -731,6 +738,10 @@ Dashling.StreamController.prototype = {
         (!videoRequestsHaveRoom || !isVideoInRange)) {
         break;
       }
+    }
+
+    if (fragmentIndex > maxIndex && fragmentIndex < fragmentCount) {
+      downloadList.hitMaxLimit = true;
     }
 
     return downloadList;

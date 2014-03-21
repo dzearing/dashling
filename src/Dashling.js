@@ -15,11 +15,11 @@ window.Dashling = function() {
     // Logs debug data to console.
     logToConsole: true,
 
-    // Number of buffered seconds in which we will start to be more aggressive on estimates.
+    // TODO: Number of buffered seconds in which we will start to be more aggressive on estimates.
     safeBufferSeconds: 15,
 
     // Number of buffered seconds before we stop buffering more.
-    maxBufferSeconds: 180,
+    maxBufferSeconds: 178.5,
 
     // Max number of simultaneous requests per stream.
     maxConcurrentRequests: {
@@ -35,11 +35,11 @@ window.Dashling = function() {
 
     // The quality to use if we have ABR disabled, or if default bandwidth is not available.
     targetQuality: {
-      audio: 5,
-      video: 5
+      audio: 2,
+      video: 2
     },
 
-    // bytes per millisecond (480p is around 520 bytes per second.)
+    // Default bytes per millisecond, used to determine default request staggering (480p is around 520 bytes per millisecond.)
     defaultBandwidth: 520
   };
 };
