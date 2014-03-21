@@ -1,22 +1,48 @@
+/// <summary>Dashling main object.</summary>
+
 window.Dashling = function() {
-    /// <summary>Dashling main object.</summary>
 
     this.settings = {
-        targetQuality: { audio: 5, video: 5 },
-        isABREnabled: true,
-        shouldAutoPlay: true,
-        safeBufferSeconds: 15,
-        maxBufferSeconds: 180,
-        logToConsole: true,
-        // The number of concurrent downloads per stream.
-        maxConcurrentRequestsPerStream: 4,
 
-        // The number of segments to download beyond the current append cursor.
-        maxDownloadsBeyondAppendPosition: 3,
-        manifest: null
+        // The manifest object to use, if you want to skip the serial call to fetch the xml.
+        manifest: null,
+
+        // If auto bitrate regulation is enabled.
+        isABREnabled: true,
+
+        // If we should auto play the video when enough buffer is available.
+        shouldAutoPlay: true,
+
+        // Logs debug data to console.
+        logToConsole: true,
+
+        // Number of buffered seconds in which we will start to be more aggressive on estimates.
+        safeBufferSeconds: 15,
+
+        // Number of buffered seconds before we stop buffering more.
+        maxBufferSeconds: 180,
+
+        // Max number of simultaneous requests per stream.
+        maxConcurrentRequests: {
+            audio: 3,
+            video: 6
+        },
+
+        // Max number of fragments each stream can be ahead of the other stream by.
+        maxSegmentLeadCount: {
+            audio: 2,
+            video: 4
+        },
+
+        // The quality to use if we have ABR disabled, or if default bandwidth is not available.
+        targetQuality: { audio: 5, video: 5 },
+
+        // bytes per millisecond (480p is around 520 bytes per second.)
+        defaultBandwidth: 520
     };
 };
 
+// Mix in enums.
 _mix(Dashling, {
     Event: DashlingEvent,
     SessionState: DashlingSessionState,
@@ -25,13 +51,16 @@ _mix(Dashling, {
 });
 
 Dashling.prototype = {
+
     // Private members
+
     _streamController: null,
     _sessionIndex: 0,
     _lastError: null,
     _state: DashlingSessionState.idle,
 
     // Public methods
+
     load: function (videoElement, url) {
         /// <summary>Loads a video.</summary>
         /// <param name="videoElement">The video element to load into.</param>
@@ -40,20 +69,20 @@ Dashling.prototype = {
         var _this = this;
 
         _this.reset();
-
-        _this._setState(Dashling.intializing);
-
+        _this._setState(Dashling.initializing);
         _this._videoElement = videoElement;
         _this._initializeMediaSource(videoElement);
         _this._initializeManifest(url);
     },
 
     dispose: function() {
+        /// <summary>Disposes dashling.</summary>
+
         this.reset();
     },
 
     reset: function() {
-        /// <summary></summary>
+        /// <summary>Resets dashling; aborts all network requests, closes all shops in the mall, cancels the 3-ring circus.</summary>
 
         var _this = this;
 
@@ -68,6 +97,10 @@ Dashling.prototype = {
         }
 
         if (_this._videoElement) {
+
+            // Clear the manifest only if we were provided a video element.
+            _this.settings.manifest = null;
+
             try {
                 _this._videoElement.pause();
             }
@@ -77,7 +110,6 @@ Dashling.prototype = {
         }
 
         _this.videoElement = null;
-        _this.settings.manifest = null;
 
         _this._mediaSource = null;
 
@@ -85,16 +117,26 @@ Dashling.prototype = {
     },
 
     getPlayingQuality: function(streamType) {
+        /// <summary>Gets the playing quality for the streamType at the current video location.</summary>
+
         return this._streamController ? this._streamController.getPlayingQuality(streamType) : this.settings[streamType];
     },
 
     getBufferingQuality: function(streamType) {
+        /// <summary>Gets the current buffering quality for the streamType.</summary>
+
         return this._streamController ? this._streamController.getBufferingQuality(streamType) : this.settings[streamType];
     },
 
     getMaxQuality: function(streamType) {
-        return this.settings.manifest ? this.settings.manifest.streams[streamType].qualities.length - 1 : 0;
+        /// <summary>Gets the max quality for the streamType.</summary>
+
+        var stream = this.settings.manifest ? this.settings.manifest.streams[streamType] : null;
+
+        return stream ? stream.qualities.length - 1 : 0;
     },
+
+    // Private methods
 
     _setState: function(state, error) {
         if (this._state != state) {
@@ -155,7 +197,7 @@ Dashling.prototype = {
         }
 
         function _onManifestFailed(error) {
-            if (_this._loadIndex == _loadIndex) {
+            if (_this._loadIndex == loadIndex) {
                 _this._setState(DashlingSessionState.error, DashlingSessionError.manifestFailed);
             }
         }

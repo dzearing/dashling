@@ -1,7 +1,8 @@
-Dashling.RequestManager = function() {
+Dashling.RequestManager = function(shouldRecordStats) {
     this._activeRequests = {};
     this._latencies = [];
     this._bandwidths = [];
+    this._shouldRecordStats = shouldRecordStats;
 };
 
 var RequestManagerState = {
@@ -14,13 +15,17 @@ var RequestManagerState = {
 Dashling.RequestManager.prototype = {
     maxRetries: 3,
     delayBetweenRetries: [ 200, 1500, 3000 ],
-    _requestIndex: 0,
-    _state: RequestManagerState.noPendingRequests,
 
+    _activeRequestCount: 0,
+    _totalRequests: 0,
     _xhrType: XMLHttpRequest,
 
     dispose: function() {
         this.abortAll();
+    },
+
+    getActiveRequestCount: function() {
+        return this._activeRequestCount;
     },
 
     abortAll: function() {
@@ -47,9 +52,10 @@ Dashling.RequestManager.prototype = {
 
         function _startRequest() {
             var xhr = new _this._xhrType();
-            var requestIndex = ++_this._requestIndex;
+            var requestIndex = ++_this._totalRequests;
 
             _this._activeRequests[requestIndex] = xhr;
+            _this._activeRequestCount++;
 
             xhr.url = request.url;
             xhr.open("GET", request.url, true);
@@ -70,6 +76,7 @@ Dashling.RequestManager.prototype = {
 
             xhr.onloadend = function() {
                 delete _this._activeRequests[requestIndex];
+                _this._activeRequestCount--;
 
                 if (xhr.status >= 200 && xhr.status <= 299) {
                     request.timeAtLastByte = new Date().getTime() - request.startTime;
@@ -136,6 +143,8 @@ Dashling.RequestManager.prototype = {
     },
 
     getAverageBandwidth: function() {
-        return _average(this._bandwidths, this._bandwidths.length - 5);
+        var average = _average(this._bandwidths, this._bandwidths.length - 5);
+
+        return average;
     }
 };

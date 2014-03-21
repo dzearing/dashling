@@ -14,11 +14,14 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
 
     _this._mediaSource = mediaSource;
     _this._settings = settings;
+    _this._startTime = new Date().getTime();
 
     _this._streams = [
         _this._audioStream = new Dashling.Stream("audio", mediaSource, videoElement, settings),
         _this._videoStream = new Dashling.Stream("video", mediaSource, videoElement, settings)
     ];
+
+    _this._requestTimerIds = [0, 0];
 
     _this._loadNextFragment();
 };
@@ -45,9 +48,14 @@ Dashling.StreamController.prototype = {
             _this._streams[i].dispose();
         }
 
-        if (_this._nextRequestTimerId) {
-            clearTimeout(_this._nextRequestTimerId);
-            _this._nextRequestTimerId = 0;
+        if (_this._requestTimerIds[0]) {
+            clearTimeout(_this._requestTimerIds[0]);
+            _this._requestTimerIds[0] = 0;
+        }
+
+        if (_this._requestTimerIds[1]) {
+            clearTimeout(_this._requestTimerIds[1]);
+            _this._requestTimerIds[1] = 1;
         }
 
         if (_this._seekingTimerId) {
@@ -77,27 +85,40 @@ Dashling.StreamController.prototype = {
     _loadNextFragment: function() {
         var _this = this;
 
-        var downloads = _this._getDownloadList();
+        var downloads = _this._getDownloadCandidates();
 
-        for (var i = 0; i < downloads.length; i++) {
-            var download = downloads[i];
-            var stream = _this._streams[download.streamIndex];
-            var fragment = stream.fragments[download.fragmentIndex];
-            var previousFragment = stream.fragments[download.fragmentIndex - 1];
-            var previousRequest = previousFragment && previousFragment.activeRequest && previousFragment.activeRequest.state == DashlingFragmentState.downloading ? previousFragment.activeRequest : null;
-            var now = new Date().getTime();
-            var minDelay = stream._getMinDelayBetweenRequests(stream.qualityIndex);
-            var timeSincePreviousFragment = previousRequest ? now - previousRequest.startTime : 0;
+        for (var streamIndex = 0; streamIndex < downloads.length; streamIndex++) {
+            var streamDownloads = downloads[streamIndex];
+            var stream = _this._streams[streamIndex];
 
-            if ((!previousRequest && this._appendIndex == download.fragmentIndex) || timeSincePreviousFragment > minDelay) {
-                stream.load(download.fragmentIndex, this._appendNextFragment);
+            for (var downloadIndex = 0; downloadIndex < streamDownloads.length; downloadIndex++) {
+                var fragmentIndex = streamDownloads[downloadIndex];
+
+                var fragment = stream.fragments[fragmentIndex];
+                var previousFragment = stream.fragments[fragmentIndex - 1];
+                var previousRequest = previousFragment && previousFragment.activeRequest && previousFragment.activeRequest.state == DashlingFragmentState.downloading ? previousFragment.activeRequest : null;
+                var minDelay = stream.getRequestStaggerTime();
+                var timeSincePreviousFragment = previousRequest ? new Date().getTime() - previousRequest.startTime : 0;
+
+                if (!previousRequest || timeSincePreviousFragment >= minDelay) {
+                    stream.load(fragmentIndex, this._appendNextFragment);
+                }
+                else {
+                    _enqueueNextLoad(streamIndex, minDelay - timeSincePreviousFragment);
+                    break;
+                }
             }
-            else if (!_this._nextRequestTimerId) {
-                _this._nextRequestTimerId = setTimeout(function() {
-                    _this._nextRequestTimerId = 0;
-                    _this._loadNextFragment();
-                }, minDelay - timeSincePreviousFragment);
+        }
+
+        function _enqueueNextLoad(index, delay) {
+            if (_this._requestTimerIds[index]) {
+                clearTimeout(_this._requestTimerIds[index]);
             }
+
+            _this._requestTimerIds[index] = setTimeout(function() {
+                _this._requestTimerIds[index] = 0;
+                _this._loadNextFragment();
+            }, delay);
         }
     },
 
@@ -152,45 +173,66 @@ Dashling.StreamController.prototype = {
         }
     },
 
-   _getDownloadList: function() {
+    _getDownloadCandidates: function() {
+
         var _this = this;
-        var downloadList = [];
+        var downloadList = [ [], [] ];
         var streams = _this._streams;
         var settings = _this._settings;
-        var maxFragmentIndex = Math.min(this._appendIndex + settings.maxDownloadsBeyondAppendPosition, streams[0].fragments.length - 1);
-        var secondsRemaining = settings.manifest.mediaDuration - _this._videoElement.currentTime;
         var streamIndex;
+        var maxAudioIndex = -1;
+        var maxVideoIndex = -1;
+        var fragmentCount = _this._videoStream.fragments.length;
 
-        for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
-            var stream = streams[streamIndex];
+        for (var fragmentIndex = _this._appendIndex; fragmentIndex < fragmentCount; fragmentIndex++) {
 
-            var maxDownloads = stream._getMaxConcurrentRequests(stream.qualityIndex);
-            var pendingDownloads = 0;
+            if (this._audioStream.isMissing(fragmentIndex) || this._videoStream.isMissing(fragmentIndex)) {
+                _log("Missing fragment reset: index=" + fragmentIndex, _this._settings);
+                this._audioStream.fragments[fragmentIndex].state = this._videoStream.fragments[fragmentIndex].state = DashlingFragmentState.idle;
+            }
 
-            for (var fragmentIndex = _this._appendIndex; fragmentIndex <= maxFragmentIndex && pendingDownloads < maxDownloads; fragmentIndex++) {
-                var fragment = stream.fragments[fragmentIndex];
+            var canLoadAudio = this._audioStream.canLoad(fragmentIndex);
+            var canLoadVideo = this._videoStream.canLoad(fragmentIndex);
 
-                if (fragment.state == DashlingFragmentState.downloading) {
-                    pendingDownloads++;
-                }
-                else if (stream.canLoad(fragmentIndex)) {
-                    downloadList.push({ streamIndex: streamIndex, fragmentIndex: fragmentIndex });
-                    pendingDownloads++;
-                }
+            if ( maxVideoIndex == -1 && this._audioStream.fragments[fragmentIndex].state < DashlingFragmentState.downloaded) {
+                maxVideoIndex = fragmentIndex + settings.maxSegmentLeadCount.video;
+            }
+
+            if (maxAudioIndex == -1 && this._videoStream.fragments[fragmentIndex].state < DashlingFragmentState.downloaded) {
+                maxAudioIndex = fragmentIndex + settings.maxSegmentLeadCount.audio;
+            }
+
+            // Ensure we don't try to load segments too far ahead of the other
+            var isAudioInRange = (maxAudioIndex == -1 || maxAudioIndex >= fragmentIndex);
+            var isVideoInRange = (maxVideoIndex == -1 || maxVideoIndex >= fragmentIndex);
+
+            // Ensure we don't try to suggest loading more requests than we can execute.
+            var audioRequestsHaveRoom = (this._audioStream.getActiveRequestCount() + downloadList[0].length + 1) < settings.maxConcurrentRequests.audio;
+            var videoRequestsHaveRoom = (this._videoStream.getActiveRequestCount() + downloadList[1].length) < settings.maxConcurrentRequests.video;
+
+            if (canLoadAudio && isAudioInRange && audioRequestsHaveRoom) {
+                downloadList[0].push(fragmentIndex);
+            }
+
+            if (canLoadVideo && isVideoInRange && videoRequestsHaveRoom) {
+                downloadList[1].push(fragmentIndex);
+            }
+
+            if ((!audioRequestsHaveRoom || !isAudioInRange) &&
+                (!videoRequestsHaveRoom || !isVideoInRange)) {
+                break;
             }
         }
-/*
-        for (streamIndex = 0; downloadList.length && streamIndex < streams.length; streamIndex++) {
-             streams[streamIndex].assessQuality(secondsRemaining, _this._appendIndex);
-        }
-*/
+
         return downloadList;
     },
 
     _onVideoSeeking: function() {
-        if (!this._seekingTimerId) {
-            this._seekingTimerId = setTimeout(this._onThrottledSeek, 500);
+        if (this._seekingTimerId) {
+            clearTimeout(this._seekingTimerId);
         }
+
+        this._seekingTimerId = setTimeout(this._onThrottledSeek, 500);
     },
 
     _onThrottledSeek: function() {

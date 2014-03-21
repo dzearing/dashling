@@ -15,7 +15,7 @@ var DashlingError = {
 var DashlingSessionState = {
     error: -1,
     idle: 0,
-    intializing: 1,
+    initializing: 1,
     loading: 2,
     playbackInProgress: 4,
     paused: 5

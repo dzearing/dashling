@@ -1,3 +1,5 @@
+var c_bandwidthStorageKey = "Dashling.Stream.bandwidth";
+
 Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
 
     var _this = this;
@@ -6,10 +8,10 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
     _mix(_this, {
         fragments: [],
         qualityIndex:  Math.max(0, Math.min(streamInfo.qualities.length - 1, settings.targetQuality[streamType])),
-
+        _startTime: new Date().getTime(),
         _initializedQualityIndex: -1,
         _initRequestManager: new Dashling.RequestManager(),
-        _requestManager: new Dashling.RequestManager(),
+        _requestManager: new Dashling.RequestManager(streamType == "video"),
         _streamType: streamType,
         _mediaSource: mediaSource,
         _videoElement: videoElement,
@@ -17,10 +19,7 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
         _manifest: settings.manifest,
         _streamInfo: streamInfo,
         _buffer: null,
-        _initSegments: [],
-        _delaysPerQuality: {},
-        _maxConcurrentRequestsPerQuality: {},
-        _latenciesPerQuality: {}
+        _initSegments: []
     });
 
     var fragmentCount = streamInfo.timeline.length;
@@ -137,43 +136,50 @@ Dashling.Stream.prototype = {
         }
     },
 
-    canLoad: function(fragmentIndex) {
-        var canLoad = false;
+    getActiveRequestCount: function() {
+        return this._requestManager.getActiveRequestCount();
+    },
+
+    getRequestStaggerTime: function() {
+        return this._getDownloadMsForQuality(this.qualityIndex) * 1.4;
+    },
+
+    isMissing: function(fragmentIndex) {
         var fragment = this.fragments[fragmentIndex];
+        var isMissing = false;
 
         if (fragment) {
             if (fragment.state == DashlingFragmentState.appended) {
-                var videoBuffer = this._buffer.buffered;
+                var bufferRanges = this._buffer.buffered;
                 var fragmentTime = fragment.time;
                 var wiggleRoom = 0.05;
-
-                // validate that the buffered area in the video element still contains the fragment.
                 var isBuffered = false;
 
-                for (var bufferedIndex = 0; bufferedIndex < videoBuffer.length; bufferedIndex++) {
-                    if ((videoBuffer.start(bufferedIndex) - wiggleRoom) <= fragmentTime.startSeconds && (videoBuffer.end(bufferedIndex) + wiggleRoom) >= (fragmentTime.startSeconds + fragmentTime.lengthSeconds)) {
+                // validate that the buffered area in the video element still contains the fragment.
+                for (var bufferedIndex = 0; bufferedIndex < bufferRanges.length; bufferedIndex++) {
+                    if ((bufferRanges.start(bufferedIndex) - wiggleRoom) <= fragmentTime.startSeconds && (bufferRanges.end(bufferedIndex) + wiggleRoom) >= (fragmentTime.startSeconds + fragmentTime.lengthSeconds)) {
                         isBuffered = true;
                         break;
                     }
                 }
 
-                // We found an appended segment no longer in the playlist. move it back to idle.
-                if (!isBuffered) {
-                    fragment.state = DashlingFragmentState.idle;
-                }
+                // We found an appended segment no longer in the playlist.
+                isMissing = !isBuffered;
             }
-
-            canLoad = (fragment.state <= DashlingFragmentState.idle);
         }
 
-        return canLoad;
+        return isMissing;
+    },
+
+    canLoad: function(fragmentIndex) {
+        return (this.fragments[fragmentIndex].state <= DashlingFragmentState.idle);
     },
 
     load: function(fragmentIndex, onFragmentAvailable) {
         var _this = this;
         var fragment = this.fragments[fragmentIndex];
 
-        this.assessQuality2(fragmentIndex);
+        this.assessQuality(fragmentIndex);
 
         if (fragment && fragment.state <= DashlingFragmentState.idle) {
             fragment.state = DashlingFragmentState.downloading;
@@ -195,7 +201,7 @@ Dashling.Stream.prototype = {
             fragment.activeRequest = request;
             fragment.requests.push(request);
 
-            _log("Download started: " + request.qualityId + " " + request.fragmentType + " " + ( request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
+            _log("Download started: " + request.qualityId + " " + request.fragmentType + " " + ( request.fragmentIndex !== undefined ? "index=" + request.fragmentIndex : "") + " time=" + (new Date().getTime() - _this._startTime) + "ms stagger=" + _this.getRequestStaggerTime() + "ms", _this._settings);
 
             _this._requestManager.load(request, true, _onSuccess, _onFailure);
         }
@@ -205,13 +211,8 @@ Dashling.Stream.prototype = {
 
             var timeDownloading = Math.round(request.timeAtLastByte - (request.timeAtEstimatedFirstByte || request.timeAtFirstByte));
             var timeWaiting = request.timeAtLastByte - timeDownloading;
-            var maxParallelRequests = Math.max(2, Math.min(_this._settings.maxConcurrentRequestsPerStream, Math.round(timeWaiting / timeDownloading)));
-            var newDelay = maxParallelRequests > 1 ? Math.round(Math.max(timeWaiting / maxParallelRequests, timeDownloading)) : 0; //  Math.round(Math.max(0, (timeWaiting - timeDownloading) / maxParallelRequests));
 
-            _log("Download complete: " + request.qualityId + " " + request.fragmentType + " index: " + request.fragmentIndex + " waiting: " + timeWaiting + "ms receiving: " + timeDownloading  + "ms nextDelay: " + newDelay + " maxReq: " + maxParallelRequests, _this._settings);
-
-            _this._maxConcurrentRequestsPerQuality[request.qualityIndex] = maxParallelRequests;
-            _this._delaysPerQuality[request.qualityIndex] = newDelay;
+            _log("Download complete: " + request.qualityId + " " + request.fragmentType + " index: " + request.fragmentIndex + " waiting: " + timeWaiting + "ms receiving: " + timeDownloading, _this._settings);
 
             onFragmentAvailable(fragment);
         }
@@ -229,34 +230,34 @@ Dashling.Stream.prototype = {
         }
     },
 
-    assessQuality2: function(currentIndex) {
+    assessQuality: function(currentIndex) {
         var _this = this;
         var settings = _this._settings;
         var averageBandwidth = _this._requestManager.getAverageBandwidth();
         var maxQuality = this._streamInfo.qualities.length - 1;
 
+        if (!averageBandwidth) {
+            averageBandwidth = parseFloat(localStorage.getItem("Dashling.RequestManager.bandwidth"));
+        }
+        else if (this._streamType === "video") {
+            localStorage.setItem("Dashling.RequestManager.bandwidth", averageBandwidth);
+        }
+
         if (!settings.isABREnabled || !averageBandwidth) {
             _this.qualityIndex = Math.min(this._streamInfo.qualities.length - 1, settings.targetQuality[ _this._streamType]);
-            //_this.canPlay = _this._getTimeToDownloadAtQuality(_this.qualityIndex, currentIndex) < durationRemaining;
         }
         else {
             var targetQuality = 0;
             var logEntry = "Assess " + this._streamType + ": bps=" + Math.round(averageBandwidth * 1000);
             var segmentLength = this._streamInfo.timeline[0].lengthSeconds;
-            var averageWaitPerSegment = segmentLength * .5;
+            var averageWaitPerSegment = segmentLength * .4;
 
             for (var qualityIndex = 0; qualityIndex <= maxQuality; qualityIndex++) {
-                var duration = 0;
-                var quality = this._streamInfo.qualities[qualityIndex];
-                var bandwidth = quality.bandwidth / 8;
-                var totalBytes = bandwidth * segmentLength;
-                var averageBytesPerSecond = (averageBandwidth * 1000) || 100000;
+                var duration = _this._getDownloadMsForQuality(qualityIndex, 0, averageBandwidth);
 
-                duration = totalBytes / averageBytesPerSecond;
+                logEntry += " " + qualityIndex + "=" + Math.round(duration) + "ms";
 
-                logEntry += " " + qualityIndex + "=" + Math.round(duration) + "s";
-
-                if ((duration + averageWaitPerSegment) < segmentLength) {
+                if (((duration / 1000 ) + averageWaitPerSegment) < segmentLength) {
                     targetQuality = qualityIndex;
                 }
             }
@@ -266,49 +267,25 @@ Dashling.Stream.prototype = {
         }
     },
 
-    assessQuality: function(durationRemaining, currentIndex) {
+    _getDownloadMsForQuality: function(qualityIndex, fragmentIndex) {
         var _this = this;
-        var settings = _this._settings;
-            var averageBandwidth = _this._requestManager.getAverageBandwidth();
+        var duration = 0;
+        var quality = _this._streamInfo.qualities[qualityIndex];
+        var segmentLength = _this._streamInfo.timeline[fragmentIndex || 0].lengthSeconds;
+        var bandwidth = quality.bandwidth / 8;
+        var totalBytes = bandwidth * segmentLength;
+        var averageBandwidth = _this._requestManager.getAverageBandwidth();
 
-        if (!settings.isABREnabled || !averageBandwidth) {
-            _this.qualityIndex = Math.min(this._streamInfo.qualities.length - 1, settings.targetQuality[ _this._streamType]);
-            _this.canPlay = _this._getTimeToDownloadAtQuality(_this.qualityIndex, currentIndex) < durationRemaining;
+        if (!averageBandwidth) {
+            averageBandwidth = parseFloat(localStorage.getItem("Dashling.RequestManager.bandwidth"));
         }
-        else {
-            var qualityIndex = 0;
-            var maxQuality = _this._streamInfo.qualities.length - 1;
-            var timeToDownload = 0;
-            var canPlay = false;
-            var logEntry = "Assess " + this._streamType + ": remaining=" + Math.round(durationRemaining) + "s";
-
-            for (; qualityIndex <= maxQuality; qualityIndex++) {
-                timeToDownload = _this._getTimeToDownloadAtQuality(qualityIndex, currentIndex);
-                logEntry += " " + qualityIndex + "=" + Math.round(timeToDownload) + "s ";
-
-                if (timeToDownload >= durationRemaining) {
-                    qualityIndex = Math.max(0, qualityIndex - 1);
-                    break;
-                }
-
-                canPlay = true;
-
-                if (qualityIndex == maxQuality) {
-                    break;
-                }
-            }
-
-            _log(logEntry, _this.settings);
-
-            if (this.qualityIndex != qualityIndex) {
-                _log("Quality change: " + _this._streamType + " from " + _this.qualityIndex + " to " + qualityIndex, _this.settings);
-            }
-
-            //this.qualityIndex = Math.min(Math.round(Math.random() * maxQuality), maxQuality);
-            //this.qualityIndex = Math.min(4, maxQuality);
-            _this.qualityIndex = qualityIndex;
-            _this.canPlay = canPlay;
+        else if (this._streamType === "video") {
+            localStorage.setItem("Dashling.RequestManager.bandwidth", averageBandwidth);
         }
+
+        var averageBytesPerMillisecond = averageBandwidth || _this._settings.defaultBandwidth;
+
+        return totalBytes / averageBytesPerMillisecond;
     },
 
     _getSourceBuffer: function() {
@@ -318,42 +295,6 @@ Dashling.Stream.prototype = {
 
         return this._buffer;
     },
-
-    _getTimeToDownloadAtQuality: function(qualityIndex, fragmentIndex) {
-        var duration = 0;
-
-        for (var i = fragmentIndex; i < this.fragments.length; i++) {
-            var fragment = this.fragments[i];
-
-            if (!fragment.state < DashlingFragmentState.downloaded) {
-                duration += this._getEstimatedDuration(qualityIndex, fragmentIndex);
-            }
-        }
-
-        return duration;
-    },
-
-    _getMaxConcurrentRequests: function(qualityIndex) {
-        return this._maxConcurrentRequestsPerQuality[qualityIndex] || 1;
-    },
-
-    _getMinDelayBetweenRequests: function(qualityIndex) {
-        return this._delaysPerQuality[qualityIndex] || 1000;
-    },
-
-    _getEstimatedDuration: function(qualityIndex, fragmentIndex) {
-        var duration = 0;
-        var quality = this._streamInfo.qualities[qualityIndex];
-        var bandwidth = quality.bandwidth / 8;
-        var totalBytes = bandwidth * this._streamInfo.timeline[fragmentIndex].lengthSeconds;
-        var averageBytesPerSecond = (this._requestManager.getAverageBandwidth() * 1000) || 100000;
-
-        duration = totalBytes / averageBytesPerSecond;
-
-        return duration + (this._requestManager.getAverageLatency() / 1000);
-    },
-
-
 
     _loadInitSegment: function(qualityIndex, onFragmentAvailable) {
         var _this = this;
