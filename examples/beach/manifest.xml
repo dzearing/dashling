@@ -1,0 +1,24 @@
+<MPD type="static" maxSegmentDuration="PT5.000S" profiles="urn:mpeg:dash:profile:isoff-live:2011" mediaPresentationDuration="PT0H0M43.043S" minBufferTime="PT4.500S" xmlns="urn:mpeg:DASH:schema:MPD:2011">
+  <BaseURL>beach/</BaseURL>
+  <Period>
+    <AdaptationSet id="0" contentType="audio" mimeType="audio/mp4" segmentAlignment="true" bitstreamSwitching="true" codecs="mp4a.40.2">
+      <SegmentTemplate timescale="48000" initialization="init-$RepresentationID$.bin" media="$RepresentationID$-$Time$.bin">
+        <SegmentTimeline>
+          <S d="240000" r="7" />
+          <S d="146064" />
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="audio-high" audioSamplingRate="48000" bandwidth="192000" codecs="mp4a.40.2" />
+    </AdaptationSet>
+    <AdaptationSet id="1" contentType="video" mimeType="video/mp4" segmentAlignment="true" bitstreamSwitching="true" maxFrameRate="10000000/417083" maxWidth="1280" maxHeight="720" codecs="avc1.4d001f">
+      <SegmentTemplate timescale="23976" initialization="init-$RepresentationID$.bin" media="$RepresentationID$-$Time$.bin">
+        <SegmentTimeline>
+          <S d="119880" r="7" />
+          <S d="72959" />
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="video-480p" width="852" height="480" frameRate="10000000/417083" bandwidth="1200000" codecs="avc1.4d001f" />
+      <Representation id="video-720p" width="1280" height="720" frameRate="10000000/417083" bandwidth="2704000" codecs="avc1.4d001f" />
+    </AdaptationSet>
+  </Period>
+</MPD>

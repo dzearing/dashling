@@ -1,0 +1,23 @@
+<MPD type="static" maxSegmentDuration="PT5.000S" profiles="urn:mpeg:dash:profile:isoff-live:2011" mediaPresentationDuration="PT0H0M76.993S" minBufferTime="PT4.500S" xmlns="urn:mpeg:DASH:schema:MPD:2011">
+  <BaseURL>spider/</BaseURL>
+  <Period>   
+    <AdaptationSet id="0" contentType="audio" mimeType="audio/mp4" segmentAlignment="true" bitstreamSwitching="true" codecs="mp4a.40.2">
+      <SegmentTemplate timescale="44100" initialization="init-$RepresentationID$.bin" media="$RepresentationID$-$Time$.bin">
+        <SegmentTimeline>
+          <S d="220500" r="14" />
+          <S d="87882" />
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="audio-high" audioSamplingRate="44100" bandwidth="192000" codecs="mp4a.40.2" />
+    </AdaptationSet>
+    <AdaptationSet id="1" contentType="video" mimeType="video/mp4" segmentAlignment="true" bitstreamSwitching="true" maxFrameRate="10000000/333477" maxWidth="800" maxHeight="480" codecs="avc1.4d001f">
+      <SegmentTemplate timescale="29987" initialization="init-$RepresentationID$.bin" media="$RepresentationID$-$Time$.bin">
+        <SegmentTimeline>
+          <S d="149935" r="14" />
+          <S d="59758" />
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="video-480" width="800" height="480" frameRate="10000000/333477" bandwidth="1200000" codecs="avc1.4d001f" />
+    </AdaptationSet>
+  </Period>
+</MPD>
