@@ -8,6 +8,7 @@ var paths = {
     scripts: inDirectory("src/", [
         "Start.js",
         "Utilities.js",
+        "ThrottleMixin.js",
         "EventingMixin.js",
         "DashlingEnums.js",
         "Dashling.js",

@@ -191,6 +191,9 @@ Dashling.StreamController.prototype = {
                 this._audioStream.fragments[fragmentIndex].state = this._videoStream.fragments[fragmentIndex].state = DashlingFragmentState.idle;
             }
 
+            _this._audioStream.assessQuality();
+            _this._videoStream.assessQuality();
+
             var canLoadAudio = this._audioStream.canLoad(fragmentIndex);
             var canLoadVideo = this._videoStream.canLoad(fragmentIndex);
 
@@ -261,3 +264,5 @@ Dashling.StreamController.prototype = {
     }
 
 };
+
+_mix(Dashling.StreamController.prototype, ThrottleMixin);

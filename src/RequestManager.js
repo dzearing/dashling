@@ -72,6 +72,8 @@ Dashling.RequestManager.prototype = {
                     timeFromStart: new Date().getTime() - request.startTime,
                     bytesLoaded: ev.lengthComputable ? ev.loaded : -1
                 });
+
+                _this._postProgress(request.progressEvents);
             };
 
             xhr.onloadend = function() {
@@ -95,7 +97,6 @@ Dashling.RequestManager.prototype = {
                         request.timeAtEstimatedFirstByte = request.timeAtLastByte - (request.bytesLoaded / request.bytesPerMillisecond);
 
                         if (bytesLoaded > 10000) {
-                            _this._bandwidths.push(request.bytesPerMillisecond);
                             _this._latencies.push(request.timeAtEstimatedFirstByte);
                         }
                     }
@@ -135,6 +136,29 @@ Dashling.RequestManager.prototype = {
             request.startTime = new Date().getTime();
 
             xhr.send();
+        }
+    },
+
+    _postProgress: function(progressEvents) {
+        if (progressEvents.length > 1) {
+            var lastEvent = progressEvents[progressEvents.length - 1];
+            var firstEvent = progressEvents[0];
+            var bytesLoaded = lastEvent.bytesLoaded - firstEvent.bytesLoaded;
+
+            if (bytesLoaded > 10000) {
+                var timeDifference = lastEvent.timeFromStart - firstEvent.timeFromStart;
+
+                if (timeDifference > 1) {
+                    var bytesPerMillisecond = bytesLoaded / timeDifference;
+
+                    this._bandwidths.push(bytesPerMillisecond);
+
+                    if (this._bandwidths.length > 10) {
+                        this._bandwidths = this._bandwidths.slice(10);
+                    }
+                }
+            }
+
         }
     },
 

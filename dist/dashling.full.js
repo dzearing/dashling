@@ -30,6 +30,19 @@ function _average(numbers, startIndex) {
     return total;
 }
 
+var _throttledRequestIds = {};
+
+function _clearThrottle(id) {
+    if (_throttledRequestIds[id]) {
+        clearTimeout(_throttledRequestIds[id]);
+    }
+}
+
+function _throttle(id, minTimePassed, func) {
+    _clearThrottle(id);
+    _throttledRequestIds[id] = setTimeout(func, minTimePassed);
+}
+
 function _log(message, settings) {
     if (!settings || settings.logToConsole) {
         console.log(message);
@@ -68,6 +81,45 @@ function _fromISOToSeconds(isoString) {
     return seconds;
 }
 
+var ThrottleMixin = {
+    throttle: function(func, id, minTime, shouldReset, shouldCallImmediately) {
+        var _this = this;
+
+        (!_this._throttleIds) && (_this._throttleIds = {});
+        (shouldReset) && (_this.clearThrottle(id));
+
+        if (!_this._throttleIds[id]) {
+            _this._throttleIds[id] = setTimeout(function() {
+                if (!shouldCallImmediately) {
+                    func();
+                }
+
+                delete _this._throttleIds[id];
+            }, minTime);
+
+            if (shouldCallImmediately) {
+                shouldCallImmediately = false;
+                func();
+            }
+        }
+    },
+
+    clearThrottle: function(id) {
+        if (this._throttleIds) {
+            clearTimeout(this._throttleIds[id]);
+            delete this._throttleIds[id];
+        }
+    },
+
+    clearAllThrottles: function() {
+        if (this._throttleIds) {
+            for (var id in this._throttleIds) {
+                clearTimeout(this._throttleIds[id]);
+            }
+            this._throttleIds = null;
+        }
+    }
+};
 var EventingMixin = {
     on: function(eventName, callback) {
         this.__events = this.__events || {};
@@ -657,6 +709,9 @@ Dashling.StreamController.prototype = {
                 this._audioStream.fragments[fragmentIndex].state = this._videoStream.fragments[fragmentIndex].state = DashlingFragmentState.idle;
             }
 
+            _this._audioStream.assessQuality();
+            _this._videoStream.assessQuality();
+
             var canLoadAudio = this._audioStream.canLoad(fragmentIndex);
             var canLoadVideo = this._videoStream.canLoad(fragmentIndex);
 
@@ -728,6 +783,8 @@ Dashling.StreamController.prototype = {
 
 };
 
+_mix(Dashling.StreamController.prototype, ThrottleMixin);
+
 var c_bandwidthStorageKey = "Dashling.Stream.bandwidth";
 
 Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
@@ -770,6 +827,9 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
 
 Dashling.Stream.prototype = {
     dispose: function() {
+
+        this.clearAllThrottles();
+
         if (this._requestManager) {
             this._requestManager.dispose();
             this._requestManager = null;
@@ -871,7 +931,8 @@ Dashling.Stream.prototype = {
     },
 
     getRequestStaggerTime: function() {
-        return this._getDownloadMsForQuality(this.qualityIndex) * 1.4;
+        // TODO Remove 1.4 magic ratio
+        return Math.round(this._getDownloadMsForQuality(this.qualityIndex) * 1.4);
     },
 
     isMissing: function(fragmentIndex) {
@@ -909,7 +970,7 @@ Dashling.Stream.prototype = {
         var _this = this;
         var fragment = this.fragments[fragmentIndex];
 
-        this.assessQuality(fragmentIndex);
+        //this.assessQuality(fragmentIndex);
 
         if (fragment && fragment.state <= DashlingFragmentState.idle) {
             fragment.state = DashlingFragmentState.downloading;
@@ -960,11 +1021,11 @@ Dashling.Stream.prototype = {
         }
     },
 
-    assessQuality: function(currentIndex) {
+    assessQuality: function() {
         var _this = this;
         var settings = _this._settings;
         var averageBandwidth = _this._requestManager.getAverageBandwidth();
-        var maxQuality = this._streamInfo.qualities.length - 1;
+        var maxQuality = _this._streamInfo.qualities.length - 1;
 
         if (!averageBandwidth) {
             averageBandwidth = parseFloat(localStorage.getItem("Dashling.RequestManager.bandwidth"));
@@ -974,12 +1035,12 @@ Dashling.Stream.prototype = {
         }
 
         if (!settings.isABREnabled || !averageBandwidth) {
-            _this.qualityIndex = Math.min(this._streamInfo.qualities.length - 1, settings.targetQuality[ _this._streamType]);
+            _this.qualityIndex = Math.min(_this._streamInfo.qualities.length - 1, settings.targetQuality[ _this._streamType]);
         }
         else {
             var targetQuality = 0;
-            var logEntry = "Assess " + this._streamType + ": bps=" + Math.round(averageBandwidth * 1000);
-            var segmentLength = this._streamInfo.timeline[0].lengthSeconds;
+            var logEntry = "Quality check " + _this._streamType + ": bps=" + Math.round(averageBandwidth * 1000);
+            var segmentLength = _this._streamInfo.timeline[0].lengthSeconds;
             var averageWaitPerSegment = segmentLength * .4;
 
             for (var qualityIndex = 0; qualityIndex <= maxQuality; qualityIndex++) {
@@ -992,7 +1053,10 @@ Dashling.Stream.prototype = {
                 }
             }
 
-            _log(logEntry, _this.settings);
+            _this.throttle(function() {
+                _log(logEntry, _this.settings);
+            }, "assess", 1000, false, false);
+
             _this.qualityIndex = targetQuality;
         }
     },
@@ -1079,6 +1143,8 @@ Dashling.Stream.prototype = {
 };
 
 _mix(Dashling.Stream.prototype, EventingMixin);
+_mix(Dashling.Stream.prototype, ThrottleMixin);
+
 
 Dashling.RequestManager = function(shouldRecordStats) {
     this._activeRequests = {};
@@ -1154,6 +1220,8 @@ Dashling.RequestManager.prototype = {
                     timeFromStart: new Date().getTime() - request.startTime,
                     bytesLoaded: ev.lengthComputable ? ev.loaded : -1
                 });
+
+                _this._postProgress(request.progressEvents);
             };
 
             xhr.onloadend = function() {
@@ -1177,7 +1245,6 @@ Dashling.RequestManager.prototype = {
                         request.timeAtEstimatedFirstByte = request.timeAtLastByte - (request.bytesLoaded / request.bytesPerMillisecond);
 
                         if (bytesLoaded > 10000) {
-                            _this._bandwidths.push(request.bytesPerMillisecond);
                             _this._latencies.push(request.timeAtEstimatedFirstByte);
                         }
                     }
@@ -1217,6 +1284,29 @@ Dashling.RequestManager.prototype = {
             request.startTime = new Date().getTime();
 
             xhr.send();
+        }
+    },
+
+    _postProgress: function(progressEvents) {
+        if (progressEvents.length > 1) {
+            var lastEvent = progressEvents[progressEvents.length - 1];
+            var firstEvent = progressEvents[0];
+            var bytesLoaded = lastEvent.bytesLoaded - firstEvent.bytesLoaded;
+
+            if (bytesLoaded > 10000) {
+                var timeDifference = lastEvent.timeFromStart - firstEvent.timeFromStart;
+
+                if (timeDifference > 1) {
+                    var bytesPerMillisecond = bytesLoaded / timeDifference;
+
+                    this._bandwidths.push(bytesPerMillisecond);
+
+                    if (this._bandwidths.length > 10) {
+                        this._bandwidths = this._bandwidths.slice(10);
+                    }
+                }
+            }
+
         }
     },
 

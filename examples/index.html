@@ -10,114 +10,15 @@
 
     <link rel="stylesheet" type="text/css" href="DashMonitor.css"></link>
     <script type="text/javascript" src="DashMonitor.js"></script>
+    <script type="text/javascript" src="VideoDebug.js"></script>
 
     <script>
         var monitor,
             dashling = new Dashling(),
             logVideoEvents;
 
-        var videoElementEvents = [
-            "loadstart",
-            "emptied",
-            "canplaythrough",
-            "ended",
-            "ratechange",
-            "progress",
-            "stalled",
-            "playing",
-            "durationchange",
-            "resize",
-            "suspend",
-            "loadedmetadata",
-            "waiting",
-            "timeupdate",
-            "volumechange",
-            "abort",
-            "loadeddata",
-            "seeking",
-            "play",
-            "error",
-            "canplay",
-            "seeked",
-            "pause"
-        ];
-
-        function listenToVideoElement(videoElement) {
-            var timeAtLoaded = 0;
-
-            for (var i = 0; i < videoElementEvents.length; i++) {
-                var eventName = videoElementEvents[i];
-
-                videoElement.addEventListener(eventName, function(ev) {
-                    var message = "Video event: " + ev.type;
-
-                    message += ", fromLoad: " + parseFloat(((new Date().getTime() - timeAtLoaded) / 1000).toFixed(2)) + "s";
-
-                    switch (ev.type) {
-                        case "ratechange":
-                            message += ": " + videoElement.playbackRate;
-                            break;
-
-                        case "loadstart":
-                            timeAtLoaded = new Date().getTime();
-                            break;
-
-                        case "stalled":
-                        case "timeupdate":
-                        case "seeking":
-                            message += ", currentTime: " + parseFloat(videoElement.currentTime.toFixed(2)) + "s";
-                            break;
-
-                        case "progress":
-                        case "loadeddata":
-                            message += ", ranges: " + _getBufferedRanges(videoElement);
-                            break;
-
-                        case "error":
-                            message += ", error: " + _getError(videoElement);
-                            break;
-
-                        case "durationchange":
-                            message += ": " + videoElement.duration;
-                            break;
-                    }
-
-                    if (logVideoEvents) {
-                        console.log(message);
-                    }
-                }, false);
-            }
-        }
-
-        function _getError(videoElement) {
-            var error = "";
-
-            if (videoElement && videoElement.error) {
-                var code = error = videoElement.error.code;
-
-                for (var i in videoElement.error) {
-                    if (i != "code" && videoElement.error[i] == code) {
-                        error = i;
-                        break;
-                    }
-                }
-            }
-
-            return error;
-        }
-
-        function _getBufferedRanges(videoElement) {
-            var ranges = "";
-
-            for (var rangeIndex = 0; rangeIndex < videoElement.buffered.length; rangeIndex++) {
-                ranges += "[" + videoElement.buffered.start(rangeIndex) + "-" + videoElement.buffered.end(rangeIndex) + "] ";
-            }
-
-            return ranges;
-        }
-
         function initPage() {
-            listenToVideoElement(document.querySelector("video"));
+            VideoDebug.observe();
             _updateLogging();
 
             document.querySelector("#logDashling").addEventListener("change", _updateLogging);
@@ -227,7 +128,7 @@
 
         function _updateLogging() {
             dashling.settings.logToConsole = document.querySelector("#logDashling").checked;
-            logVideoEvents = document.querySelector("#logVideo").checked;
+            VideoDebug.logToConsole = document.querySelector("#logVideo").checked;
         }
 
     </script>
@@ -352,9 +253,9 @@
             <div>
                 <span>Starting video quality:</span>
                 <select id="videoQualitySelect">
-                    <option value="4" selected="selected">4</option>
+                    <option value="4">4</option>
                     <option value="3">3</option>
-                    <option value="2">2</option>
+                    <option value="2" selected="selected">2</option>
                     <option value="1">1</option>
                     <option value="0">0</option>
                 </select>

@@ -40,6 +40,9 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
 
 Dashling.Stream.prototype = {
     dispose: function() {
+
+        this.clearAllThrottles();
+
         if (this._requestManager) {
             this._requestManager.dispose();
             this._requestManager = null;
@@ -141,7 +144,8 @@ Dashling.Stream.prototype = {
     },
 
     getRequestStaggerTime: function() {
-        return this._getDownloadMsForQuality(this.qualityIndex) * 1.4;
+        // TODO Remove 1.4 magic ratio
+        return Math.round(this._getDownloadMsForQuality(this.qualityIndex) * 1.4);
     },
 
     isMissing: function(fragmentIndex) {
@@ -179,7 +183,7 @@ Dashling.Stream.prototype = {
         var _this = this;
         var fragment = this.fragments[fragmentIndex];
 
-        this.assessQuality(fragmentIndex);
+        //this.assessQuality(fragmentIndex);
 
         if (fragment && fragment.state <= DashlingFragmentState.idle) {
             fragment.state = DashlingFragmentState.downloading;
@@ -230,11 +234,11 @@ Dashling.Stream.prototype = {
         }
     },
 
-    assessQuality: function(currentIndex) {
+    assessQuality: function() {
         var _this = this;
         var settings = _this._settings;
         var averageBandwidth = _this._requestManager.getAverageBandwidth();
-        var maxQuality = this._streamInfo.qualities.length - 1;
+        var maxQuality = _this._streamInfo.qualities.length - 1;
 
         if (!averageBandwidth) {
             averageBandwidth = parseFloat(localStorage.getItem("Dashling.RequestManager.bandwidth"));
@@ -244,12 +248,12 @@ Dashling.Stream.prototype = {
         }
 
         if (!settings.isABREnabled || !averageBandwidth) {
-            _this.qualityIndex = Math.min(this._streamInfo.qualities.length - 1, settings.targetQuality[ _this._streamType]);
+            _this.qualityIndex = Math.min(_this._streamInfo.qualities.length - 1, settings.targetQuality[ _this._streamType]);
         }
         else {
             var targetQuality = 0;
-            var logEntry = "Assess " + this._streamType + ": bps=" + Math.round(averageBandwidth * 1000);
-            var segmentLength = this._streamInfo.timeline[0].lengthSeconds;
+            var logEntry = "Quality check " + _this._streamType + ": bps=" + Math.round(averageBandwidth * 1000);
+            var segmentLength = _this._streamInfo.timeline[0].lengthSeconds;
             var averageWaitPerSegment = segmentLength * .4;
 
             for (var qualityIndex = 0; qualityIndex <= maxQuality; qualityIndex++) {
@@ -262,7 +266,10 @@ Dashling.Stream.prototype = {
                 }
             }
 
-            _log(logEntry, _this.settings);
+            _this.throttle(function() {
+                _log(logEntry, _this.settings);
+            }, "assess", 1000, false, false);
+
             _this.qualityIndex = targetQuality;
         }
     },
@@ -349,3 +356,5 @@ Dashling.Stream.prototype = {
 };
 
 _mix(Dashling.Stream.prototype, EventingMixin);
+_mix(Dashling.Stream.prototype, ThrottleMixin);
+
