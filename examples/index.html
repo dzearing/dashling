@@ -71,39 +71,53 @@
                 var fragmentList = [ controller._streams[0].fragments, controller._streams[1].fragments];
                 var qualityDictionary = {};
 
-                context.videoDuration = manifest.mediaDuration;
-                context.qualities = [];
+                context.duration = manifest.mediaDuration;
+                context.metrics = {};
+                context.streams = {
+                    audio: {
+                        metrics: [],
+                        qualities: []
+                    },
+                    video: {
+                        metrics: [],
+                        qualities: []
+                    }
+                };
 
-                for (var fragmentListIndex = 0 ; fragmentListIndex< fragmentList.length; fragmentListIndex++) {
-                    var fragments = fragmentList[fragmentListIndex];
+                for (var streamIndex = 0; streamIndex < controller._streams.length; streamIndex++) {
+                    var stream = controller._streams[streamIndex];
+                    var contextStream = context.streams[stream._streamType];
 
-                    for (var fragmentIndex = 0; fragmentIndex < fragments.length; fragmentIndex++) {
-                        var fragment = fragments[fragmentIndex];
+                    contextStream.metrics.push({ title: "Quality", value: stream.qualityIndex });
 
-                        for (var requestIndex = 0; requestIndex < fragment.requests.length; requestIndex++) {
-                            var fragmentRequest = fragment.requests[requestIndex];
+                    for (var fragmentIndex = 0; fragmentIndex < stream.fragments.length; fragmentIndex++) {
+                        var fragment = stream.fragments[fragmentIndex];
 
-                            var qualityEntry = qualityDictionary[fragmentRequest.qualityId];
+                        if (fragment.activeRequest) {
+                            var contextQuality = contextStream.qualities[fragment.qualityIndex];
 
-                            if (!qualityEntry) {
-                                qualityEntry = qualityDictionary[fragmentRequest.qualityId] = {
-                                    name: fragmentRequest.qualityId,
-                                    requests: []
+                            if (!contextQuality) {
+                                contextQuality = contextStream.qualities[fragment.qualityIndex] = {
+                                    title: fragment.qualityId,
+                                    index: fragment.qualityIndex,
+                                    fragments: []
                                 };
-
-                                context.qualities.push(qualityEntry);
                             }
 
+                            var state = _findInEnum(fragment.state, Dashling.FragmentState);
 
-                            var stateStrings = [""];
-                            var stat = {
-                                state: _findInEnum(fragmentRequest.state, Dashling.FragmentState),
-                                segmentPosition: fragment.time.startSeconds,
-                                segmentDuration: fragment.time.lengthSeconds,
-                                requestIndex: requestIndex
-                            };
+                            if (fragment.state == Dashling.FragmentState.downloading && fragment.activeRequest.timeAtFirstByte == -1) {
+                                state = "waiting";
+                            }
 
-                            qualityEntry.requests.push(stat);
+                            contextQuality.fragments.push({
+                                index: fragmentIndex,
+                                state: state,
+                                start: fragment.time.startSeconds,
+                                length: fragment.time.lengthSeconds
+                            });
+
+
                         }
                     }
                 }
