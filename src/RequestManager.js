@@ -1,6 +1,7 @@
 Dashling.RequestManager = function(shouldRecordStats) {
   this._activeRequests = {};
-  this._latencies = [];
+  this._waitTimes = [];
+  this._receiveTimes = [];
   this._bandwidths = [];
   this._shouldRecordStats = shouldRecordStats;
 };
@@ -63,7 +64,7 @@ Dashling.RequestManager.prototype = {
 
       xhr.onreadystatechange = function() {
         if (xhr.readyState > 0 && request.timeAtFirstByte < 0) {
-          request.timeAtFirstByte = new Date().getTime() - request.startTime
+          request.timeAtFirstByte = new Date().getTime() - request.startTime;
         }
       };
 
@@ -96,10 +97,10 @@ Dashling.RequestManager.prototype = {
             request.bytesPerMillisecond = bytesLoaded / timeDifference;
             request.timeAtEstimatedFirstByte = request.timeAtLastByte - (request.bytesLoaded / request.bytesPerMillisecond);
 
-            if (bytesLoaded > 10000) {
-              _this._latencies.push(request.timeAtEstimatedFirstByte);
-            }
           }
+
+          _this._waitTimes.push(request.timeAtEstimatedFirstByte);
+          _this._receiveTimes.push(request.timeAtLastByte - request.timeAtEstimatedFirstByte);
 
           request.data = isArrayBuffer ? new Uint8Array(xhr.response) : xhr.responseText;
           request.statusCode = xhr.status;
@@ -160,8 +161,12 @@ Dashling.RequestManager.prototype = {
     }
   },
 
-  getAverageLatency: function() {
-    return _average(this._latencies, this._bandwidths.length - 5);
+  getAverageWait: function() {
+    return _average(this._waitTimes, this._waitTimes.length - 5);
+  },
+
+  getAverageReceive: function() {
+    return _average(this._receiveTimes, this._receiveTimes.length - 5);
   },
 
   getAverageBandwidth: function() {

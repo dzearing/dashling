@@ -9,6 +9,7 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
     fragments: [],
     qualityIndex: Math.max(0, Math.min(streamInfo.qualities.length - 1, settings.targetQuality[streamType])),
     _startTime: new Date().getTime(),
+    _appendLength: 0,
     _initializedQualityIndex: -1,
     _initRequestManager: new Dashling.RequestManager(),
     _requestManager: new Dashling.RequestManager(streamType == "video"),
@@ -19,6 +20,7 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
     _manifest: settings.manifest,
     _streamInfo: streamInfo,
     _buffer: null,
+    _bufferRate: [],
     _initSegments: []
   });
 
@@ -112,6 +114,16 @@ Dashling.Stream.prototype = {
       } else {
         fragment.state = DashlingFragmentState.appended;
         _this._isAppending = false;
+
+        var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
+
+        _this._appendLength += fragment.time.lengthSeconds;
+        _this._bufferRate.push(_this._appendLength / timeSinceStart);
+
+        if (_this._bufferRate.length > 1) {
+          _this._bufferRate.shift();
+        }
+
         onComplete(fragment);
       }
     }
@@ -135,6 +147,10 @@ Dashling.Stream.prototype = {
 
       _appendNextEntry();
     }
+  },
+
+  getBufferRate: function() {
+    return _average(this._bufferRate);
   },
 
   getActiveRequestCount: function() {
@@ -238,9 +254,9 @@ Dashling.Stream.prototype = {
     var maxQuality = _this._streamInfo.qualities.length - 1;
 
     if (!averageBandwidth) {
-      averageBandwidth = parseFloat(localStorage.getItem("Dashling.RequestManager.bandwidth"));
+      averageBandwidth = parseFloat(localStorage.getItem(c_bandwidthStorageKey));
     } else if (this._streamType === "video") {
-      localStorage.setItem("Dashling.RequestManager.bandwidth", averageBandwidth);
+      localStorage.setItem(c_bandwidthStorageKey, averageBandwidth);
     }
 
     if (!settings.isABREnabled || !averageBandwidth) {

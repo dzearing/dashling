@@ -89,6 +89,9 @@
                     var contextStream = context.streams[stream._streamType];
 
                     contextStream.metrics.push({ title: "Quality", value: stream.qualityIndex });
+                    contextStream.metrics.push({ title: "Buffer rate", value: _round(stream.getBufferRate(), 2) + " s/s"})
+                    contextStream.metrics.push({ title: "Avg wait", value: Math.round(stream._requestManager.getAverageWait(), 2) + " ms"})
+                    contextStream.metrics.push({ title: "Avg receive", value: Math.round(stream._requestManager.getAverageReceive(), 2) + " ms"})
 
                     for (var fragmentIndex = 0; fragmentIndex < stream.fragments.length; fragmentIndex++) {
                         var fragment = stream.fragments[fragmentIndex];
@@ -145,6 +148,9 @@
             VideoDebug.logToConsole = document.querySelector("#logVideo").checked;
         }
 
+        function _round(number, decimals) {
+            return parseFloat(number.toFixed(decimals));
+        }
     </script>
 
     <style>

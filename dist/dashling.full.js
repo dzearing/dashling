@@ -190,14 +190,14 @@ window.Dashling = function() {
 
     // Max number of simultaneous requests per stream.
     maxConcurrentRequests: {
-      audio: 3,
+      audio: 4,
       video: 6
     },
 
     // Max number of fragments each stream can be ahead of the other stream by.
     maxSegmentLeadCount: {
-      audio: 2,
-      video: 4
+      audio: 3,
+      video: 5
     },
 
     // The quality to use if we have ABR disabled, or if default bandwidth is not available.
@@ -794,6 +794,7 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
     fragments: [],
     qualityIndex: Math.max(0, Math.min(streamInfo.qualities.length - 1, settings.targetQuality[streamType])),
     _startTime: new Date().getTime(),
+    _appendLength: 0,
     _initializedQualityIndex: -1,
     _initRequestManager: new Dashling.RequestManager(),
     _requestManager: new Dashling.RequestManager(streamType == "video"),
@@ -804,6 +805,7 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
     _manifest: settings.manifest,
     _streamInfo: streamInfo,
     _buffer: null,
+    _bufferRate: [],
     _initSegments: []
   });
 
@@ -897,6 +899,16 @@ Dashling.Stream.prototype = {
       } else {
         fragment.state = DashlingFragmentState.appended;
         _this._isAppending = false;
+
+        var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
+
+        _this._appendLength += fragment.time.lengthSeconds;
+        _this._bufferRate.push(_this._appendLength / timeSinceStart);
+
+        if (_this._bufferRate.length > 1) {
+          _this._bufferRate.shift();
+        }
+
         onComplete(fragment);
       }
     }
@@ -920,6 +932,10 @@ Dashling.Stream.prototype = {
 
       _appendNextEntry();
     }
+  },
+
+  getBufferRate: function() {
+    return _average(this._bufferRate);
   },
 
   getActiveRequestCount: function() {
@@ -1023,9 +1039,9 @@ Dashling.Stream.prototype = {
     var maxQuality = _this._streamInfo.qualities.length - 1;
 
     if (!averageBandwidth) {
-      averageBandwidth = parseFloat(localStorage.getItem("Dashling.RequestManager.bandwidth"));
+      averageBandwidth = parseFloat(localStorage.getItem(c_bandwidthStorageKey));
     } else if (this._streamType === "video") {
-      localStorage.setItem("Dashling.RequestManager.bandwidth", averageBandwidth);
+      localStorage.setItem(c_bandwidthStorageKey, averageBandwidth);
     }
 
     if (!settings.isABREnabled || !averageBandwidth) {
@@ -1138,7 +1154,8 @@ _mix(Dashling.Stream.prototype, EventingMixin);
 _mix(Dashling.Stream.prototype, ThrottleMixin);
 Dashling.RequestManager = function(shouldRecordStats) {
   this._activeRequests = {};
-  this._latencies = [];
+  this._waitTimes = [];
+  this._receiveTimes = [];
   this._bandwidths = [];
   this._shouldRecordStats = shouldRecordStats;
 };
@@ -1201,7 +1218,7 @@ Dashling.RequestManager.prototype = {
 
       xhr.onreadystatechange = function() {
         if (xhr.readyState > 0 && request.timeAtFirstByte < 0) {
-          request.timeAtFirstByte = new Date().getTime() - request.startTime
+          request.timeAtFirstByte = new Date().getTime() - request.startTime;
         }
       };
 
@@ -1234,10 +1251,10 @@ Dashling.RequestManager.prototype = {
             request.bytesPerMillisecond = bytesLoaded / timeDifference;
             request.timeAtEstimatedFirstByte = request.timeAtLastByte - (request.bytesLoaded / request.bytesPerMillisecond);
 
-            if (bytesLoaded > 10000) {
-              _this._latencies.push(request.timeAtEstimatedFirstByte);
-            }
           }
+
+          _this._waitTimes.push(request.timeAtEstimatedFirstByte);
+          _this._receiveTimes.push(request.timeAtLastByte - request.timeAtEstimatedFirstByte);
 
           request.data = isArrayBuffer ? new Uint8Array(xhr.response) : xhr.responseText;
           request.statusCode = xhr.status;
@@ -1298,8 +1315,12 @@ Dashling.RequestManager.prototype = {
     }
   },
 
-  getAverageLatency: function() {
-    return _average(this._latencies, this._bandwidths.length - 5);
+  getAverageWait: function() {
+    return _average(this._waitTimes, this._waitTimes.length - 5);
+  },
+
+  getAverageReceive: function() {
+    return _average(this._receiveTimes, this._receiveTimes.length - 5);
   },
 
   getAverageBandwidth: function() {

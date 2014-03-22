@@ -23,14 +23,14 @@ window.Dashling = function() {
 
     // Max number of simultaneous requests per stream.
     maxConcurrentRequests: {
-      audio: 3,
+      audio: 4,
       video: 6
     },
 
     // Max number of fragments each stream can be ahead of the other stream by.
     maxSegmentLeadCount: {
-      audio: 2,
-      video: 4
+      audio: 3,
+      video: 5
     },
 
     // The quality to use if we have ABR disabled, or if default bandwidth is not available.
