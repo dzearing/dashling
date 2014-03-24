@@ -152,8 +152,8 @@ Dashling.RequestManager.prototype = {
 
           this._bandwidths.push(bytesPerMillisecond);
 
-          if (this._bandwidths.length > 10) {
-            this._bandwidths = this._bandwidths.slice(10);
+          while (this._bandwidths.length > 10) {
+            this._bandwidths.shift();
           }
         }
       }

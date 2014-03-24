@@ -23,12 +23,66 @@ window.DashMonitor = function() {
 
 window.DashMonitor.prototype = {
   id: "",
+  isActive: false,
+  isVisible: true,
   dataContext: null,
   element: null,
   qualityContainer: null,
 
   _metricCount: 0,
   _video: null,
+
+  attachTo: function(element) {
+    var div = ce("div");
+
+    div.innerHTML = this.renderHtml();
+
+    if (this.element) {
+      element.replaceChild(div.firstChild, this.element);
+    } else {
+      element.appendChild(div.firstChild);
+    }
+
+    this.activate();
+  },
+
+  dispose: function() {
+    if (this._interval) {
+      clearInterval(_this._interval);
+      this._interval = null;
+    }
+  },
+
+  observe: function(dashling) {
+    var _this = this;
+
+    if (_this._interval) {
+      clearInterval(_this._interval);
+    }
+
+    _this._interval = setInterval(function() {
+      if (_this.isVisible) {
+        _this.setDataContext(_this._getStats(dashling));
+      }
+    }, 100);
+
+  },
+
+  reset: function() {
+    if (this.element) {
+      this.dataContext = {};
+      this.attachTo(this.element.parentNode);
+    }
+  },
+
+  setVisibility: function(isVisible) {
+    if (isVisible != this.isVisible) {
+      this.isVisible = isVisible;
+      if (this.isActive) {
+        this._update(this.dataContext);
+      }
+    }
+  },
 
   setDataContext: function(dataContext) {
     this.dataContext = dataContext;
@@ -83,10 +137,14 @@ window.DashMonitor.prototype = {
       },
     };
 
+    this.isActive = true;
+
     this._update(this.dataContext);
   },
 
-  deactivate: function() {},
+  deactivate: function() {
+    this.isActive = false;
+  },
 
   observeVideoElement: function(video) {
     var _this = this;
@@ -112,7 +170,7 @@ window.DashMonitor.prototype = {
     var subElements = this.subElements;
     var hasData = !! (dataContext && dataContext.duration);
 
-    this.element.className = "c-DashMonitor" + (hasData ? " hasData" : "");
+    this.element.className = "c-DashMonitor" + (hasData ? " hasData" : "") + (this.isVisible ? " isVisible" : "");
 
     if (hasData) {
       this._updateMetrics(subElements.audio.metrics, dataContext.streams.audio.metrics);
@@ -157,7 +215,18 @@ window.DashMonitor.prototype = {
           ce("div", "rowHeader", quality.title, qualityRow);
           ce("div", "rowFragments", null, qualityRow);
 
-          qualityListElement.appendChild(qualityRow);
+          qualityRow.qualityIndex = quality.index;
+
+          for (var i = 0; i < qualityListElement.childNodes.length; i++) {
+            if (quality.index > qualityListElement.childNodes[i].qualityIndex) {
+              qualityListElement.insertBefore(qualityRow, qualityListElement.childNodes[0]);
+              break;
+            }
+          }
+
+          if (!qualityRow.parentNode) {
+            qualityListElement.appendChild(qualityRow);
+          }
         }
 
         this._updateFragments(_qs(".rowFragments", qualityRow), quality.fragments);
@@ -182,9 +251,89 @@ window.DashMonitor.prototype = {
 
       fragmentElement.className = "rowRequest " + fragment.state;
     }
+  },
+
+  _getStats: function(player) {
+    var context = {};
+    var controller = player._streamController;
+    var manifest = player.settings.manifest;
+
+    if (manifest && controller) {
+      var fragmentList = [controller._streams[0].fragments, controller._streams[1].fragments];
+      var qualityDictionary = {};
+
+      context.duration = manifest.mediaDuration;
+      context.metrics = {};
+      context.streams = {
+        audio: {
+          metrics: [],
+          qualities: []
+        },
+        video: {
+          metrics: [],
+          qualities: []
+        }
+      };
+
+      for (var streamIndex = 0; streamIndex < controller._streams.length; streamIndex++) {
+        var stream = controller._streams[streamIndex];
+        var contextStream = context.streams[stream._streamType];
+
+        contextStream.metrics.push({
+          title: "Quality",
+          value: stream.qualityIndex
+        });
+        contextStream.metrics.push({
+          title: "Buffer rate",
+          value: _round(stream.getBufferRate(), 2) + " s/s"
+        })
+        contextStream.metrics.push({
+          title: "Avg wait",
+          value: Math.round(stream._requestManager.getAverageWait(), 2) + " ms"
+        })
+        contextStream.metrics.push({
+          title: "Avg receive",
+          value: Math.round(stream._requestManager.getAverageReceive(), 2) + " ms"
+        })
+
+        for (var fragmentIndex = 0; fragmentIndex < stream.fragments.length; fragmentIndex++) {
+          var fragment = stream.fragments[fragmentIndex];
+
+          if (fragment.activeRequest) {
+            var contextQuality = contextStream.qualities[fragment.qualityIndex];
+
+            if (!contextQuality) {
+              contextQuality = contextStream.qualities[fragment.qualityIndex] = {
+                title: fragment.qualityId,
+                index: fragment.qualityIndex,
+                fragments: []
+              };
+            }
+
+            var state = _findInEnum(fragment.state, Dashling.FragmentState);
+
+            if (fragment.state == Dashling.FragmentState.downloading && fragment.activeRequest.timeAtFirstByte == -1) {
+              state = "waiting";
+            }
+
+            contextQuality.fragments.push({
+              index: fragmentIndex,
+              state: state,
+              start: fragment.time.startSeconds,
+              length: fragment.time.lengthSeconds
+            });
+
+
+          }
+        }
+      }
+    }
+
+    return context;
   }
 };
 
+/* // Test data
 function _createTestData() {
   return {
     duration: 52.33333,
@@ -240,6 +389,7 @@ function _createTestData() {
     }
   };
 }
+*/
 
 // Utility functions.
 
@@ -257,4 +407,13 @@ function ce(tag, className, text, parentEl) {
   parentEl && parentEl.appendChild(el);
 
   return el;
+}
+
+function _findInEnum(val, en) {
+  for (var i in en) {
+    if (en[i] == val) {
+      return i;
+    }
+  }
+  return "";
 }

@@ -1080,9 +1080,9 @@ Dashling.Stream.prototype = {
     var averageBandwidth = _this._requestManager.getAverageBandwidth();
 
     if (!averageBandwidth) {
-      averageBandwidth = parseFloat(localStorage.getItem("Dashling.RequestManager.bandwidth"));
+      averageBandwidth = parseFloat(localStorage.getItem(c_bandwidthStorageKey));
     } else if (this._streamType === "video") {
-      localStorage.setItem("Dashling.RequestManager.bandwidth", averageBandwidth);
+      localStorage.setItem(c_bandwidthStorageKey, averageBandwidth);
     }
 
     var averageBytesPerMillisecond = averageBandwidth || _this._settings.defaultBandwidth;
@@ -1306,8 +1306,8 @@ Dashling.RequestManager.prototype = {
 
           this._bandwidths.push(bytesPerMillisecond);
 
-          if (this._bandwidths.length > 10) {
-            this._bandwidths = this._bandwidths.slice(10);
+          while (this._bandwidths.length > 10) {
+            this._bandwidths.shift();
           }
         }
       }

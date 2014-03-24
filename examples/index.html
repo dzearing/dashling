@@ -21,11 +21,16 @@
             VideoDebug.observe();
             _updateLogging();
 
+            monitor = new DashMonitor();
+            monitor.attachTo(document.querySelector(".videoContainer"));
+            monitor.observe(dashling);
+
             document.querySelector("#logDashling").addEventListener("change", _updateLogging);
             document.querySelector("#logVideo").addEventListener("change", _updateLogging);
         }
 
         function loadDashling() {
+
             var qualitySelect = document.querySelector("#audioQualitySelect");
             var audioQuality = Number(qualitySelect.options[qualitySelect.selectedIndex].value);
 
@@ -42,100 +47,20 @@
 
             dashling.settings.isABREnabled = useABR;
 
-            dashling.load(document.querySelector("video"), url);
-            initMonitor();
+            var videoElement = document.querySelector("video");
+            videoElement.muted = true;
+
+            monitor.reset();
+            dashling.load(videoElement, url);
+        }
+
+        function toggleMonitor() {
+            monitor.setVisibility(!monitor.isVisible);
         }
 
         function reset() {
-            dashling && dashling.reset();
-        }
-
-        function initMonitor() {
-            monitor = new DashMonitor();
-            document.getElementById("monitorContainer").innerHTML = monitor.renderHtml();
-            monitor.activate();
-            monitor.observeVideoElement(document.querySelector("video"));
-            setInterval(updateMonitor, 200);
-        }
-
-        function updateMonitor() {
-            monitor.setDataContext(getStatsFromDashling(dashling));
-        }
-
-        function getStatsFromDashling(player) {
-            var context = {};
-            var controller = player._streamController;
-            var manifest = player.settings.manifest;
-
-            if (manifest && controller) {
-                var fragmentList = [ controller._streams[0].fragments, controller._streams[1].fragments];
-                var qualityDictionary = {};
-
-                context.duration = manifest.mediaDuration;
-                context.metrics = {};
-                context.streams = {
-                    audio: {
-                        metrics: [],
-                        qualities: []
-                    },
-                    video: {
-                        metrics: [],
-                        qualities: []
-                    }
-                };
-
-                for (var streamIndex = 0; streamIndex < controller._streams.length; streamIndex++) {
-                    var stream = controller._streams[streamIndex];
-                    var contextStream = context.streams[stream._streamType];
-
-                    contextStream.metrics.push({ title: "Quality", value: stream.qualityIndex });
-                    contextStream.metrics.push({ title: "Buffer rate", value: _round(stream.getBufferRate(), 2) + " s/s"})
-                    contextStream.metrics.push({ title: "Avg wait", value: Math.round(stream._requestManager.getAverageWait(), 2) + " ms"})
-                    contextStream.metrics.push({ title: "Avg receive", value: Math.round(stream._requestManager.getAverageReceive(), 2) + " ms"})
-
-                    for (var fragmentIndex = 0; fragmentIndex < stream.fragments.length; fragmentIndex++) {
-                        var fragment = stream.fragments[fragmentIndex];
-
-                        if (fragment.activeRequest) {
-                            var contextQuality = contextStream.qualities[fragment.qualityIndex];
-
-                            if (!contextQuality) {
-                                contextQuality = contextStream.qualities[fragment.qualityIndex] = {
-                                    title: fragment.qualityId,
-                                    index: fragment.qualityIndex,
-                                    fragments: []
-                                };
-                            }
-
-                            var state = _findInEnum(fragment.state, Dashling.FragmentState);
-
-                            if (fragment.state == Dashling.FragmentState.downloading && fragment.activeRequest.timeAtFirstByte == -1) {
-                                state = "waiting";
-                            }
-
-                            contextQuality.fragments.push({
-                                index: fragmentIndex,
-                                state: state,
-                                start: fragment.time.startSeconds,
-                                length: fragment.time.lengthSeconds
-                            });
-
-
-                        }
-                    }
-                }
-            }
-
-            return context;
-        }
-
-        function _findInEnum(val, en) {
-            for (var i in en) {
-                if (en[i] == val) {
-                    return i;
-                }
-            }
-            return "";
+            monitor.reset();
+            dashling.reset();
         }
 
         function toggleBenefits() {
@@ -207,6 +132,7 @@
             width: 640px;
             height: 480px;
             background: black;
+            position: relative;
         }
 
         video {
@@ -290,11 +216,11 @@
 
             <button type="button" onclick="loadDashling()">Load video</button>
             <button type="button" onclick="reset()">Reset</button>
+            <button type="button" onclick="toggleMonitor()">Toggle dashboard</button>
 
             <div class="videoContainer">
                 <video controls></video>
             </div>
-            <div id="monitorContainer" style="width: 640px;"></div>
         </div>
     </div>
 </body>
