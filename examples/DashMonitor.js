@@ -206,7 +206,7 @@ window.DashMonitor.prototype = {
   },
 
   _updateQualities: function(qualityListElement, qualities) {
-    var qualityRowLookup = qualityListElement._qualityRowLookup = qualityListElement._qualityRowLookup || [];
+    var qualityRowLookup = qualityListElement._qualityRowLookup = qualityListElement._qualityRowLookup || {};
 
     for (var qualityIndex = 0; qualityIndex < qualities.length; qualityIndex++) {
       var quality = qualities[qualityIndex];
@@ -245,10 +245,10 @@ window.DashMonitor.prototype = {
 
     for (var fragmentIndex = 0; fragmentIndex < fragments.length; fragmentIndex++) {
       var fragment = fragments[fragmentIndex];
-      var fragmentElement = fragmentListLookup[fragmentIndex];
+      var fragmentElement = fragmentListLookup[fragment.index];
 
       if (!fragmentElement) {
-        fragmentElement = fragmentListLookup[fragmentIndex] = ce("div", "rowRequest", null, fragmentListElement);
+        fragmentElement = fragmentListLookup[fragment.index] = ce("div", "rowRequest", null, fragmentListElement);
         fragmentElement.style.left = (100 * fragment.start / videoDuration) + "%";
         fragmentElement.style.width = (100 * fragment.length / videoDuration) + "%";
       }
