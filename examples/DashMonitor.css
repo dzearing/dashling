@@ -1,5 +1,5 @@
 .c-DashMonitor {
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(44, 44, 44, .7);
   position: absolute;
   top: -5px;
   left: 5px;
@@ -7,6 +7,7 @@
   min-height: 15px;
   display: block;
   opacity: 0;
+  color: #AAA;
 }
 
 .c-DashMonitor.hasData.isVisible {
@@ -27,11 +28,11 @@
   display: inline-block;
   margin-right: 5px;
   margin-bottom: 5px;
-  border: 1px solid #aaa;
-  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: #313131;
   overflow: hidden;
-  box-shadow: 0px 0px 8px 1px rgba(0,0,0,.1);
   vertical-align: top;
+  font-size: 11px;
 }
 .c-DashMonitor .streamTitle {
   font-size: 15px;
@@ -47,16 +48,15 @@
 
   padding: 3px 5px;
   display: inline-block;
-  background: #CCC;
   font-weight: bold;
-  font-size: 11px;
 }
 
 .c-DashMonitor .metricValue {
   display: inline-block;
-  padding: 2px 5px;
-  background: white;
+  padding: 3px 5px;
   white-space: nowrap;
+  background: rgb(95, 95, 95);
+  color: white;
 }
 
 
@@ -65,12 +65,13 @@
   height: 15px;
   padding-bttom: 1px;
   position: relative;
-  border-top: 1px solid #CCC;
-  border-bottom: 1px solid #CCC;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   margin-top: -1px;
   font-family: Segoe UI;
   font-weight: bold;
-  font-size: 11px;
+  font-size: 9px;
+  background: #222;
 }
 
 .c-DashMonitor .traffic {
@@ -110,6 +111,7 @@
   top: 2px;
   bottom: 2px;
   border-radius: 4px;
+  box-shadow: inset 4px 0px 7px 0px rgba(0,0,0,.5);
 }
 
 .c-DashMonitor .key {
