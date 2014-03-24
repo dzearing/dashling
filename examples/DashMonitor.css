@@ -112,6 +112,7 @@
   bottom: 2px;
   border-radius: 4px;
   box-shadow: inset -4px 0px 7px 0px rgba(0,0,0,.6);
+  min-width: 5px;
 }
 
 .c-DashMonitor .key {
