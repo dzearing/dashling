@@ -40,7 +40,10 @@ window.Dashling = function() {
     },
 
     // Default bytes per millisecond, used to determine default request staggering (480p is around 520 bytes per millisecond.)
-    defaultBandwidth: 520
+    defaultBandwidth: 520,
+
+    // Default start time for video, in seconds.
+    startTime: 0
   };
 };
 

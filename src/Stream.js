@@ -165,20 +165,27 @@ Dashling.Stream.prototype = {
   isMissing: function(fragmentIndex) {
     var fragment = this.fragments[fragmentIndex];
     var isMissing = false;
+    var isBuffered = false;
 
     if (fragment) {
       if (fragment.state == DashlingFragmentState.appended) {
-        var bufferRanges = this._buffer.buffered;
-        var fragmentTime = fragment.time;
-        var wiggleRoom = 0.05;
-        var isBuffered = false;
 
-        // validate that the buffered area in the video element still contains the fragment.
-        for (var bufferedIndex = 0; bufferedIndex < bufferRanges.length; bufferedIndex++) {
-          if ((bufferRanges.start(bufferedIndex) - wiggleRoom) <= fragmentTime.startSeconds && (bufferRanges.end(bufferedIndex) + wiggleRoom) >= (fragmentTime.startSeconds + fragmentTime.lengthSeconds)) {
-            isBuffered = true;
-            break;
+        try {
+          var bufferRanges = this._buffer.buffered;
+          var fragmentTime = fragment.time;
+          var wiggleRoom = 0.05;
+
+          // validate that the buffered area in the video element still contains the fragment.
+          for (var bufferedIndex = 0; bufferedIndex < bufferRanges.length; bufferedIndex++) {
+            if ((bufferRanges.start(bufferedIndex) - wiggleRoom) <= fragmentTime.startSeconds && (bufferRanges.end(bufferedIndex) + wiggleRoom) >= (fragmentTime.startSeconds + fragmentTime.lengthSeconds)) {
+              isBuffered = true;
+              break;
+            }
           }
+        } catch (e) {
+          // Accessing the buffer can fail with an InvalidState error if an error has occured with the mediasource. (like a decode error)
+          // TODO: Something better, for now marks as buffered so we don't spin trying to get the item.
+          isBuffered = true;
         }
 
         // We found an appended segment no longer in the playlist.

@@ -207,7 +207,10 @@ window.Dashling = function() {
     },
 
     // Default bytes per millisecond, used to determine default request staggering (480p is around 520 bytes per millisecond.)
-    defaultBandwidth: 520
+    defaultBandwidth: 520,
+
+    // Default start time for video, in seconds.
+    startTime: 0
   };
 };
 
@@ -526,6 +529,12 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
   ];
 
   _this._requestTimerIds = [0, 0];
+
+  var firstFragmentDuration = _this._audioStream.fragments[0];
+
+  if (settings.startTime && firstFragmentDuration) {
+    this._appendIndex = Math.max(0, Math.min(_this._audioStream.fragments.length - 1, ((settings.startTime / _this._audioStream.fragments[0].lengthSeconds) - 1)));
+  }
 
   _this._loadNextFragment();
 };
@@ -950,20 +959,27 @@ Dashling.Stream.prototype = {
   isMissing: function(fragmentIndex) {
     var fragment = this.fragments[fragmentIndex];
     var isMissing = false;
+    var isBuffered = false;
 
     if (fragment) {
       if (fragment.state == DashlingFragmentState.appended) {
-        var bufferRanges = this._buffer.buffered;
-        var fragmentTime = fragment.time;
-        var wiggleRoom = 0.05;
-        var isBuffered = false;
 
-        // validate that the buffered area in the video element still contains the fragment.
-        for (var bufferedIndex = 0; bufferedIndex < bufferRanges.length; bufferedIndex++) {
-          if ((bufferRanges.start(bufferedIndex) - wiggleRoom) <= fragmentTime.startSeconds && (bufferRanges.end(bufferedIndex) + wiggleRoom) >= (fragmentTime.startSeconds + fragmentTime.lengthSeconds)) {
-            isBuffered = true;
-            break;
+        try {
+          var bufferRanges = this._buffer.buffered;
+          var fragmentTime = fragment.time;
+          var wiggleRoom = 0.05;
+
+          // validate that the buffered area in the video element still contains the fragment.
+          for (var bufferedIndex = 0; bufferedIndex < bufferRanges.length; bufferedIndex++) {
+            if ((bufferRanges.start(bufferedIndex) - wiggleRoom) <= fragmentTime.startSeconds && (bufferRanges.end(bufferedIndex) + wiggleRoom) >= (fragmentTime.startSeconds + fragmentTime.lengthSeconds)) {
+              isBuffered = true;
+              break;
+            }
           }
+        } catch (e) {
+          // Accessing the buffer can fail with an InvalidState error if an error has occured with the mediasource. (like a decode error)
+          // TODO: Something better, for now marks as buffered so we don't spin trying to get the item.
+          isBuffered = true;
         }
 
         // We found an appended segment no longer in the playlist.
