@@ -421,3 +421,7 @@ function _findInEnum(val, en) {
   }
   return "";
 }
+
+function _round(number, decimals) {
+  return parseFloat(number.toFixed(decimals));
+}
