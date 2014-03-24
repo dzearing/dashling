@@ -73,9 +73,6 @@
             VideoDebug.logToConsole = document.querySelector("#logVideo").checked;
         }
 
-        function _round(number, decimals) {
-            return parseFloat(number.toFixed(decimals));
-        }
     </script>
 
     <style>
@@ -133,6 +130,7 @@
             height: 480px;
             background: black;
             position: relative;
+            overflow: hidden;
         }
 
         video {

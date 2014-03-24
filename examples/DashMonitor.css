@@ -1,9 +1,9 @@
 .c-DashMonitor {
   background: rgba(44, 44, 44, .7);
   position: absolute;
-  top: -5px;
-  left: 5px;
-  right: 5px;
+  top: -10px;
+  left: 0px;
+  right: 0px;
   min-height: 15px;
   display: block;
   opacity: 0;
@@ -11,8 +11,8 @@
 }
 
 .c-DashMonitor.hasData.isVisible {
-  transition: opacity .2s linear, top .2s linear;
-  top: 5px;
+  transition: opacity .2s linear, top .25s ease-out;
+  top: 0px;
   opacity: 1;
 }
 
@@ -87,7 +87,7 @@
   left: 0%;
   width: 2px;
   margin-left: -2px;
-  background: rgba(0,0,0,.5);
+  background: rgba(255,255,255,.7);
   height: 100%;
 }
 
@@ -111,7 +111,7 @@
   top: 2px;
   bottom: 2px;
   border-radius: 4px;
-  box-shadow: inset 4px 0px 7px 0px rgba(0,0,0,.5);
+  box-shadow: inset -4px 0px 7px 0px rgba(0,0,0,.6);
 }
 
 .c-DashMonitor .key {
