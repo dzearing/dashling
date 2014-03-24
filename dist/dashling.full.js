@@ -533,7 +533,7 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
   var firstFragmentDuration = _this._audioStream.fragments[0].time.lengthSeconds;
 
   if (settings.startTime && firstFragmentDuration) {
-    this._appendIndex = Math.max(0, Math.min(_this._audioStream.fragments.length - 1, ((settings.startTime / firstFragmentDuration) - 1)));
+    this._appendIndex = Math.max(0, Math.min(_this._audioStream.fragments.length - 1, (Math.floor(settings.startTime / firstFragmentDuration) - 1)));
   }
 
   _this._loadNextFragment();
