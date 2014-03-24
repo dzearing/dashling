@@ -25,7 +25,7 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
   var firstFragmentDuration = _this._audioStream.fragments[0].time.lengthSeconds;
 
   if (settings.startTime && firstFragmentDuration) {
-    this._appendIndex = Math.max(0, Math.min(_this._audioStream.fragments.length - 1, (Math.floor(settings.startTime / firstFragmentDuration) - 1)));
+    this._appendIndex = Math.max(0, Math.min(_this._audioStream.fragments.length - 1, (Math.floor((settings.startTime - .5) / firstFragmentDuration))));
   }
 
   _this._loadNextFragment();
@@ -167,6 +167,11 @@ Dashling.StreamController.prototype = {
           var canPlay = true;
 
           _this._appendIndex++;
+
+          if (_this._settings.startTime) {
+            _this._videoElement.currentTime = _this._settings.startTime;
+            _this._settings.startTime = 0;
+          }
 
           if (canPlay && this._settings.shouldAutoPlay && !this._hasAutoPlayed) {
             this._hasAutoPlayed = true;
