@@ -22,7 +22,7 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
 
   _this._requestTimerIds = [0, 0];
 
-  var firstFragmentDuration = _this._audioStream.fragments[0];
+  var firstFragmentDuration = _this._audioStream.fragments[0].time.lengthSeconds;
 
   if (settings.startTime && firstFragmentDuration) {
     this._appendIndex = Math.max(0, Math.min(_this._audioStream.fragments.length - 1, ((settings.startTime / _this._audioStream.fragments[0].lengthSeconds) - 1)));
