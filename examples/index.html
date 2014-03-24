@@ -23,7 +23,7 @@
 
             monitor = new DashMonitor();
             monitor.attachTo(document.querySelector(".videoContainer"));
-            monitor.observe(dashling);
+            monitor.observe(dashling, document.querySelector("video"));
 
             document.querySelector("#logDashling").addEventListener("change", _updateLogging);
             document.querySelector("#logVideo").addEventListener("change", _updateLogging);

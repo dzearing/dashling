@@ -47,17 +47,30 @@ window.DashMonitor.prototype = {
   },
 
   dispose: function() {
-    if (this._interval) {
-      clearInterval(_this._interval);
-      this._interval = null;
-    }
-  },
-
-  observe: function(dashling) {
     var _this = this;
 
     if (_this._interval) {
       clearInterval(_this._interval);
+      _this._interval = null;
+    }
+
+    if (_this._videoElement) {
+      _this._videoElement.removeEventListener("timeupdate", _this._updateSeekBar);
+      _this._videoElement.removeEventListener("seeking", _this._updateSeekBar);
+      _this._videoElement = null;
+    }
+  },
+
+  observe: function(dashling, videoElement) {
+    var _this = this;
+
+    // Clear any existing observing stuff.
+    _this.dispose();
+
+    if (videoElement) {
+      _this._videoElement = videoElement;
+      videoElement.addEventListener("timeupdate", _this._updateSeekBar);
+      videoElement.addEventListener("seeking", _this._updateSeekBar);
     }
 
     _this._interval = setInterval(function() {
@@ -65,7 +78,6 @@ window.DashMonitor.prototype = {
         _this.setDataContext(_this._getStats(dashling));
       }
     }, 100);
-
   },
 
   reset: function() {
@@ -146,24 +158,16 @@ window.DashMonitor.prototype = {
     this.isActive = false;
   },
 
-  observeVideoElement: function(video) {
-    var _this = this;
-
-    _this._video = video;
-
-    video.addEventListener("timeupdate", _this._updateSeekBar);
-    video.addEventListener("seeking", _this._updateSeekBar);
-
-    this._updateSeekBar();
-  },
-
   _updateSeekBar: function() {
     var _this = this;
-    var video = _this._video;
-    var percentage = (100 * video.currentTime / video.duration) + "%";
+    var video = _this._videoElement;
 
-    _this.subElements.audio.seekBar.style.left = percentage;
-    _this.subElements.video.seekBar.style.left = percentage;
+    if (video) {
+      var percentage = (100 * video.currentTime / video.duration) + "%";
+
+      _this.subElements.audio.seekBar.style.left = percentage;
+      _this.subElements.video.seekBar.style.left = percentage;
+    }
   },
 
   _update: function(dataContext) {
