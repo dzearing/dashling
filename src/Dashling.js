@@ -128,6 +128,7 @@ Dashling.prototype = {
     return this._streamController ? this._streamController.getBufferRate() : 0;
   },
 
+
   getPlayingQuality: function(streamType) {
     /// <summary>Gets the playing quality for the streamType at the current video location.</summary>
 
@@ -173,7 +174,7 @@ Dashling.prototype = {
     try {
       mediaSource = new MediaSource();
     } catch (e) {
-      _this._setState(DashlingSessionState.error, DashlingSessionError.mediaSourceInit);
+      _this._setState(DashlingSessionState.error, Dashling.Error.mediaSourceInit);
     }
 
     mediaSource.addEventListener("sourceopen", _onOpened, false);
@@ -211,7 +212,7 @@ Dashling.prototype = {
 
     function _onManifestFailed(error) {
       if (_this._loadIndex == loadIndex) {
-        _this._setState(DashlingSessionState.error, DashlingSessionError.manifestFailed);
+        _this._setState(DashlingSessionState.error, Dashling.Error.manifestFailed);
       }
     }
   },

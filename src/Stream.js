@@ -173,7 +173,7 @@ Dashling.Stream.prototype = {
         try {
           var bufferRanges = this._buffer.buffered;
           var fragmentTime = fragment.time;
-          var wiggleRoom = 0.05;
+          var wiggleRoom = 0.5;
 
           // validate that the buffered area in the video element still contains the fragment.
           for (var bufferedIndex = 0; bufferedIndex < bufferRanges.length; bufferedIndex++) {
