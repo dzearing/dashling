@@ -287,6 +287,14 @@ Dashling.prototype = {
     _this._setState(DashlingSessionState.idle);
   },
 
+  getRemainingBuffer: function() {
+    return this._streamController ? this._streamController.getRemainingBuffer() : 0;
+  },
+
+  getBufferRate: function() {
+    return this._streamController ? this._streamController.getBufferRate() : 0;
+  },
+
   getPlayingQuality: function(streamType) {
     /// <summary>Gets the playing quality for the streamType at the current video location.</summary>
 
@@ -523,6 +531,10 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
   _this._settings = settings;
   _this._startTime = new Date().getTime();
 
+  _this._timeSinceLastBuffer = new Date().getTime();
+  _this._bufferRate = [];
+  _this._appendedSeconds = 0;
+
   _this._streams = [
     _this._audioStream = new Dashling.Stream("audio", mediaSource, videoElement, settings),
     _this._videoStream = new Dashling.Stream("video", mediaSource, videoElement, settings)
@@ -532,6 +544,7 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
 
   var firstFragmentDuration = _this._audioStream.fragments[0].time.lengthSeconds;
 
+  // If a start time has been provided, start at the right location.
   if (settings.startTime && firstFragmentDuration) {
     this._appendIndex = Math.max(0, Math.min(_this._audioStream.fragments.length - 1, (Math.floor((settings.startTime - .5) / firstFragmentDuration))));
   }
@@ -593,6 +606,45 @@ Dashling.StreamController.prototype = {
     var stream = streamType == "video" ? this._videoStream : this._audioStream;
 
     return stream.qualityIndex;
+  },
+
+  getBufferRate: function() {
+    return _average(this._bufferRate);
+  },
+
+  getRemainingBuffer: function() {
+    var remainingBuffer = 0;
+
+    if (this._videoElement) {
+      var currentTime = this._videoElement.currentTime;
+      var timeRemaining = this._videoElement.duration - currentTime;
+      var bufferRanges = this._videoElement.buffered;
+
+      for (var i = 0; i < bufferRanges.length; i++) {
+        if (currentTime >= bufferRanges.start(i) && currentTime <= bufferRanges.end(i)) {
+          remainingBuffer = bufferRanges.end(i) - currentTime;
+          break;
+        }
+      }
+    }
+
+    return remainingBuffer;
+  },
+
+  getTimeUntilUnderrun: function() {
+    var currentTime = this._videoElement.currentTime;
+    var remainingDuration = this._videoElement.duration - currentTime;
+    var remainingBuffer = this.getRemainingBuffer() + .5;
+    var bufferRate = this.getBufferRate();
+    var timeUntilUnderrun = Number.MAX_VALUE;
+
+    if (remainingDuration > remainingBuffer && bufferRate < 1) {
+      var safeBufferRatio = Math.pow(Math.min(1, Math.max(0, remainingBuffer / this._settings.safeBufferSeconds)), 2);
+
+      timeUntilUnderrun = bufferRate < 1 ? safeBufferRatio * (remainingBuffer / (1 - bufferRate)) : Number.MAX_VALUE;
+    }
+
+    return timeUntilUnderrun;
   },
 
   _loadNextFragment: function() {
@@ -670,16 +722,34 @@ Dashling.StreamController.prototype = {
           }
         }
 
-        // If the append index, and assess quality
+        // If the append index, and assess playback
         if (allStreamsAppended) {
-          var canPlay = true;
+          // Update buffer rate.
+          var fragment = _this._streams[0].fragments[_this._appendIndex];
+
+          if (!fragment.activeRequest._hasUpdatedBufferRate) {
+            fragment.activeRequest._hasUpdatedBufferRate = true;
+
+            _this._appendedSeconds += fragment.time.lengthSeconds;
+            var now = new Date().getTime();
+            var duration = (now - this._startTime) / 1000;
+            _this._bufferRate.push(_this._appendedSeconds / (duration || .1));
+            //this._timeSinceLastBuffer = now;
+
+            while (_this._bufferRate.length > 3) {
+              _this._bufferRate.shift();
+            }
+          }
 
           _this._appendIndex++;
 
+          // After we're done appending, update the video element's time to the start time if provided.
           if (_this._settings.startTime) {
             _this._videoElement.currentTime = _this._settings.startTime;
             _this._settings.startTime = 0;
           }
+
+          var canPlay = this.getTimeUntilUnderrun() > this._settings.safeBufferSeconds;
 
           if (canPlay && this._settings.shouldAutoPlay && !this._hasAutoPlayed) {
             this._hasAutoPlayed = true;
@@ -704,6 +774,7 @@ Dashling.StreamController.prototype = {
     var settings = _this._settings;
     var streamIndex;
     var fragmentLength = _this._audioStream.fragments[0].time.lengthSeconds;
+    var currentTime = _this._settings.startTime || _this._videoElement.currentTime;
     var currentSegment = Math.floor(_this._videoElement.currentTime / fragmentLength);
     var maxIndex = currentSegment + Math.ceil(settings.maxBufferSeconds / fragmentLength);
     var maxAudioIndex = -1;
@@ -766,6 +837,7 @@ Dashling.StreamController.prototype = {
       clearTimeout(this._seekingTimerId);
     }
 
+    this._settings.startTime = 0;
     this._seekingTimerId = setTimeout(this._onThrottledSeek, 500);
   },
 
@@ -919,7 +991,7 @@ Dashling.Stream.prototype = {
         _this._appendLength += fragment.time.lengthSeconds;
         _this._bufferRate.push(_this._appendLength / timeSinceStart);
 
-        if (_this._bufferRate.length > 1) {
+        if (_this._bufferRate.length > 3) {
           _this._bufferRate.shift();
         }
 
@@ -1256,8 +1328,9 @@ Dashling.RequestManager.prototype = {
         delete _this._activeRequests[requestIndex];
         _this._activeRequestCount--;
 
+        request.timeAtLastByte = new Date().getTime() - request.startTime;
+
         if (xhr.status >= 200 && xhr.status <= 299) {
-          request.timeAtLastByte = new Date().getTime() - request.startTime;
           request.bytesLoaded = isArrayBuffer ? xhr.response.byteLength : xhr.responseText.length;
 
           // Ensure we've recorded firstbyte time.
@@ -1290,13 +1363,12 @@ Dashling.RequestManager.prototype = {
       function _onError() {
 
         if (!xhr.isAborted && ++retryIndex < maxRetries) {
-          request.timeAtFirstByte = -1;
-          request.timeAtLastByte = -1;
 
           request.retryCount++;
           setTimeout(_startRequest, delayBetweenRetries[Math.min(delayBetweenRetries.length - 1, retryIndex)]);
         } else {
           request.state = DashlingFragmentState.error;
+          request.hasError = true;
           request.statusCode = xhr.isAborted ? "aborted" : xhr.status;
           onFailure && onFailure(request);
         }

@@ -120,6 +120,14 @@ Dashling.prototype = {
     _this._setState(DashlingSessionState.idle);
   },
 
+  getRemainingBuffer: function() {
+    return this._streamController ? this._streamController.getRemainingBuffer() : 0;
+  },
+
+  getBufferRate: function() {
+    return this._streamController ? this._streamController.getBufferRate() : 0;
+  },
+
   getPlayingQuality: function(streamType) {
     /// <summary>Gets the playing quality for the streamType at the current video location.</summary>
 

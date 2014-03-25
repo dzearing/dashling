@@ -81,8 +81,9 @@ Dashling.RequestManager.prototype = {
         delete _this._activeRequests[requestIndex];
         _this._activeRequestCount--;
 
+        request.timeAtLastByte = new Date().getTime() - request.startTime;
+
         if (xhr.status >= 200 && xhr.status <= 299) {
-          request.timeAtLastByte = new Date().getTime() - request.startTime;
           request.bytesLoaded = isArrayBuffer ? xhr.response.byteLength : xhr.responseText.length;
 
           // Ensure we've recorded firstbyte time.
@@ -115,13 +116,12 @@ Dashling.RequestManager.prototype = {
       function _onError() {
 
         if (!xhr.isAborted && ++retryIndex < maxRetries) {
-          request.timeAtFirstByte = -1;
-          request.timeAtLastByte = -1;
 
           request.retryCount++;
           setTimeout(_startRequest, delayBetweenRetries[Math.min(delayBetweenRetries.length - 1, retryIndex)]);
         } else {
           request.state = DashlingFragmentState.error;
+          request.hasError = true;
           request.statusCode = xhr.isAborted ? "aborted" : xhr.status;
           onFailure && onFailure(request);
         }

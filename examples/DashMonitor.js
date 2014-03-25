@@ -104,8 +104,8 @@ window.DashMonitor.prototype = {
 
   renderHtml: function() {
     var html = '<div id="' + this.id + '" class="c-DashMonitor">' +
-
-    '<div class="audio streamData">' +
+      '<ul class="streamMetrics"></ul>' +
+      '<div class="audio streamData">' +
       '<span class="streamTitle">Audio</span>' +
       '<ul class="streamMetrics"></ul>' +
       '<div class="traffic">' +
@@ -137,6 +137,7 @@ window.DashMonitor.prototype = {
     var element = this.element = _qs("#" + this.id);
 
     this.subElements = {
+      metrics: _qs(".streamMetrics", element),
       audio: {
         metrics: _qs(".audio .streamMetrics", element),
         qualities: _qs(".audio .qualities", element),
@@ -176,6 +177,8 @@ window.DashMonitor.prototype = {
 
     this.element.className = "c-DashMonitor" + (hasData ? " hasData" : "") + (this.isVisible ? " isVisible" : "");
 
+    this._updateMetrics(subElements.metrics, dataContext.metrics);
+
     if (hasData) {
       this._updateMetrics(subElements.audio.metrics, dataContext.streams.audio.metrics);
       this._updateQualities(subElements.audio.qualities, dataContext.streams.audio.qualities);
@@ -186,22 +189,24 @@ window.DashMonitor.prototype = {
   },
 
   _updateMetrics: function(metricListElement, metrics) {
-    var metricLookup = metricListElement._metricLookup = metricListElement._metricLookup || {};
+    if (metrics) {
+      var metricLookup = metricListElement._metricLookup = metricListElement._metricLookup || {};
 
-    for (var i = 0; i < metrics.length; i++) {
-      var metric = metrics[i];
-      var metricElement = metricLookup[metric.title];
+      for (var i = 0; i < metrics.length; i++) {
+        var metric = metrics[i];
+        var metricElement = metricLookup[metric.title];
 
-      if (!metricElement) {
-        metricElement = ce("li");
-        metricElement.innerHTML = '<span class="metricTitle">' + metric.title + '</span><span class="metricValue"></span>';
+        if (!metricElement) {
+          metricElement = ce("li");
+          metricElement.innerHTML = '<span class="metricTitle">' + metric.title + '</span><span class="metricValue"></span>';
 
-        _qs(".metricTitle", metricElement).textContent = metric.title;
-        metricListElement.appendChild(metricElement);
-        metricElement = metricLookup[metric.title] = _qs(".metricValue", metricElement);
+          _qs(".metricTitle", metricElement).textContent = metric.title;
+          metricListElement.appendChild(metricElement);
+          metricElement = metricLookup[metric.title] = _qs(".metricValue", metricElement);
+        }
+
+        metricElement.textContent = metric.value;
       }
-
-      metricElement.textContent = metric.value;
     }
   },
 
@@ -267,7 +272,50 @@ window.DashMonitor.prototype = {
       var qualityDictionary = {};
 
       context.duration = manifest.mediaDuration;
-      context.metrics = {};
+      context.metrics = [];
+
+      context.metrics.push({
+        title: "Load time",
+        value: "n/a"
+      });
+
+      context.metrics.push({
+        title: "Stalls",
+        value: "n/a"
+      });
+
+      context.metrics.push({
+        title: "Recovery time",
+        value: "n/a"
+      });
+
+      context.metrics.push({
+        title: "Stall chance",
+        value: "0%"
+      });
+
+      context.metrics.push({
+        title: "Buffer rate",
+        value: _round(player.getBufferRate(), 2, 2) + " s/s"
+      });
+
+      var timeUntilStall = controller ? controller.getTimeUntilUnderrun() : 0;
+
+      context.metrics.push({
+        title: "Time until stall",
+        value: timeUntilStall < Number.MAX_VALUE ? _round(timeUntilStall, 2, 2) + " s" : "n/a"
+      });
+
+      context.metrics.push({
+        title: "Buffer left",
+        value: _round(player.getRemainingBuffer(), 2, 2) + " s"
+      });
+
+      context.metrics.push({
+        title: "Last error",
+        value: "n/a"
+      });
+
       context.streams = {
         audio: {
           metrics: [],
@@ -287,9 +335,15 @@ window.DashMonitor.prototype = {
           title: "Quality",
           value: stream.qualityIndex
         });
+
+        context.metrics.push({
+          title: "Quality changes",
+          value: "n/a"
+        });
+
         contextStream.metrics.push({
           title: "Buffer rate",
-          value: _round(stream.getBufferRate(), 2) + " s/s"
+          value: _round(stream.getBufferRate(), 2, 2) + " s/s"
         })
         contextStream.metrics.push({
           title: "Avg wait",
@@ -422,6 +476,19 @@ function _findInEnum(val, en) {
   return "";
 }
 
-function _round(number, decimals) {
-  return parseFloat(number.toFixed(decimals));
+function _round(number, decimals, padded) {
+  var value = parseFloat(number.toFixed(decimals));
+
+  if (padded) {
+    value = "" + value;
+    if (value.indexOf(".") == -1) {
+      value += ".";
+    }
+
+    while (value.indexOf(".") != (value.length - 3)) {
+      value += "0";
+    }
+  }
+
+  return value;
 }

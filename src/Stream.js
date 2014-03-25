@@ -120,7 +120,7 @@ Dashling.Stream.prototype = {
         _this._appendLength += fragment.time.lengthSeconds;
         _this._bufferRate.push(_this._appendLength / timeSinceStart);
 
-        if (_this._bufferRate.length > 1) {
+        if (_this._bufferRate.length > 3) {
           _this._bufferRate.shift();
         }
 
