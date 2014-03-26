@@ -280,7 +280,8 @@ Dashling.StreamController.prototype = {
     for (fragmentIndex = _this._appendIndex; fragmentIndex <= maxIndex && fragmentIndex < fragmentCount; fragmentIndex++) {
 
       if (this._audioStream.isMissing(fragmentIndex, currentTime) || this._videoStream.isMissing(fragmentIndex, currentTime)) {
-        _log("Missing fragment reset: index=" + fragmentIndex, _this._settings);
+        var fragment = this._videoStream.fragments[fragmentIndex];
+        _log("Missing fragment reset: index=" + fragmentIndex + " [" + fragment.time.startSeconds + "] ranges: " + _getBuffered(_this._videoElement), _this._settings);
         this._audioStream.fragments[fragmentIndex].state = this._videoStream.fragments[fragmentIndex].state = DashlingFragmentState.idle;
       }
 
@@ -365,3 +366,15 @@ Dashling.StreamController.prototype = {
 
 _mix(Dashling.StreamController.prototype, EventingMixin);
 _mix(Dashling.StreamController.prototype, ThrottleMixin);
+
+function _getBuffered(videoElement) {
+  var ranges = "";
+
+  videoElement = videoElement || document.querySelector("video");
+
+  for (var rangeIndex = 0; videoElement && rangeIndex < videoElement.buffered.length; rangeIndex++) {
+    ranges += "[" + videoElement.buffered.start(rangeIndex) + "-" + videoElement.buffered.end(rangeIndex) + "] ";
+  }
+
+  return ranges;
+}
