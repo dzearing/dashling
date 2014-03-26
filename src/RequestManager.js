@@ -25,6 +25,7 @@ Dashling.RequestManager.prototype = {
 
   dispose: function() {
     this.abortAll();
+    this.removeAllEventListeners();
   },
 
   getActiveRequestCount: function() {
@@ -114,6 +115,8 @@ Dashling.RequestManager.prototype = {
         } else {
           _onError(request);
         }
+
+        _this.raiseEvent(Dashling.Event.download, request);
       };
 
       function _onError() {
@@ -182,3 +185,5 @@ Dashling.RequestManager.prototype = {
     return average;
   }
 };
+
+_mix(Dashling.RequestManager.prototype, EventingMixin);

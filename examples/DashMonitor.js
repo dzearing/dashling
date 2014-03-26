@@ -205,6 +205,7 @@ window.DashMonitor.prototype = {
           metricElement = metricLookup[metric.title] = _qs(".metricValue", metricElement);
         }
 
+        metricElement.parentNode.className = metric.value ? "hasValue" : "";
         metricElement.textContent = metric.value;
       }
     }
@@ -228,7 +229,7 @@ window.DashMonitor.prototype = {
 
           for (var i = 0; i < qualityListElement.childNodes.length; i++) {
             if (quality.index > qualityListElement.childNodes[i].qualityIndex) {
-              qualityListElement.insertBefore(qualityRow, qualityListElement.childNodes[0]);
+              qualityListElement.insertBefore(qualityRow, qualityListElement.childNodes[i]);
               break;
             }
           }
@@ -276,22 +277,22 @@ window.DashMonitor.prototype = {
 
       context.metrics.push({
         title: "Load time",
-        value: "n/a"
+        value: ""
       });
 
       context.metrics.push({
         title: "Stalls",
-        value: "n/a"
+        value: ""
       });
 
       context.metrics.push({
         title: "Recovery time",
-        value: "n/a"
+        value: ""
       });
 
       context.metrics.push({
         title: "Stall chance",
-        value: "0%"
+        value: ""
       });
 
       context.metrics.push({
@@ -299,21 +300,21 @@ window.DashMonitor.prototype = {
         value: _round(player.getBufferRate(), 2, 2) + " s/s"
       });
 
-      var timeUntilStall = controller ? controller.getTimeUntilUnderrun() : 0;
-
-      context.metrics.push({
-        title: "Time until stall",
-        value: timeUntilStall < Number.MAX_VALUE ? _round(timeUntilStall, 2, 2) + " s" : "n/a"
-      });
-
       context.metrics.push({
         title: "Buffer left",
         value: _round(player.getRemainingBuffer(), 2, 2) + " s"
       });
 
+      var timeUntilStall = controller ? controller.getTimeUntilUnderrun() : 0;
+
+      context.metrics.push({
+        title: "Time until stall",
+        value: timeUntilStall < Number.MAX_VALUE ? _round(timeUntilStall, 2, 2) + " s" : ""
+      });
+
       context.metrics.push({
         title: "Last error",
-        value: "n/a"
+        value: ""
       });
 
       context.streams = {
@@ -336,15 +337,11 @@ window.DashMonitor.prototype = {
           value: stream.qualityIndex
         });
 
-        context.metrics.push({
+        contextStream.metrics.push({
           title: "Quality changes",
           value: "n/a"
         });
 
-        contextStream.metrics.push({
-          title: "Buffer rate",
-          value: _round(stream.getBufferRate(), 2, 2) + " s/s"
-        })
         contextStream.metrics.push({
           title: "Avg wait",
           value: Math.round(stream._requestManager.getAverageWait(), 2) + " ms"

@@ -14,6 +14,10 @@ var EventingMixin = {
     }
   },
 
+  removeAllEventListeners: function() {
+    this.__events = null;
+  },
+
   raiseEvent: function(eventName, args) {
     var events = this.__events && this.__events[eventName];
 

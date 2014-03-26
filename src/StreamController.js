@@ -354,4 +354,5 @@ Dashling.StreamController.prototype = {
 
 };
 
+_mix(Dashling.StreamController.prototype, EventingMixin);
 _mix(Dashling.StreamController.prototype, ThrottleMixin);

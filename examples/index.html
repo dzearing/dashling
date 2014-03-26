@@ -34,18 +34,20 @@
             var qualitySelect = document.querySelector("#audioQualitySelect");
             var audioQuality = Number(qualitySelect.options[qualitySelect.selectedIndex].value);
 
-            qualitySelect =  document.querySelector("#videoQualitySelect");;
+            qualitySelect =  document.querySelector("#videoQualitySelect");
             var videoQuality = Number(qualitySelect.options[qualitySelect.selectedIndex].value);
 
-            var useABR = document.querySelector("#autoAdjust").checked;
+            qualitySelect = document.querySelector("#qualitySelect");
+            var selectMode = qualitySelect.options[qualitySelect.selectedIndex].value;
+
+            dashling.settings.isABREnabled = !(selectMode == "fixed");
+            dashling.settings.isRBREnabled = (selectMode == "random");
 
             var selection = document.querySelector("#videoSelect");
             var url = selection.options[selection.selectedIndex].value;
 
             dashling.settings.targetQuality.audio = audioQuality;
             dashling.settings.targetQuality.video = videoQuality;
-
-            dashling.settings.isABREnabled = useABR;
 
             var videoElement = document.querySelector("video");
             videoElement.muted = true;
@@ -109,10 +111,6 @@
 
         .outerContainer {
             text-align: center;
-        }
-
-        .header {
-
         }
 
         .innerContent {
@@ -186,7 +184,14 @@
                 <option value="dog/manifest.xml">Dog video (Broken</option>
             </select>
 
-            <div><input id="autoAdjust" type="checkbox" checked></input><span>Auto adjust quality</span></div>
+            <div>
+                <span>Quality adjustment method:</span>
+                <select id="qualitySelect">
+                    <option value="auto" selected="selected">Automatic</option>
+                    <option value="fixed">Fixed</option>
+                    <option value="random" >Random</option>
+                </select>
+            </div>
 
             <div>
                 <span>Starting audio quality:</span>

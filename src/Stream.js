@@ -24,6 +24,10 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
     _initSegments: []
   });
 
+  _this._requestManager.addEventListener(Dashling.Event.download, function(ev) {
+    _this.raiseEvent(DashlingEvent.download, ev);
+  });
+
   var fragmentCount = streamInfo.timeline.length;
 
   for (var i = 0; i < fragmentCount; i++) {
@@ -49,6 +53,8 @@ Dashling.Stream.prototype = {
       this._requestManager.dispose();
       this._requestManager = null;
     }
+
+    this.removeAllEventListeners();
   },
 
   abortAll: function() {
@@ -268,6 +274,8 @@ Dashling.Stream.prototype = {
 
     if (!settings.isABREnabled || !averageBandwidth) {
       _this.qualityIndex = Math.min(_this._streamInfo.qualities.length - 1, settings.targetQuality[_this._streamType]);
+    } else if (settings.isRBREnabled) {
+      _this.qualityIndex = Math.round(Math.random() * maxQuality);
     } else {
       var targetQuality = 0;
       var logEntry = "Quality check " + _this._streamType + ": bps=" + Math.round(averageBandwidth * 1000);

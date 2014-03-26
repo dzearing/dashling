@@ -25,7 +25,6 @@
 }
 
 .c-DashMonitor .streamMetrics li {
-  display: inline-block;
   margin-right: 5px;
   margin-bottom: 5px;
   border: 1px solid rgba(255, 255, 255, 0.5);
@@ -33,7 +32,13 @@
   overflow: hidden;
   vertical-align: top;
   font-size: 11px;
+  display: none;
 }
+
+.c-DashMonitor .streamMetrics li.hasValue {
+  display: inline-block;
+}
+
 .c-DashMonitor .streamTitle {
   font-size: 15px;
   display: inline-block;

@@ -8,6 +8,9 @@ Dashling.Settings = {
   // If auto bitrate regulation is enabled.
   isABREnabled: true,
 
+  // Randomize bitrate (testing purposes)
+  isRBREnabled: false,
+
   // The quality to use if we have ABR disabled, or if default bandwidth is not available.
   targetQuality: {
     audio: 2,
@@ -42,11 +45,11 @@ Dashling.Settings = {
   defaultBandwidth: 520,
 
   // Default request timeout
-  requestTimeout: 3000, //30000,
+  requestTimeout: 30000,
 
   // Number of attempts beyond original request to try downloading something.
   maxRetries: 3,
 
   // Millisecond delays between retries.
-  delaysBetweenRetries: [5000] //[200, 1500, 3000]
+  delaysBetweenRetries: [200, 1500, 3000]
 };

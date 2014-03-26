@@ -1,5 +1,6 @@
 var DashlingEvent = {
-  sessionStateChange: "sessionstatechange"
+  sessionStateChange: "sessionstatechange",
+  download: "download"
 };
 
 var DashlingError = {

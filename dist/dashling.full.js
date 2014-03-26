@@ -124,6 +124,10 @@ var EventingMixin = {
     }
   },
 
+  removeAllEventListeners: function() {
+    this.__events = null;
+  },
+
   raiseEvent: function(eventName, args) {
     var events = this.__events && this.__events[eventName];
 
@@ -135,7 +139,8 @@ var EventingMixin = {
   }
 };
 var DashlingEvent = {
-  sessionStateChange: "sessionstatechange"
+  sessionStateChange: "sessionstatechange",
+  download: "download"
 };
 
 var DashlingError = {
@@ -371,6 +376,9 @@ Dashling.Settings = {
   // If auto bitrate regulation is enabled.
   isABREnabled: true,
 
+  // Randomize bitrate (testing purposes)
+  isRBREnabled: false,
+
   // The quality to use if we have ABR disabled, or if default bandwidth is not available.
   targetQuality: {
     audio: 2,
@@ -405,13 +413,13 @@ Dashling.Settings = {
   defaultBandwidth: 520,
 
   // Default request timeout
-  requestTimeout: 3000, //30000,
+  requestTimeout: 30000,
 
   // Number of attempts beyond original request to try downloading something.
   maxRetries: 3,
 
   // Millisecond delays between retries.
-  delaysBetweenRetries: [5000] //[200, 1500, 3000]
+  delaysBetweenRetries: [200, 1500, 3000]
 };
 Dashling.ManifestParser = function(settings) {
   this._requestManager = new Dashling.RequestManager(false, settings);
@@ -880,6 +888,7 @@ Dashling.StreamController.prototype = {
 
 };
 
+_mix(Dashling.StreamController.prototype, EventingMixin);
 _mix(Dashling.StreamController.prototype, ThrottleMixin);
 var c_bandwidthStorageKey = "Dashling.Stream.bandwidth";
 
@@ -907,6 +916,10 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
     _initSegments: []
   });
 
+  _this._requestManager.addEventListener(Dashling.Event.download, function(ev) {
+    _this.raiseEvent(DashlingEvent.download, ev);
+  });
+
   var fragmentCount = streamInfo.timeline.length;
 
   for (var i = 0; i < fragmentCount; i++) {
@@ -932,6 +945,8 @@ Dashling.Stream.prototype = {
       this._requestManager.dispose();
       this._requestManager = null;
     }
+
+    this.removeAllEventListeners();
   },
 
   abortAll: function() {
@@ -1151,6 +1166,8 @@ Dashling.Stream.prototype = {
 
     if (!settings.isABREnabled || !averageBandwidth) {
       _this.qualityIndex = Math.min(_this._streamInfo.qualities.length - 1, settings.targetQuality[_this._streamType]);
+    } else if (settings.isRBREnabled) {
+      _this.qualityIndex = Math.round(Math.random() * maxQuality);
     } else {
       var targetQuality = 0;
       var logEntry = "Quality check " + _this._streamType + ": bps=" + Math.round(averageBandwidth * 1000);
@@ -1284,6 +1301,7 @@ Dashling.RequestManager.prototype = {
 
   dispose: function() {
     this.abortAll();
+    this.removeAllEventListeners();
   },
 
   getActiveRequestCount: function() {
@@ -1373,6 +1391,8 @@ Dashling.RequestManager.prototype = {
         } else {
           _onError(request);
         }
+
+        _this.raiseEvent(Dashling.Event.download, request);
       };
 
       function _onError() {
@@ -1441,4 +1461,6 @@ Dashling.RequestManager.prototype = {
     return average;
   }
 };
+
+_mix(Dashling.RequestManager.prototype, EventingMixin);
 })();
