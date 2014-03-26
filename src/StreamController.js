@@ -269,7 +269,7 @@ Dashling.StreamController.prototype = {
     var streamIndex;
     var fragmentLength = _this._audioStream.fragments[0].time.lengthSeconds;
     var currentTime = _this._settings.startTime || _this._videoElement.currentTime;
-    var currentSegment = Math.floor(_this._videoElement.currentTime / fragmentLength);
+    var currentSegment = Math.floor(currentTime / fragmentLength);
     var maxIndex = currentSegment + Math.ceil(settings.maxBufferSeconds / fragmentLength);
     var maxAudioIndex = -1;
     var maxVideoIndex = -1;
