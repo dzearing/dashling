@@ -1,12 +1,12 @@
 var EventingMixin = {
-  on: function(eventName, callback) {
+  addEventListener: function(eventName, callback) {
     this.__events = this.__events || {};
     var eventList = this.__events[eventName] = this.__events[eventName] || [];
 
     eventList.push(callback);
   },
 
-  off: function(eventName, callback) {
+  removeEventListener: function(eventName, callback) {
     var eventList = this.__events && this.__events[eventName];
 
     if (eventList) {

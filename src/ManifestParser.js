@@ -1,5 +1,5 @@
-Dashling.ManifestParser = function() {
-  this._requestManager = new Dashling.RequestManager();
+Dashling.ManifestParser = function(settings) {
+  this._requestManager = new Dashling.RequestManager(false, settings);
 };
 
 Dashling.ManifestParser.prototype = {

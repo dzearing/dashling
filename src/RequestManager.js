@@ -1,9 +1,14 @@
-Dashling.RequestManager = function(shouldRecordStats) {
-  this._activeRequests = {};
-  this._waitTimes = [];
-  this._receiveTimes = [];
-  this._bandwidths = [];
-  this._shouldRecordStats = shouldRecordStats;
+Dashling.RequestManager = function(shouldRecordStats, settings) {
+  _mix(this, {
+    _settings: settings,
+    _activeRequests: {},
+    _waitTimes: [],
+    _receiveTimes: [],
+    _bandwidths: [],
+    _shouldRecordStats: shouldRecordStats,
+    _maxRetries: settings.maxRetries,
+    _delaysBetweenRetries: settings.delaysBetweenRetries
+  });
 };
 
 var RequestManagerState = {
@@ -14,9 +19,6 @@ var RequestManagerState = {
 };
 
 Dashling.RequestManager.prototype = {
-  maxRetries: 3,
-  delayBetweenRetries: [200, 1500, 3000],
-
   _activeRequestCount: 0,
   _totalRequests: 0,
   _xhrType: XMLHttpRequest,
@@ -44,9 +46,9 @@ Dashling.RequestManager.prototype = {
 
   load: function(request, isArrayBuffer, onSuccess, onFailure) {
     var _this = this;
-    var maxRetries = this.maxRetries;
+    var maxRetries = this._maxRetries;
     var retryIndex = -1;
-    var delayBetweenRetries = this.delayBetweenRetries;
+    var delaysBetweenRetries = this._delaysBetweenRetries;
 
     request.retryCount = 0;
     _startRequest();
@@ -58,6 +60,7 @@ Dashling.RequestManager.prototype = {
       _this._activeRequests[requestIndex] = xhr;
       _this._activeRequestCount++;
 
+      xhr.timeout = _this._settings.requestTimeout;
       xhr.url = request.url;
       xhr.open("GET", request.url, true);
       isArrayBuffer && (xhr.responseType = "arraybuffer");
@@ -115,14 +118,18 @@ Dashling.RequestManager.prototype = {
 
       function _onError() {
 
+        if (xhr.status == 0 && request.timeAtLastByte >= _this._settings.requestTimeout) {
+          xhr.isTimedOut = true;
+        }
+
         if (!xhr.isAborted && ++retryIndex < maxRetries) {
 
           request.retryCount++;
-          setTimeout(_startRequest, delayBetweenRetries[Math.min(delayBetweenRetries.length - 1, retryIndex)]);
+          setTimeout(_startRequest, delaysBetweenRetries[Math.min(delaysBetweenRetries.length - 1, retryIndex)]);
         } else {
           request.state = DashlingFragmentState.error;
           request.hasError = true;
-          request.statusCode = xhr.isAborted ? "aborted" : xhr.status;
+          request.statusCode = xhr.isAborted ? "aborted" : xhr.isTimedOut ? "timeout" : xhr.status;
           onFailure && onFailure(request);
         }
       };

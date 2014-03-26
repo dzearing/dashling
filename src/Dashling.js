@@ -1,50 +1,7 @@
 /// <summary>Dashling main object.</summary>
 
 window.Dashling = function() {
-  this.settings = {
-
-    // The manifest object to use, if you want to skip the serial call to fetch the xml.
-    manifest: null,
-
-    // If auto bitrate regulation is enabled.
-    isABREnabled: true,
-
-    // If we should auto play the video when enough buffer is available.
-    shouldAutoPlay: true,
-
-    // Logs debug data to console.
-    logToConsole: true,
-
-    // TODO: Number of buffered seconds in which we will start to be more aggressive on estimates.
-    safeBufferSeconds: 15,
-
-    // Number of buffered seconds before we stop buffering more.
-    maxBufferSeconds: 119.5,
-
-    // Max number of simultaneous requests per stream.
-    maxConcurrentRequests: {
-      audio: 4,
-      video: 6
-    },
-
-    // Max number of fragments each stream can be ahead of the other stream by.
-    maxSegmentLeadCount: {
-      audio: 3,
-      video: 5
-    },
-
-    // The quality to use if we have ABR disabled, or if default bandwidth is not available.
-    targetQuality: {
-      audio: 2,
-      video: 2
-    },
-
-    // Default bytes per millisecond, used to determine default request staggering (480p is around 520 bytes per millisecond.)
-    defaultBandwidth: 520,
-
-    // Default start time for video, in seconds.
-    startTime: 0
-  };
+  this.settings = _mix({}, Dashling.Settings);
 };
 
 // Mix in enums.
@@ -199,7 +156,7 @@ Dashling.prototype = {
     if (_this.settings.manifest) {
       _onManifestParsed(_this.settings.manifest);
     } else {
-      this._parser = new Dashling.ManifestParser();
+      this._parser = new Dashling.ManifestParser(_this.settings);
       this._parser.parse(url, _onManifestParsed, _onManifestFailed);
     }
 

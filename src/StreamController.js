@@ -134,33 +134,35 @@ Dashling.StreamController.prototype = {
   _loadNextFragment: function() {
     var _this = this;
 
-    var downloads = _this._getDownloadCandidates();
+    if (_this._streams) {
+      var downloads = _this._getDownloadCandidates();
 
-    for (var streamIndex = 0; streamIndex < downloads.length; streamIndex++) {
-      var streamDownloads = downloads[streamIndex];
-      var stream = _this._streams[streamIndex];
+      for (var streamIndex = 0; streamIndex < downloads.length; streamIndex++) {
+        var streamDownloads = downloads[streamIndex];
+        var stream = _this._streams[streamIndex];
 
-      for (var downloadIndex = 0; downloadIndex < streamDownloads.length; downloadIndex++) {
-        var fragmentIndex = streamDownloads[downloadIndex];
+        for (var downloadIndex = 0; downloadIndex < streamDownloads.length; downloadIndex++) {
+          var fragmentIndex = streamDownloads[downloadIndex];
 
-        var fragment = stream.fragments[fragmentIndex];
-        var previousFragment = stream.fragments[fragmentIndex - 1];
-        var previousRequest = previousFragment && previousFragment.activeRequest && previousFragment.activeRequest.state == DashlingFragmentState.downloading ? previousFragment.activeRequest : null;
-        var minDelay = stream.getRequestStaggerTime();
-        var timeSincePreviousFragment = previousRequest ? new Date().getTime() - previousRequest.startTime : 0;
+          var fragment = stream.fragments[fragmentIndex];
+          var previousFragment = stream.fragments[fragmentIndex - 1];
+          var previousRequest = previousFragment && previousFragment.activeRequest && previousFragment.activeRequest.state == DashlingFragmentState.downloading ? previousFragment.activeRequest : null;
+          var minDelay = stream.getRequestStaggerTime();
+          var timeSincePreviousFragment = previousRequest ? new Date().getTime() - previousRequest.startTime : 0;
 
-        if (!previousRequest || timeSincePreviousFragment >= minDelay) {
-          stream.load(fragmentIndex, this._appendNextFragment);
-        } else {
-          _enqueueNextLoad(streamIndex, minDelay - timeSincePreviousFragment);
-          break;
+          if (!previousRequest || timeSincePreviousFragment >= minDelay) {
+            stream.load(fragmentIndex, this._appendNextFragment);
+          } else {
+            _enqueueNextLoad(streamIndex, minDelay - timeSincePreviousFragment);
+            break;
+          }
         }
       }
-    }
 
-    // Poll every 300ms for more downloadable content.
-    if (!downloads[0].length && !downloads[1].length && downloads.hitMaxLimit) {
-      _enqueueNextLoad(0, 300);
+      // If we are at the end of our limit, poll every 300ms for more downloadable content.
+      if (!downloads[0].length && !downloads[1].length && downloads.hitMaxLimit) {
+        _enqueueNextLoad(0, 300);
+      }
     }
 
     function _enqueueNextLoad(index, delay) {

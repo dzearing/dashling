@@ -109,14 +109,14 @@ var ThrottleMixin = {
   }
 };
 var EventingMixin = {
-  on: function(eventName, callback) {
+  addEventListener: function(eventName, callback) {
     this.__events = this.__events || {};
     var eventList = this.__events[eventName] = this.__events[eventName] || [];
 
     eventList.push(callback);
   },
 
-  off: function(eventName, callback) {
+  removeEventListener: function(eventName, callback) {
     var eventList = this.__events && this.__events[eventName];
 
     if (eventList) {
@@ -168,50 +168,7 @@ var DashlingFragmentState = {
 /// <summary>Dashling main object.</summary>
 
 window.Dashling = function() {
-  this.settings = {
-
-    // The manifest object to use, if you want to skip the serial call to fetch the xml.
-    manifest: null,
-
-    // If auto bitrate regulation is enabled.
-    isABREnabled: true,
-
-    // If we should auto play the video when enough buffer is available.
-    shouldAutoPlay: true,
-
-    // Logs debug data to console.
-    logToConsole: true,
-
-    // TODO: Number of buffered seconds in which we will start to be more aggressive on estimates.
-    safeBufferSeconds: 15,
-
-    // Number of buffered seconds before we stop buffering more.
-    maxBufferSeconds: 119.5,
-
-    // Max number of simultaneous requests per stream.
-    maxConcurrentRequests: {
-      audio: 4,
-      video: 6
-    },
-
-    // Max number of fragments each stream can be ahead of the other stream by.
-    maxSegmentLeadCount: {
-      audio: 3,
-      video: 5
-    },
-
-    // The quality to use if we have ABR disabled, or if default bandwidth is not available.
-    targetQuality: {
-      audio: 2,
-      video: 2
-    },
-
-    // Default bytes per millisecond, used to determine default request staggering (480p is around 520 bytes per millisecond.)
-    defaultBandwidth: 520,
-
-    // Default start time for video, in seconds.
-    startTime: 0
-  };
+  this.settings = _mix({}, Dashling.Settings);
 };
 
 // Mix in enums.
@@ -366,7 +323,7 @@ Dashling.prototype = {
     if (_this.settings.manifest) {
       _onManifestParsed(_this.settings.manifest);
     } else {
-      this._parser = new Dashling.ManifestParser();
+      this._parser = new Dashling.ManifestParser(_this.settings);
       this._parser.parse(url, _onManifestParsed, _onManifestFailed);
     }
 
@@ -404,8 +361,60 @@ Dashling.prototype = {
 };
 
 _mix(Dashling.prototype, EventingMixin);
-Dashling.ManifestParser = function() {
-  this._requestManager = new Dashling.RequestManager();
+Dashling.Settings = {
+  // The manifest object to use, if you want to skip the serial call to fetch the xml.
+  manifest: null,
+
+  // Default start time for video, in seconds.
+  startTime: 0,
+
+  // If auto bitrate regulation is enabled.
+  isABREnabled: true,
+
+  // The quality to use if we have ABR disabled, or if default bandwidth is not available.
+  targetQuality: {
+    audio: 2,
+    video: 2
+  },
+
+  // If we should auto play the video when enough buffer is available.
+  shouldAutoPlay: true,
+
+  // Logs debug data to console.
+  logToConsole: true,
+
+  // TODO: Number of buffered seconds in which we will start to be more aggressive on estimates.
+  safeBufferSeconds: 15,
+
+  // Number of buffered seconds before we stop buffering more.
+  maxBufferSeconds: 119.5,
+
+  // Max number of simultaneous requests per stream.
+  maxConcurrentRequests: {
+    audio: 4,
+    video: 6
+  },
+
+  // Max number of fragments each stream can be ahead of the other stream by.
+  maxSegmentLeadCount: {
+    audio: 3,
+    video: 5
+  },
+
+  // Default bytes per millisecond, used to determine default request staggering (480p is around 520 bytes per millisecond.)
+  defaultBandwidth: 520,
+
+  // Default request timeout
+  requestTimeout: 3000, //30000,
+
+  // Number of attempts beyond original request to try downloading something.
+  maxRetries: 3,
+
+  // Millisecond delays between retries.
+  delaysBetweenRetries: [5000] //[200, 1500, 3000]
+};
+Dashling.ManifestParser = function(settings) {
+  this._requestManager = new Dashling.RequestManager(false, settings);
 };
 
 Dashling.ManifestParser.prototype = {
@@ -651,33 +660,35 @@ Dashling.StreamController.prototype = {
   _loadNextFragment: function() {
     var _this = this;
 
-    var downloads = _this._getDownloadCandidates();
+    if (_this._streams) {
+      var downloads = _this._getDownloadCandidates();
 
-    for (var streamIndex = 0; streamIndex < downloads.length; streamIndex++) {
-      var streamDownloads = downloads[streamIndex];
-      var stream = _this._streams[streamIndex];
+      for (var streamIndex = 0; streamIndex < downloads.length; streamIndex++) {
+        var streamDownloads = downloads[streamIndex];
+        var stream = _this._streams[streamIndex];
 
-      for (var downloadIndex = 0; downloadIndex < streamDownloads.length; downloadIndex++) {
-        var fragmentIndex = streamDownloads[downloadIndex];
+        for (var downloadIndex = 0; downloadIndex < streamDownloads.length; downloadIndex++) {
+          var fragmentIndex = streamDownloads[downloadIndex];
 
-        var fragment = stream.fragments[fragmentIndex];
-        var previousFragment = stream.fragments[fragmentIndex - 1];
-        var previousRequest = previousFragment && previousFragment.activeRequest && previousFragment.activeRequest.state == DashlingFragmentState.downloading ? previousFragment.activeRequest : null;
-        var minDelay = stream.getRequestStaggerTime();
-        var timeSincePreviousFragment = previousRequest ? new Date().getTime() - previousRequest.startTime : 0;
+          var fragment = stream.fragments[fragmentIndex];
+          var previousFragment = stream.fragments[fragmentIndex - 1];
+          var previousRequest = previousFragment && previousFragment.activeRequest && previousFragment.activeRequest.state == DashlingFragmentState.downloading ? previousFragment.activeRequest : null;
+          var minDelay = stream.getRequestStaggerTime();
+          var timeSincePreviousFragment = previousRequest ? new Date().getTime() - previousRequest.startTime : 0;
 
-        if (!previousRequest || timeSincePreviousFragment >= minDelay) {
-          stream.load(fragmentIndex, this._appendNextFragment);
-        } else {
-          _enqueueNextLoad(streamIndex, minDelay - timeSincePreviousFragment);
-          break;
+          if (!previousRequest || timeSincePreviousFragment >= minDelay) {
+            stream.load(fragmentIndex, this._appendNextFragment);
+          } else {
+            _enqueueNextLoad(streamIndex, minDelay - timeSincePreviousFragment);
+            break;
+          }
         }
       }
-    }
 
-    // Poll every 300ms for more downloadable content.
-    if (!downloads[0].length && !downloads[1].length && downloads.hitMaxLimit) {
-      _enqueueNextLoad(0, 300);
+      // If we are at the end of our limit, poll every 300ms for more downloadable content.
+      if (!downloads[0].length && !downloads[1].length && downloads.hitMaxLimit) {
+        _enqueueNextLoad(0, 300);
+      }
     }
 
     function _enqueueNextLoad(index, delay) {
@@ -883,8 +894,8 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
     _startTime: new Date().getTime(),
     _appendLength: 0,
     _initializedQualityIndex: -1,
-    _initRequestManager: new Dashling.RequestManager(),
-    _requestManager: new Dashling.RequestManager(streamType == "video"),
+    _initRequestManager: new Dashling.RequestManager(false, settings),
+    _requestManager: new Dashling.RequestManager(streamType == "video", settings),
     _streamType: streamType,
     _mediaSource: mediaSource,
     _videoElement: videoElement,
@@ -1246,12 +1257,17 @@ Dashling.Stream.prototype = {
 
 _mix(Dashling.Stream.prototype, EventingMixin);
 _mix(Dashling.Stream.prototype, ThrottleMixin);
-Dashling.RequestManager = function(shouldRecordStats) {
-  this._activeRequests = {};
-  this._waitTimes = [];
-  this._receiveTimes = [];
-  this._bandwidths = [];
-  this._shouldRecordStats = shouldRecordStats;
+Dashling.RequestManager = function(shouldRecordStats, settings) {
+  _mix(this, {
+    _settings: settings,
+    _activeRequests: {},
+    _waitTimes: [],
+    _receiveTimes: [],
+    _bandwidths: [],
+    _shouldRecordStats: shouldRecordStats,
+    _maxRetries: settings.maxRetries,
+    _delaysBetweenRetries: settings.delaysBetweenRetries
+  });
 };
 
 var RequestManagerState = {
@@ -1262,9 +1278,6 @@ var RequestManagerState = {
 };
 
 Dashling.RequestManager.prototype = {
-  maxRetries: 3,
-  delayBetweenRetries: [200, 1500, 3000],
-
   _activeRequestCount: 0,
   _totalRequests: 0,
   _xhrType: XMLHttpRequest,
@@ -1292,9 +1305,9 @@ Dashling.RequestManager.prototype = {
 
   load: function(request, isArrayBuffer, onSuccess, onFailure) {
     var _this = this;
-    var maxRetries = this.maxRetries;
+    var maxRetries = this._maxRetries;
     var retryIndex = -1;
-    var delayBetweenRetries = this.delayBetweenRetries;
+    var delaysBetweenRetries = this._delaysBetweenRetries;
 
     request.retryCount = 0;
     _startRequest();
@@ -1306,6 +1319,7 @@ Dashling.RequestManager.prototype = {
       _this._activeRequests[requestIndex] = xhr;
       _this._activeRequestCount++;
 
+      xhr.timeout = _this._settings.requestTimeout;
       xhr.url = request.url;
       xhr.open("GET", request.url, true);
       isArrayBuffer && (xhr.responseType = "arraybuffer");
@@ -1363,14 +1377,18 @@ Dashling.RequestManager.prototype = {
 
       function _onError() {
 
+        if (xhr.status == 0 && request.timeAtLastByte >= _this._settings.requestTimeout) {
+          xhr.isTimedOut = true;
+        }
+
         if (!xhr.isAborted && ++retryIndex < maxRetries) {
 
           request.retryCount++;
-          setTimeout(_startRequest, delayBetweenRetries[Math.min(delayBetweenRetries.length - 1, retryIndex)]);
+          setTimeout(_startRequest, delaysBetweenRetries[Math.min(delaysBetweenRetries.length - 1, retryIndex)]);
         } else {
           request.state = DashlingFragmentState.error;
           request.hasError = true;
-          request.statusCode = xhr.isAborted ? "aborted" : xhr.status;
+          request.statusCode = xhr.isAborted ? "aborted" : xhr.isTimedOut ? "timeout" : xhr.status;
           onFailure && onFailure(request);
         }
       };
