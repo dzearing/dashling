@@ -1102,12 +1102,17 @@ Dashling.Stream.prototype = {
         var fragmentTime = fragment.time;
 
         // Allow for up to .5 second of wiggle room at start of playback. else be more meticulous.
-        var wiggleRoom = currentTime < .3 ? .5 : 0.005;
+        var atStart =fragmentTime.startSeconds < .3;
+        var atEnd = (fragmentTime.startSeconds + fragmentTime.lengthSeconds + .005) >= (this._manifest.mediaDuration);
+        var wiggleRoom = atStart ? .5 : atEnd ? .8 : 0.005;
+
+        var safeStartTime = Math.max(currentTime, fragmentTime.startSeconds + (atStart ? 0.5 : 0.005));
+        var safeEndTime = fragmentTime.startSeconds + fragmentTime.lengthSeconds - (atEnd ? 0.8 : 0.005);
 
         try {
           // validate that the buffered area in the video element still contains the fragment.
           for (var bufferedIndex = 0; bufferedIndex < bufferRanges.length; bufferedIndex++) {
-            if ((bufferRanges.start(bufferedIndex) - wiggleRoom) <= Math.max(currentTime, fragment.time.startSeconds) && (bufferRanges.end(bufferedIndex) + wiggleRoom) >= (fragmentTime.startSeconds + fragmentTime.lengthSeconds)) {
+            if ((bufferRanges.start(bufferedIndex) <= safeStartTime) && (bufferRanges.end(bufferedIndex) > safeEndTime)) {
               isBuffered = true;
               break;
             }

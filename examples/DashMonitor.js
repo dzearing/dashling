@@ -147,7 +147,7 @@ window.DashMonitor.prototype = {
         metrics: _qs(".video .streamMetrics", element),
         qualities: _qs(".video .qualities", element),
         seekBar: _qs(".video .seekBar", element)
-      },
+      }
     };
 
     this.isActive = true;
