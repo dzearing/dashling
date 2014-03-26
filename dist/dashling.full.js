@@ -450,7 +450,11 @@ Dashling.ManifestParser.prototype = {
 
     function _onSuccess() {
       if (_this._parseIndex == parseIndex) {
-        onSuccess(_this._parseManifest(request.data));
+        var data = request.data;
+        var manifest = _this._parseManifest(request.data);
+
+        manifest.request = request;
+        onSuccess(manifest);
       }
     }
 
