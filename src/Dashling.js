@@ -189,6 +189,10 @@ Dashling.prototype = {
         _this._videoElement,
         _this._mediaSource,
         _this.settings);
+
+      _this._streamController.addEventListener(Dashling.Event.download, function(ev) {
+        _this.raiseEvent(Dashling.Event.download, ev);
+      });
     }
   }
 };

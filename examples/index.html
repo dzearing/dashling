@@ -27,6 +27,10 @@
 
             document.querySelector("#logDashling").addEventListener("change", _updateLogging);
             document.querySelector("#logVideo").addEventListener("change", _updateLogging);
+
+            dashling.addEventListener(Dashling.Event.download, function(ev) {
+                console.log("Event download received: " + ev.url + "  " + ev.totalTime + " [" + ev.timeAtFirstByte + "/" + ev.timeAtLastByte + "]");
+            });
         }
 
         function loadDashling() {

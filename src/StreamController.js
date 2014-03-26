@@ -24,6 +24,12 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
     _this._videoStream = new Dashling.Stream("video", mediaSource, videoElement, settings)
   ];
 
+  for (var i = 0; i < _this._streams.length; i++) {
+    _this._streams[i].addEventListener(Dashling.Event.download, function(ev) {
+      _this.raiseEvent(Dashling.Event.download, ev);
+    });
+  }
+
   _this._requestTimerIds = [0, 0];
 
   var firstFragmentDuration = _this._audioStream.fragments[0].time.lengthSeconds;
@@ -75,6 +81,8 @@ Dashling.StreamController.prototype = {
 
     _this._streams = null;
     _this._mediaSource = null;
+
+    _this.removeAllEventListeners();
   },
 
   getPlayingQuality: function(streamType) {
