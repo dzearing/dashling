@@ -168,7 +168,7 @@ Dashling.Stream.prototype = {
     return Math.round(this._getDownloadMsForQuality(this.qualityIndex) * 1.4);
   },
 
-  isMissing: function(fragmentIndex) {
+  isMissing: function(fragmentIndex, currentTime) {
     var fragment = this.fragments[fragmentIndex];
     var isMissing = false;
     var isBuffered = false;
@@ -176,14 +176,16 @@ Dashling.Stream.prototype = {
     if (fragment) {
       if (fragment.state == DashlingFragmentState.appended) {
 
-        try {
-          var bufferRanges = this._buffer.buffered;
-          var fragmentTime = fragment.time;
-          var wiggleRoom = 0.5;
+        var bufferRanges = this._buffer.buffered;
+        var fragmentTime = fragment.time;
 
+        // Allow for up to .5 second of wiggle room at start of playback. else be more meticulous.
+        var wiggleRoom = currentTime < .3 ? .5 : 0.005;
+
+        try {
           // validate that the buffered area in the video element still contains the fragment.
           for (var bufferedIndex = 0; bufferedIndex < bufferRanges.length; bufferedIndex++) {
-            if ((bufferRanges.start(bufferedIndex) - wiggleRoom) <= fragmentTime.startSeconds && (bufferRanges.end(bufferedIndex) + wiggleRoom) >= (fragmentTime.startSeconds + fragmentTime.lengthSeconds)) {
+            if ((bufferRanges.start(bufferedIndex) - wiggleRoom) <= Math.max(currentTime, fragment.time.startSeconds) && (bufferRanges.end(bufferedIndex) + wiggleRoom) >= (fragmentTime.startSeconds + fragmentTime.lengthSeconds)) {
               isBuffered = true;
               break;
             }

@@ -190,6 +190,7 @@ Dashling.StreamController.prototype = {
     var streams = this._streams;
     var stream;
     var streamIndex;
+    var currentTime = _this._settings.startTime || _this._videoElement.currentTime;
 
     if (streams && streams.length) {
       var streamsAppendable = true;
@@ -202,7 +203,7 @@ Dashling.StreamController.prototype = {
         for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
           stream = streams[streamIndex];
           canAppend &= stream.canAppend(_this._appendIndex);
-          allStreamsAppended &= stream.fragments[_this._appendIndex].state == DashlingFragmentState.appended;
+          allStreamsAppended &= stream.fragments[_this._appendIndex].state == DashlingFragmentState.appended && !stream.isMissing(_this._appendIndex, currentTime);
         }
 
         if (canAppend) {
@@ -278,7 +279,7 @@ Dashling.StreamController.prototype = {
 
     for (fragmentIndex = _this._appendIndex; fragmentIndex <= maxIndex && fragmentIndex < fragmentCount; fragmentIndex++) {
 
-      if (this._audioStream.isMissing(fragmentIndex) || this._videoStream.isMissing(fragmentIndex)) {
+      if (this._audioStream.isMissing(fragmentIndex, currentTime) || this._videoStream.isMissing(fragmentIndex, currentTime)) {
         _log("Missing fragment reset: index=" + fragmentIndex, _this._settings);
         this._audioStream.fragments[fragmentIndex].state = this._videoStream.fragments[fragmentIndex].state = DashlingFragmentState.idle;
       }

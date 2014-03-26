@@ -732,6 +732,7 @@ Dashling.StreamController.prototype = {
     var streams = this._streams;
     var stream;
     var streamIndex;
+    var currentTime = _this._settings.startTime || _this._videoElement.currentTime;
 
     if (streams && streams.length) {
       var streamsAppendable = true;
@@ -744,7 +745,7 @@ Dashling.StreamController.prototype = {
         for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
           stream = streams[streamIndex];
           canAppend &= stream.canAppend(_this._appendIndex);
-          allStreamsAppended &= stream.fragments[_this._appendIndex].state == DashlingFragmentState.appended;
+          allStreamsAppended &= stream.fragments[_this._appendIndex].state == DashlingFragmentState.appended && !stream.isMissing(_this._appendIndex, currentTime);
         }
 
         if (canAppend) {
@@ -820,7 +821,7 @@ Dashling.StreamController.prototype = {
 
     for (fragmentIndex = _this._appendIndex; fragmentIndex <= maxIndex && fragmentIndex < fragmentCount; fragmentIndex++) {
 
-      if (this._audioStream.isMissing(fragmentIndex) || this._videoStream.isMissing(fragmentIndex)) {
+      if (this._audioStream.isMissing(fragmentIndex, currentTime) || this._videoStream.isMissing(fragmentIndex, currentTime)) {
         _log("Missing fragment reset: index=" + fragmentIndex, _this._settings);
         this._audioStream.fragments[fragmentIndex].state = this._videoStream.fragments[fragmentIndex].state = DashlingFragmentState.idle;
       }
@@ -1076,7 +1077,7 @@ Dashling.Stream.prototype = {
     return Math.round(this._getDownloadMsForQuality(this.qualityIndex) * 1.4);
   },
 
-  isMissing: function(fragmentIndex) {
+  isMissing: function(fragmentIndex, currentTime) {
     var fragment = this.fragments[fragmentIndex];
     var isMissing = false;
     var isBuffered = false;
@@ -1084,14 +1085,16 @@ Dashling.Stream.prototype = {
     if (fragment) {
       if (fragment.state == DashlingFragmentState.appended) {
 
-        try {
-          var bufferRanges = this._buffer.buffered;
-          var fragmentTime = fragment.time;
-          var wiggleRoom = 0.5;
+        var bufferRanges = this._buffer.buffered;
+        var fragmentTime = fragment.time;
 
+        // Allow for up to .5 second of wiggle room at start of playback. else be more meticulous.
+        var wiggleRoom = currentTime < .3 ? .5 : 0.005;
+
+        try {
           // validate that the buffered area in the video element still contains the fragment.
           for (var bufferedIndex = 0; bufferedIndex < bufferRanges.length; bufferedIndex++) {
-            if ((bufferRanges.start(bufferedIndex) - wiggleRoom) <= fragmentTime.startSeconds && (bufferRanges.end(bufferedIndex) + wiggleRoom) >= (fragmentTime.startSeconds + fragmentTime.lengthSeconds)) {
+            if ((bufferRanges.start(bufferedIndex) - wiggleRoom) <= Math.max(currentTime, fragment.time.startSeconds) && (bufferRanges.end(bufferedIndex) + wiggleRoom) >= (fragmentTime.startSeconds + fragmentTime.lengthSeconds)) {
               isBuffered = true;
               break;
             }
