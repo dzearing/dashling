@@ -132,6 +132,7 @@ Dashling.RequestManager.prototype = {
         } else {
           request.state = DashlingFragmentState.error;
           request.hasError = true;
+          request.isAborted = xhr.isAborted;
           request.statusCode = xhr.isAborted ? "aborted" : xhr.isTimedOut ? "timeout" : xhr.status;
           onFailure && onFailure(request);
         }

@@ -250,7 +250,7 @@ Dashling.Stream.prototype = {
 
     function _onFailure() {
 
-      if (fragment.state != "aborted") {
+      if (!request.isAborted) {
         fragment.state = DashlingFragmentState.error;
       } else {
         fragment.state = DashlingFragmentState.idle;

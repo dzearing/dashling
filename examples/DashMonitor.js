@@ -247,6 +247,7 @@ window.DashMonitor.prototype = {
 
   _updateFragments: function(fragmentListElement, fragments) {
     var fragmentListLookup = fragmentListElement._fragmentListLookup = fragmentListElement._fragmentListLookup || {};
+    var newFragmentListLookup = {};
     var videoDuration = this.dataContext.duration;
 
     for (var fragmentIndex = 0; fragmentIndex < fragments.length; fragmentIndex++) {
@@ -254,12 +255,22 @@ window.DashMonitor.prototype = {
       var fragmentElement = fragmentListLookup[fragment.index];
 
       if (!fragmentElement) {
-        fragmentElement = fragmentListLookup[fragment.index] = ce("div", "rowRequest", null, fragmentListElement);
+        fragmentElement = ce("div", "rowRequest", null, fragmentListElement);
         fragmentElement.style.left = (100 * fragment.start / videoDuration) + "%";
         fragmentElement.style.width = (100 * fragment.length / videoDuration) + "%";
+      } else {
+        delete fragmentListLookup[fragment.index];
       }
 
+      newFragmentListLookup[fragment.index] = fragmentElement;
+
       fragmentElement.className = "rowRequest " + fragment.state;
+    }
+
+    fragmentListElement._fragmentListLookup = newFragmentListLookup;
+
+    for (var i in fragmentListLookup) {
+      fragmentListElement.removeChild(fragmentListLookup[i]);
     }
   },
 
