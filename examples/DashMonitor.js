@@ -276,14 +276,14 @@ window.DashMonitor.prototype = {
       context.metrics = [];
 
       context.metrics.push({
-        title: "Load time",
-        value: ""
+        title: "Manifest",
+        value: player.settings.manifest && player.settings.manifest.request && player.settings.manifest.request.timeAtLastByte ? player.settings.manifest.request.timeAtLastByte + " ms" : ""
       });
 
       context.metrics.push({
-        title: "Manifest time",
-        value: player.settings.manifest && player.settings.manifest.request && player.settings.manifest.request.timeAtLastByte ? player.settings.manifest.request.timeAtLastByte + " ms" : ""
-      })
+        title: "Load",
+        value: ""
+      });
 
       context.metrics.push({
         title: "Stalls",
