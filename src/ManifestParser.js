@@ -1,5 +1,11 @@
 Dashling.ManifestParser = function(settings) {
-  this._requestManager = new Dashling.RequestManager(false, settings);
+  var _this = this;
+
+  _this._requestManager = new Dashling.RequestManager(false, settings);
+
+  _this._requestManager.addEventListener(Dashling.Event.download, function(ev) {
+    _this.raiseEvent(DashlingEvent.download, ev);
+  });
 };
 
 Dashling.ManifestParser.prototype = {
@@ -16,7 +22,8 @@ Dashling.ManifestParser.prototype = {
     var _this = this;
     var parseIndex = ++_this._parseIndex;
     var request = {
-      url: url
+      url: url,
+      requestType: "manifest"
     };
 
     this._requestManager.load(request, false, _onSuccess, _onError);
@@ -113,3 +120,5 @@ Dashling.ManifestParser.prototype = {
     return manifest;
   }
 };
+
+_mix(Dashling.ManifestParser.prototype, EventingMixin);

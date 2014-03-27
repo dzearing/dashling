@@ -156,7 +156,12 @@ Dashling.prototype = {
     if (_this.settings.manifest) {
       _onManifestParsed(_this.settings.manifest);
     } else {
-      this._parser = new Dashling.ManifestParser(_this.settings);
+      _this._parser = new Dashling.ManifestParser(_this.settings);
+
+      _this._parser.addEventListener(Dashling.Event.download, function(ev) {
+        _this.raiseEvent(Dashling.Event.download, ev);
+      });
+
       this._parser.parse(url, _onManifestParsed, _onManifestFailed);
     }
 
