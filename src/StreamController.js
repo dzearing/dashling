@@ -55,6 +55,8 @@ Dashling.StreamController.prototype = {
   dispose: function() {
     var _this = this;
 
+    _this.isDisposed = true;
+
     if (_this._videoElement) {
       _this._videoElement.removeEventListener("seeking", _this._onVideoSeeking);
       _this._videoElement = null;
@@ -174,14 +176,16 @@ Dashling.StreamController.prototype = {
     }
 
     function _enqueueNextLoad(index, delay) {
-      if (_this._requestTimerIds[index]) {
-        clearTimeout(_this._requestTimerIds[index]);
-      }
+      if (!_this.isDisposed) {
+        if (_this._requestTimerIds[index]) {
+          clearTimeout(_this._requestTimerIds[index]);
+        }
 
-      _this._requestTimerIds[index] = setTimeout(function() {
-        _this._requestTimerIds[index] = 0;
-        _this._loadNextFragment();
-      }, delay);
+        _this._requestTimerIds[index] = setTimeout(function() {
+          _this._requestTimerIds[index] = 0;
+          _this._loadNextFragment();
+        }, delay);
+      }
     }
   },
 

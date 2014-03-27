@@ -1,4 +1,4 @@
-var c_bandwidthStorageKey = "Dashling.Stream.bandwidth";
+var c_bandwidthStorageKey = "Dashling.Stream.bytesPerSecond";
 
 Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
   var _this = this;
@@ -49,15 +49,16 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
 
 Dashling.Stream.prototype = {
   dispose: function() {
+    this.isDisposed = true;
 
     this.clearAllThrottles();
+    this.removeAllEventListeners();
 
     if (this._requestManager) {
       this._requestManager.dispose();
       this._requestManager = null;
     }
 
-    this.removeAllEventListeners();
   },
 
   abortAll: function() {
@@ -105,56 +106,60 @@ Dashling.Stream.prototype = {
 
 
     function _appendNextEntry() {
-      var request = fragmentsToAppend[0];
+      if (!_this.isDisposed) {
+        var request = fragmentsToAppend[0];
 
-      if (fragmentsToAppend.length) {
-        buffer.addEventListener("update", _onAppendComplete);
+        if (fragmentsToAppend.length) {
+          buffer.addEventListener("update", _onAppendComplete);
 
-        try {
-          _log("Append started: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
-          buffer.appendBuffer(request.data);
-        } catch (e) {
-          request.state = fragment.state = DashlingFragmentState.error;
+          try {
+            _log("Append started: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
+            buffer.appendBuffer(request.data);
+          } catch (e) {
+            request.state = fragment.state = DashlingFragmentState.error;
+            _this._isAppending = false;
+
+            onComplete();
+            // TODO: Fire error?
+          }
+        } else {
+          fragment.state = DashlingFragmentState.appended;
           _this._isAppending = false;
 
-          onComplete();
-          // TODO: Fire error?
+          var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
+
+          _this._appendLength += fragment.time.lengthSeconds;
+          _this._bufferRate.push(_this._appendLength / timeSinceStart);
+
+          if (_this._bufferRate.length > 3) {
+            _this._bufferRate.shift();
+          }
+
+          onComplete(fragment);
         }
-      } else {
-        fragment.state = DashlingFragmentState.appended;
-        _this._isAppending = false;
-
-        var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
-
-        _this._appendLength += fragment.time.lengthSeconds;
-        _this._bufferRate.push(_this._appendLength / timeSinceStart);
-
-        if (_this._bufferRate.length > 3) {
-          _this._bufferRate.shift();
-        }
-
-        onComplete(fragment);
       }
     }
 
     function _onAppendComplete() {
-      var request = fragmentsToAppend[0];
+      if (!_this.isDisposed) {
+        var request = fragmentsToAppend[0];
 
-      buffer.removeEventListener("update", _onAppendComplete);
+        buffer.removeEventListener("update", _onAppendComplete);
 
-      request.timeAtAppended = new Date().getTime() - request.startTime;
-      request.state = DashlingFragmentState.appended;
+        request.timeAtAppended = new Date().getTime() - request.startTime;
+        request.state = DashlingFragmentState.appended;
 
-      (request.clearDataAfterAppend) && (request.data = null);
+        (request.clearDataAfterAppend) && (request.data = null);
 
-      if (request.requestType === "init") {
-        _this._initializedQualityIndex = request.qualityIndex;
+        if (request.requestType === "init") {
+          _this._initializedQualityIndex = request.qualityIndex;
+        }
+
+        _log("Append complete: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
+        fragmentsToAppend.shift();
+
+        _appendNextEntry();
       }
-
-      _log("Append complete: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
-      fragmentsToAppend.shift();
-
-      _appendNextEntry();
     }
   },
 
@@ -168,7 +173,7 @@ Dashling.Stream.prototype = {
 
   getRequestStaggerTime: function() {
     // TODO Remove 1.4 magic ratio
-    return Math.round(this._getDownloadMsForQuality(this.qualityIndex) * 1.4);
+    return Math.round(this._estimateDownloadSeconds(this.qualityIndex) * 1400);
   },
 
   isMissing: function(fragmentIndex, currentTime) {
@@ -246,24 +251,27 @@ Dashling.Stream.prototype = {
     }
 
     function _onSuccess(request) {
-      fragment.state = DashlingFragmentState.downloaded;
+      if (!_this.isDisposed) {
+        fragment.state = DashlingFragmentState.downloaded;
 
-      var timeDownloading = Math.round(request.timeAtLastByte - (request.timeAtEstimatedFirstByte || request.timeAtFirstByte));
-      var timeWaiting = request.timeAtLastByte - timeDownloading;
+        var timeDownloading = Math.round(request.timeAtLastByte - (request.timeAtEstimatedFirstByte || request.timeAtFirstByte));
+        var timeWaiting = request.timeAtLastByte - timeDownloading;
 
-      _log("Download complete: " + request.qualityId + " " + request.requestType + " index: " + request.fragmentIndex + " waiting: " + timeWaiting + "ms receiving: " + timeDownloading, _this._settings);
+        _log("Download complete: " + request.qualityId + " " + request.requestType + " index: " + request.fragmentIndex + " waiting: " + timeWaiting + "ms receiving: " + timeDownloading, _this._settings);
 
-      onFragmentAvailable(fragment);
+        onFragmentAvailable(fragment);
+      }
     }
 
     function _onFailure() {
-
-      if (!request.isAborted) {
-        fragment.state = DashlingFragmentState.error;
-      } else {
-        fragment.state = DashlingFragmentState.idle;
-        fragment.activeRequest = null;
-        fragment.requests = [];
+      if (!_this.isDisposed) {
+        if (!request.isAborted) {
+          fragment.state = DashlingFragmentState.error;
+        } else {
+          fragment.state = DashlingFragmentState.idle;
+          fragment.activeRequest = null;
+          fragment.requests = [];
+        }
       }
     }
   },
@@ -271,31 +279,31 @@ Dashling.Stream.prototype = {
   assessQuality: function() {
     var _this = this;
     var settings = _this._settings;
-    var averageBandwidth = _this._requestManager.getAverageBandwidth();
+    var bytesPerSecond = _this._requestManager.getAverageBytesPerSecond();
     var maxQuality = _this._streamInfo.qualities.length - 1;
 
-    if (!averageBandwidth) {
-      averageBandwidth = parseFloat(localStorage.getItem(c_bandwidthStorageKey));
+    if (!bytesPerSecond) {
+      bytesPerSecond = parseFloat(localStorage.getItem(c_bandwidthStorageKey));
     } else if (this._streamType === "video") {
-      localStorage.setItem(c_bandwidthStorageKey, averageBandwidth);
+      localStorage.setItem(c_bandwidthStorageKey, bytesPerSecond);
     }
 
-    if (!settings.isABREnabled || !averageBandwidth) {
+    if (!settings.isABREnabled || !bytesPerSecond) {
       _this.qualityIndex = Math.min(_this._streamInfo.qualities.length - 1, settings.targetQuality[_this._streamType]);
     } else if (settings.isRBREnabled) {
       _this.qualityIndex = Math.round(Math.random() * maxQuality);
     } else {
       var targetQuality = 0;
-      var logEntry = "Quality check " + _this._streamType + ": bps=" + Math.round(averageBandwidth * 1000);
+      var logEntry = "Quality check " + _this._streamType + ": bps=" + Math.round(bytesPerSecond);
       var segmentLength = _this._streamInfo.timeline[0].lengthSeconds;
       var averageWaitPerSegment = segmentLength * .4;
 
       for (var qualityIndex = 0; qualityIndex <= maxQuality; qualityIndex++) {
-        var duration = _this._getDownloadMsForQuality(qualityIndex, 0, averageBandwidth);
+        var duration = _this._estimateDownloadSeconds(qualityIndex, 0);
 
-        logEntry += " " + qualityIndex + "=" + Math.round(duration) + "ms";
+        logEntry += " " + qualityIndex + "=" + duration + "s";
 
-        if (((duration / 1000) + averageWaitPerSegment) < segmentLength) {
+        if ((duration + averageWaitPerSegment) < segmentLength) {
           targetQuality = qualityIndex;
         }
       }
@@ -308,24 +316,24 @@ Dashling.Stream.prototype = {
     }
   },
 
-  _getDownloadMsForQuality: function(qualityIndex, fragmentIndex) {
+  _estimateDownloadSeconds: function(qualityIndex, fragmentIndex) {
     var _this = this;
     var duration = 0;
     var quality = _this._streamInfo.qualities[qualityIndex];
     var segmentLength = _this._streamInfo.timeline[fragmentIndex || 0].lengthSeconds;
     var bandwidth = quality.bandwidth / 8;
     var totalBytes = bandwidth * segmentLength;
-    var averageBandwidth = _this._requestManager.getAverageBandwidth();
+    var bytesPerSecond = _this._requestManager.getAverageBytesPerSecond();
 
-    if (!averageBandwidth) {
-      averageBandwidth = parseFloat(localStorage.getItem(c_bandwidthStorageKey));
+    if (!bytesPerSecond) {
+      bytesPerSecond = parseFloat(localStorage.getItem(c_bandwidthStorageKey));
     } else if (this._streamType === "video") {
-      localStorage.setItem(c_bandwidthStorageKey, averageBandwidth);
+      localStorage.setItem(c_bandwidthStorageKey, bytesPerSecond);
     }
 
-    var averageBytesPerMillisecond = averageBandwidth || _this._settings.defaultBandwidth;
+    var averageBytesPerSecond = bytesPerSecond || _this._settings.defaultBandwidth;
 
-    return totalBytes / averageBytesPerMillisecond;
+    return totalBytes / averageBytesPerSecond;
   },
 
   _getSourceBuffer: function() {
@@ -362,15 +370,19 @@ Dashling.Stream.prototype = {
     }
 
     function _onSuccess() {
-      request.state = DashlingFragmentState.downloaded;
+      if (!_this.isDisposed) {
+        request.state = DashlingFragmentState.downloaded;
 
-      _log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
+        _log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
 
-      onFragmentAvailable(request);
+        onFragmentAvailable(request);
+      }
     }
 
     function _onFailure(response) {
-      request.state = DashlingFragmentState.error;
+      if (!_this.isDisposed) {
+        request.state = DashlingFragmentState.error;
+      }
     }
   },
 

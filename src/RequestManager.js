@@ -4,7 +4,7 @@ Dashling.RequestManager = function(shouldRecordStats, settings) {
     _activeRequests: {},
     _waitTimes: [],
     _receiveTimes: [],
-    _bandwidths: [],
+    _bytesPerSeconds: [],
     _shouldRecordStats: shouldRecordStats,
     _maxRetries: settings.maxRetries,
     _delaysBetweenRetries: settings.delaysBetweenRetries
@@ -94,19 +94,18 @@ Dashling.RequestManager.prototype = {
           // Ensure we've recorded firstbyte time.
           xhr.onreadystatechange();
 
-          if (request.progressEvents.length > 1) {
+          if (request.progressEvents.length > 2) {
             var lastEvent = request.progressEvents[request.progressEvents.length - 1];
             var firstEvent = request.progressEvents[0];
             var timeDifference = lastEvent.timeFromStart - firstEvent.timeFromStart;
             var bytesLoaded = lastEvent.bytesLoaded - firstEvent.bytesLoaded;
 
             request.bytesPerMillisecond = bytesLoaded / timeDifference;
-            request.timeAtEstimatedFirstByte = request.timeAtLastByte - (request.bytesLoaded / request.bytesPerMillisecond);
+            request.timeAtFirstByte = request.timeAtLastByte - (request.bytesLoaded / request.bytesPerMillisecond);
 
+            _addMetric(_this._waitTimes, request.timeAtFirstByte, 20);
+            _addMetric(_this._receiveTimes, request.timeAtLastByte - request.timeAtFirstByte, 20);
           }
-
-          _this._waitTimes.push(request.timeAtEstimatedFirstByte);
-          _this._receiveTimes.push(request.timeAtLastByte - request.timeAtEstimatedFirstByte);
 
           request.data = isArrayBuffer ? new Uint8Array(xhr.response) : xhr.responseText;
           request.statusCode = xhr.status;
@@ -151,7 +150,7 @@ Dashling.RequestManager.prototype = {
   },
 
   _postProgress: function(progressEvents) {
-    if (progressEvents.length > 1) {
+    if (progressEvents.length > 2) {
       var lastEvent = progressEvents[progressEvents.length - 1];
       var firstEvent = progressEvents[0];
       var bytesLoaded = lastEvent.bytesLoaded - firstEvent.bytesLoaded;
@@ -160,13 +159,7 @@ Dashling.RequestManager.prototype = {
         var timeDifference = lastEvent.timeFromStart - firstEvent.timeFromStart;
 
         if (timeDifference > 1) {
-          var bytesPerMillisecond = bytesLoaded / timeDifference;
-
-          this._bandwidths.push(bytesPerMillisecond);
-
-          while (this._bandwidths.length > 10) {
-            this._bandwidths.shift();
-          }
+          _addMetric(this._bytesPerSeconds, (bytesLoaded * 1000) / timeDifference, 20);
         }
       }
 
@@ -174,18 +167,35 @@ Dashling.RequestManager.prototype = {
   },
 
   getAverageWait: function() {
-    return _average(this._waitTimes, this._waitTimes.length - 5);
+    return this._waitTimes.average || 0;
   },
 
   getAverageReceive: function() {
-    return _average(this._receiveTimes, this._receiveTimes.length - 5);
+    return this._receiveTimes.average || 0;
   },
 
-  getAverageBandwidth: function() {
-    var average = _average(this._bandwidths, this._bandwidths.length - 5);
-
-    return average;
+  getAverageBytesPerSecond: function() {
+    return this._bytesPerSeconds.average || 0;
   }
 };
 
 _mix(Dashling.RequestManager.prototype, EventingMixin);
+
+
+function _addMetric(array, val, max) {
+  var average = array.average || 0;
+
+  array.average = average + ((val - average) / (array.length + 1));
+  array.push(val);
+
+  while (array.length > max) {
+    _removeFirstMetric(array);
+  }
+}
+
+function _removeFirstMetric(array) {
+  var val = array.shift();
+  var average = array.average;
+
+  array.average = average + ((average - val) / array.length);
+}

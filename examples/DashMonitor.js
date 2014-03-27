@@ -205,7 +205,7 @@ window.DashMonitor.prototype = {
           metricElement = metricLookup[metric.title] = _qs(".metricValue", metricElement);
         }
 
-        metricElement.parentNode.className = metric.value ? "hasValue" : "";
+        metricElement.parentNode.className = (metric.value !== undefined && metric.value !== null && metric.value !== "") ? "hasValue" : "";
         metricElement.textContent = metric.value;
       }
     }
@@ -354,18 +354,19 @@ window.DashMonitor.prototype = {
         });
 
         contextStream.metrics.push({
-          title: "Quality changes",
-          value: "n/a"
+          title: "Avg wait",
+          value: Math.round(stream._requestManager.getAverageWait(), 2) + " ms"
         });
 
         contextStream.metrics.push({
-          title: "Avg wait",
-          value: Math.round(stream._requestManager.getAverageWait(), 2) + " ms"
-        })
-        contextStream.metrics.push({
           title: "Avg receive",
           value: Math.round(stream._requestManager.getAverageReceive(), 2) + " ms"
-        })
+        });
+
+        contextStream.metrics.push({
+          title: "Avg bandwidth",
+          value: _formatBandwidth(stream._requestManager.getAverageBytesPerSecond())
+        });
 
         for (var fragmentIndex = 0; fragmentIndex < stream.fragments.length; fragmentIndex++) {
           var fragment = stream.fragments[fragmentIndex];
@@ -504,4 +505,18 @@ function _round(number, decimals, padded) {
   }
 
   return value;
+}
+
+function _formatBandwidth(bytesPerSecond) {
+  var bitsPerKilobit = 1000;
+  var bitsPerMegabit = bitsPerKilobit * bitsPerKilobit;
+  var bitsPerSecond = bytesPerSecond * 8;
+
+  if (bitsPerSecond < bitsPerKilobit) {
+    return bitsPerSecond + " bps";
+  } else if (bitsPerSecond < bitsPerMegabit) {
+    return _round(bitsPerSecond / bitsPerKilobit, 2, 2) + " kbps";
+  } else {
+    return _round(bitsPerSecond / bitsPerMegabit, 2, 2) + " mbps";
+  }
 }
