@@ -301,7 +301,7 @@ Dashling.Stream.prototype = {
       for (var qualityIndex = 0; qualityIndex <= maxQuality; qualityIndex++) {
         var duration = _this._estimateDownloadSeconds(qualityIndex, 0);
 
-        logEntry += " " + qualityIndex + "=" + duration + "s";
+        logEntry += " " + qualityIndex + "=" + duration.toFixed(2) + "s";
 
         if ((duration + averageWaitPerSegment) < segmentLength) {
           targetQuality = qualityIndex;

@@ -1247,7 +1247,7 @@ Dashling.Stream.prototype = {
       for (var qualityIndex = 0; qualityIndex <= maxQuality; qualityIndex++) {
         var duration = _this._estimateDownloadSeconds(qualityIndex, 0);
 
-        logEntry += " " + qualityIndex + "=" + duration + "s";
+        logEntry += " " + qualityIndex + "=" + duration.toFixed(2) + "s";
 
         if ((duration + averageWaitPerSegment) < segmentLength) {
           targetQuality = qualityIndex;
@@ -1452,10 +1452,10 @@ Dashling.RequestManager.prototype = {
 
             request.bytesPerMillisecond = bytesLoaded / timeDifference;
             request.timeAtFirstByte = request.timeAtLastByte - (request.bytesLoaded / request.bytesPerMillisecond);
-
-            _addMetric(_this._waitTimes, request.timeAtFirstByte, 20);
-            _addMetric(_this._receiveTimes, request.timeAtLastByte - request.timeAtFirstByte, 20);
           }
+
+          _addMetric(_this._waitTimes, request.timeAtFirstByte, 20);
+          _addMetric(_this._receiveTimes, request.timeAtLastByte - request.timeAtFirstByte, 20);
 
           request.data = isArrayBuffer ? new Uint8Array(xhr.response) : xhr.responseText;
           request.statusCode = xhr.status;
