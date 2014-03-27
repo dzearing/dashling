@@ -1,7 +1,6 @@
 var c_bandwidthStorageKey = "Dashling.Stream.bandwidth";
 
 Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
-
   var _this = this;
   var streamInfo = settings.manifest.streams[streamType];
 
@@ -170,43 +169,41 @@ Dashling.Stream.prototype = {
 
   isMissing: function(fragmentIndex, currentTime) {
     var fragment = this.fragments[fragmentIndex];
-    var isMissing = false;
+
+    return (fragment.state == DashlingFragmentState.appended) && (!this.isBuffered(fragmentIndex, currentTime));
+  },
+
+  isBuffered: function(fragmentIndex, currentTime) {
+    var fragment = this.fragments[fragmentIndex];
     var isBuffered = false;
 
     if (fragment) {
-      if (fragment.state == DashlingFragmentState.appended) {
+      var bufferRanges = this._buffer.buffered;
+      var fragmentTime = fragment.time;
 
-        var bufferRanges = this._buffer.buffered;
-        var fragmentTime = fragment.time;
+      // Allow for up to .5 second of wiggle room at start of playback. else be more meticulous.
+      var atStart = fragmentTime.startSeconds < .3;
+      var atEnd = (fragmentTime.startSeconds + fragmentTime.lengthSeconds + .3) >= (this._manifest.mediaDuration);
 
-        // Allow for up to .5 second of wiggle room at start of playback. else be more meticulous.
-        var atStart =fragmentTime.startSeconds < .3;
-        var atEnd = (fragmentTime.startSeconds + fragmentTime.lengthSeconds + .005) >= (this._manifest.mediaDuration);
-        var wiggleRoom = atStart ? .5 : atEnd ? .8 : 0.005;
+      var safeStartTime = Math.max(currentTime, fragmentTime.startSeconds + (atStart ? 0.5 : 0.05));
+      var safeEndTime = fragmentTime.startSeconds + fragmentTime.lengthSeconds - (atEnd ? 0.8 : 0.05);
 
-        var safeStartTime = Math.max(currentTime, fragmentTime.startSeconds + (atStart ? 0.5 : 0.005));
-        var safeEndTime = fragmentTime.startSeconds + fragmentTime.lengthSeconds - (atEnd ? 0.8 : 0.005);
-
-        try {
-          // validate that the buffered area in the video element still contains the fragment.
-          for (var bufferedIndex = 0; bufferedIndex < bufferRanges.length; bufferedIndex++) {
-            if ((bufferRanges.start(bufferedIndex) <= safeStartTime) && (bufferRanges.end(bufferedIndex) > safeEndTime)) {
-              isBuffered = true;
-              break;
-            }
+      try {
+        // validate that the buffered area in the video element still contains the fragment.
+        for (var bufferedIndex = 0; bufferedIndex < bufferRanges.length; bufferedIndex++) {
+          if ((bufferRanges.start(bufferedIndex) <= safeStartTime) && (bufferRanges.end(bufferedIndex) > safeEndTime)) {
+            isBuffered = true;
+            break;
           }
-        } catch (e) {
-          // Accessing the buffer can fail with an InvalidState error if an error has occured with the mediasource. (like a decode error)
-          // TODO: Something better, for now marks as buffered so we don't spin trying to get the item.
-          isBuffered = true;
         }
-
-        // We found an appended segment no longer in the playlist.
-        isMissing = !isBuffered;
+      } catch (e) {
+        // Accessing the buffer can fail with an InvalidState error if an error has occured with the mediasource. (like a decode error)
+        // TODO: Something better, for now marks as buffered so we don't spin trying to get the item.
+        isBuffered = true;
       }
     }
 
-    return isMissing;
+    return isBuffered;
   },
 
   canLoad: function(fragmentIndex) {
@@ -300,7 +297,7 @@ Dashling.Stream.prototype = {
       }
 
       _this.throttle(function() {
-        _log(logEntry, _this.settings);
+        _log(logEntry, _this._settings);
       }, "assess", 1000, false, false);
 
       _this.qualityIndex = targetQuality;

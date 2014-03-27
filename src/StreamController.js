@@ -255,6 +255,10 @@ Dashling.StreamController.prototype = {
         }
       }
 
+      if (_this._appendIndex == streams[0].fragments.length && _this._mediaSource.readyState == "open") {
+        _this._mediaSource.endOfStream();
+      }
+
       _this._loadNextFragment();
     }
   },
