@@ -328,7 +328,12 @@ Dashling.prototype = {
     if (_this.settings.manifest) {
       _onManifestParsed(_this.settings.manifest);
     } else {
-      this._parser = new Dashling.ManifestParser(_this.settings);
+      _this._parser = new Dashling.ManifestParser(_this.settings);
+
+      _this._parser.addEventListener(Dashling.Event.download, function(ev) {
+        _this.raiseEvent(Dashling.Event.download, ev);
+      });
+
       this._parser.parse(url, _onManifestParsed, _onManifestFailed);
     }
 
@@ -370,6 +375,7 @@ Dashling.prototype = {
 };
 
 _mix(Dashling.prototype, EventingMixin);
+
 Dashling.Settings = {
   // The manifest object to use, if you want to skip the serial call to fetch the xml.
   manifest: null,
@@ -426,7 +432,13 @@ Dashling.Settings = {
   delaysBetweenRetries: [200, 1500, 3000]
 };
 Dashling.ManifestParser = function(settings) {
-  this._requestManager = new Dashling.RequestManager(false, settings);
+  var _this = this;
+
+  _this._requestManager = new Dashling.RequestManager(false, settings);
+
+  _this._requestManager.addEventListener(Dashling.Event.download, function(ev) {
+    _this.raiseEvent(DashlingEvent.download, ev);
+  });
 };
 
 Dashling.ManifestParser.prototype = {
@@ -443,7 +455,8 @@ Dashling.ManifestParser.prototype = {
     var _this = this;
     var parseIndex = ++_this._parseIndex;
     var request = {
-      url: url
+      url: url,
+      requestType: "manifest"
     };
 
     this._requestManager.load(request, false, _onSuccess, _onError);
@@ -540,6 +553,9 @@ Dashling.ManifestParser.prototype = {
     return manifest;
   }
 };
+
+_mix(Dashling.ManifestParser.prototype, EventingMixin);
+
 /// <summary></summary>
 
 Dashling.StreamController = function(videoElement, mediaSource, settings) {
@@ -953,6 +969,10 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
     _this.raiseEvent(DashlingEvent.download, ev);
   });
 
+  _this._initRequestManager.addEventListener(Dashling.Event.download, function(ev) {
+    _this.raiseEvent(DashlingEvent.download, ev);
+  });
+
   var fragmentCount = streamInfo.timeline.length;
 
   for (var i = 0; i < fragmentCount; i++) {
@@ -960,7 +980,7 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
       state: DashlingFragmentState.idle,
       qualityIndex: -1,
       qualityId: "",
-      fragmentType: "media",
+      requestType: "media",
       fragmentIndex: i,
       time: streamInfo.timeline[i],
       activeRequest: null,
@@ -1033,7 +1053,7 @@ Dashling.Stream.prototype = {
         buffer.addEventListener("update", _onAppendComplete);
 
         try {
-          _log("Append started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
+          _log("Append started: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
           buffer.appendBuffer(request.data);
         } catch (e) {
           request.state = fragment.state = DashlingFragmentState.error;
@@ -1064,16 +1084,21 @@ Dashling.Stream.prototype = {
 
       buffer.removeEventListener("update", _onAppendComplete);
 
+      // verify buffer now has the segment in it.
+      if (_this.isFragmentLoaded(fragmentIndex, _this._videoElement.currentTime)) {
+        console.log("Buffer couldn't get appended!!!!!!!1");
+      }
+
       request.timeAtAppended = new Date().getTime() - request.startTime;
       request.state = DashlingFragmentState.appended;
 
       (request.clearDataAfterAppend) && (request.data = null);
 
-      if (request.fragmentType === "init") {
+      if (request.requestType === "init") {
         _this._initializedQualityIndex = request.qualityIndex;
       }
 
-      _log("Append complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
+      _log("Append complete: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
       fragmentsToAppend.shift();
 
       _appendNextEntry();
@@ -1094,6 +1119,14 @@ Dashling.Stream.prototype = {
   },
 
   isMissing: function(fragmentIndex, currentTime) {
+
+    return (fragment.state == DashlingFragmentState.appended) && !this.isFragmentLoaded(fragmentIndex, currentTime);
+    var fragment = this.fragments[fragmentIndex];
+    var isMissing = false;
+    var isBuffered = false;
+  },
+
+  isFragmentLoaded: function(fragmentIndex, currentTime) {
     var fragment = this.fragments[fragmentIndex];
 
     return (fragment.state == DashlingFragmentState.appended) && (!this.isBuffered(fragmentIndex, currentTime));
@@ -1153,7 +1186,7 @@ Dashling.Stream.prototype = {
         url: _this._getUrl(fragmentIndex, fragment),
         state: DashlingFragmentState.downloading,
         fragmentIndex: fragmentIndex,
-        fragmentType: "media",
+        requestType: "media",
         qualityIndex: fragment.qualityIndex,
         qualityId: fragment.qualityId,
         clearDataAfterAppend: true
@@ -1162,7 +1195,7 @@ Dashling.Stream.prototype = {
       fragment.activeRequest = request;
       fragment.requests.push(request);
 
-      _log("Download started: " + request.qualityId + " " + request.fragmentType + " " + (request.fragmentIndex !== undefined ? "index=" + request.fragmentIndex : "") + " time=" + (new Date().getTime() - _this._startTime) + "ms stagger=" + _this.getRequestStaggerTime() + "ms", _this._settings);
+      _log("Download started: " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index=" + request.fragmentIndex : "") + " time=" + (new Date().getTime() - _this._startTime) + "ms stagger=" + _this.getRequestStaggerTime() + "ms", _this._settings);
 
       _this._requestManager.load(request, true, _onSuccess, _onFailure);
     }
@@ -1173,7 +1206,7 @@ Dashling.Stream.prototype = {
       var timeDownloading = Math.round(request.timeAtLastByte - (request.timeAtEstimatedFirstByte || request.timeAtFirstByte));
       var timeWaiting = request.timeAtLastByte - timeDownloading;
 
-      _log("Download complete: " + request.qualityId + " " + request.fragmentType + " index: " + request.fragmentIndex + " waiting: " + timeWaiting + "ms receiving: " + timeDownloading, _this._settings);
+      _log("Download complete: " + request.qualityId + " " + request.requestType + " index: " + request.fragmentIndex + " waiting: " + timeWaiting + "ms receiving: " + timeDownloading, _this._settings);
 
       onFragmentAvailable(fragment);
     }
@@ -1273,12 +1306,12 @@ Dashling.Stream.prototype = {
         url: this._getInitUrl(qualityIndex),
         state: DashlingFragmentState.downloading,
         timeAtDownloadStarted: new Date().getTime(),
-        fragmentType: "init",
+        requestType: "init",
         qualityIndex: qualityIndex,
         qualityId: this._streamInfo.qualities[qualityIndex].id
       };
 
-      _log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
+      _log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
 
       _this._initRequestManager.load(request, true, _onSuccess, _onFailure);
     }
@@ -1286,7 +1319,7 @@ Dashling.Stream.prototype = {
     function _onSuccess() {
       request.state = DashlingFragmentState.downloaded;
 
-      _log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.fragmentType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
+      _log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
 
       onFragmentAvailable(request);
     }
@@ -1312,6 +1345,7 @@ Dashling.Stream.prototype = {
 
 _mix(Dashling.Stream.prototype, EventingMixin);
 _mix(Dashling.Stream.prototype, ThrottleMixin);
+
 Dashling.RequestManager = function(shouldRecordStats, settings) {
   _mix(this, {
     _settings: settings,
