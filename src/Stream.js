@@ -142,11 +142,6 @@ Dashling.Stream.prototype = {
 
       buffer.removeEventListener("update", _onAppendComplete);
 
-      // verify buffer now has the segment in it.
-      if (_this.isFragmentLoaded(fragmentIndex, _this._videoElement.currentTime)) {
-        console.log("Buffer couldn't get appended!!!!!!!1");
-      }
-
       request.timeAtAppended = new Date().getTime() - request.startTime;
       request.state = DashlingFragmentState.appended;
 
@@ -177,17 +172,9 @@ Dashling.Stream.prototype = {
   },
 
   isMissing: function(fragmentIndex, currentTime) {
-
-    return (fragment.state == DashlingFragmentState.appended) && !this.isFragmentLoaded(fragmentIndex, currentTime);
-    var fragment = this.fragments[fragmentIndex];
-    var isMissing = false;
-    var isBuffered = false;
-  },
-
-  isFragmentLoaded: function(fragmentIndex, currentTime) {
     var fragment = this.fragments[fragmentIndex];
 
-    return (fragment.state == DashlingFragmentState.appended) && (!this.isBuffered(fragmentIndex, currentTime));
+    return (fragment.state == DashlingFragmentState.appended) && !this.isBuffered(fragmentIndex, currentTime);
   },
 
   isBuffered: function(fragmentIndex, currentTime) {
