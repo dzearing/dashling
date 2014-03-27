@@ -61,10 +61,11 @@ Dashling.RequestManager.prototype = {
       _this._activeRequests[requestIndex] = xhr;
       _this._activeRequestCount++;
 
-      xhr.timeout = _this._settings.requestTimeout;
       xhr.url = request.url;
       xhr.open("GET", request.url, true);
       isArrayBuffer && (xhr.responseType = "arraybuffer");
+
+      xhr.timeout = _this._settings.requestTimeout;
 
       xhr.onreadystatechange = function() {
         if (xhr.readyState > 0 && request.timeAtFirstByte < 0) {
