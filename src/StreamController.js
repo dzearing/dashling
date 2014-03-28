@@ -121,7 +121,7 @@ Dashling.StreamController.prototype = {
     var remainingBuffer = 0;
 
     if (this._videoElement) {
-      var currentTime = this._videoElement.currentTime;
+      var currentTime = Math.max(.5, this._videoElement.currentTime);
       var timeRemaining = this._videoElement.duration - currentTime;
       var bufferRanges = this._videoElement.buffered;
 
