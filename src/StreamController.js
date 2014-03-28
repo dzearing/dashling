@@ -99,12 +99,17 @@ Dashling.StreamController.prototype = {
   },
 
   getPlayingQuality: function(streamType) {
-    var currentTime = this._videoElement.currentTime;
-    var stream = streamType == "video" ? this._videoStream : streamType._audioStream;
-    var fragmentIndex = Math.floor(currentTime / stream.fragments[0].time.lengthSeconds);
-    var qualityIndex = stream.fragments[fragmentIndex].qualityIndex;
+    var qualityIndex = 0;
 
-    return qualityIndex >= 0 ? qualityIndex : stream.qualityIndex;
+    if (!_this.isDisposed) {
+      var currentTime = this._videoElement.currentTime;
+      var stream = streamType == "video" ? this._videoStream : streamType._audioStream;
+      var fragmentIndex = Math.floor(currentTime / stream.fragments[0].time.lengthSeconds);
+      var qualityIndex = stream.fragments[fragmentIndex].qualityIndex;
+
+      qualityIndex >= 0 ? qualityIndex : stream.qualityIndex
+    }
+    return qualityIndex;
   },
 
   getBufferingQuality: function(streamType) {
@@ -120,7 +125,7 @@ Dashling.StreamController.prototype = {
   getRemainingBuffer: function() {
     var remainingBuffer = 0;
 
-    if (this._videoElement) {
+    if (!this.isDisposed) {
       var currentTime = Math.max(.5, this._videoElement.currentTime);
       var timeRemaining = this._videoElement.duration - currentTime;
       var bufferRanges = this._videoElement.buffered;
@@ -138,6 +143,7 @@ Dashling.StreamController.prototype = {
 
   getTimeUntilUnderrun: function() {
     var timeUntilUnderrun = Number.MAX_VALUE;
+
     if (!this.isDisposed) {
       var currentTime = this._videoElement.currentTime;
       var remainingDuration = this._videoElement.duration - currentTime - .5;
