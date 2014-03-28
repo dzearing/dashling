@@ -10,18 +10,26 @@
   color: #AAA;
 }
 
-.c-DashMonitor.hasData.isVisible {
+.c-DashMonitor.isVisible {
   transition: opacity .2s linear, top .25s ease-out;
   top: 0px;
   opacity: 1;
 }
 
+.c-DashMonitor .streamData,
+.c-DashMonitor .key
+{
+  display: none;
+}
+
+.c-DashMonitor .isVisible {
+  display: block;
+}
+
 .c-DashMonitor .streamMetrics {
   list-style-type: none;
-  display: block;
   padding: 5px 5px 0 5px;
   margin: 0;
-  min-height: 21px;
 }
 
 .c-DashMonitor .streamMetrics li {

@@ -16,9 +16,8 @@ window.DashMonitor = function() {
   this.dataContext = {};
   //this.dataContext = _createTestData();
 
-  this._updateSeekBar = function() {
-    DashMonitor.prototype._updateSeekBar.call(_this);
-  };
+  this._updateSeekBar = _bind(this, this._updateSeekBar);
+  this._onSessionChanged = _bind(this, this._onSessionChanged);
 };
 
 window.DashMonitor.prototype = {
@@ -59,6 +58,11 @@ window.DashMonitor.prototype = {
       _this._videoElement.removeEventListener("seeking", _this._updateSeekBar);
       _this._videoElement = null;
     }
+
+    if (_this._dashling) {
+      _this._dashling.removeEventListener(Dashling.Event.sessionStateChange, _this._onSessionChanged);
+      _this._dashling = null;
+    }
   },
 
   observe: function(dashling, videoElement) {
@@ -73,11 +77,29 @@ window.DashMonitor.prototype = {
       videoElement.addEventListener("seeking", _this._updateSeekBar);
     }
 
-    _this._interval = setInterval(function() {
-      if (_this.isVisible) {
-        _this.setDataContext(_this._getStats(dashling));
-      }
-    }, 100);
+    if (dashling) {
+      _this._dashling = dashling;
+      dashling.addEventListener(Dashling.Event.sessionStateChange, _this._onSessionChanged);
+      _this._onSessionChanged();
+    }
+  },
+
+  _onSessionChanged: function() {
+    var _this = this;
+    var dashling = _this._dashling;
+    var state = dashling.state;
+
+    if (state == Dashling.SessionState.error || state == Dashling.SessionState.idle) {
+      clearInterval(_this._interval);
+      _this._interval = 0;
+      _this.setDataContext(_this._getStats(dashling));
+    } else if (dashling.state > Dashling.SessionState.idle && !_this._interval) {
+      _this._interval = setInterval(function() {
+        if (_this.isVisible) {
+          _this.setDataContext(_this._getStats(dashling));
+        }
+      }, 100);
+    }
   },
 
   reset: function() {
@@ -139,15 +161,18 @@ window.DashMonitor.prototype = {
     this.subElements = {
       metrics: _qs(".streamMetrics", element),
       audio: {
+        element: _qs(".audio"),
         metrics: _qs(".audio .streamMetrics", element),
         qualities: _qs(".audio .qualities", element),
         seekBar: _qs(".audio .seekBar", element)
       },
       video: {
+        element: _qs(".video"),
         metrics: _qs(".video .streamMetrics", element),
         qualities: _qs(".video .qualities", element),
         seekBar: _qs(".video .seekBar", element)
-      }
+      },
+      key: _qs(".key")
     };
 
     this.isActive = true;
@@ -156,6 +181,7 @@ window.DashMonitor.prototype = {
   },
 
   deactivate: function() {
+    this.subElements = null;
     this.isActive = false;
   },
 
@@ -172,23 +198,33 @@ window.DashMonitor.prototype = {
   },
 
   _update: function(dataContext) {
-    var subElements = this.subElements;
-    var hasData = !! (dataContext && dataContext.duration);
+    var isStarted = dataContext.state !== undefined && dataContext.state != Dashling.SessionState.idle;
 
-    this.element.className = "c-DashMonitor" + (hasData ? " hasData" : "") + (this.isVisible ? " isVisible" : "");
+    if (this.isActive) {
+      var subElements = this.subElements;
 
-    this._updateMetrics(subElements.metrics, dataContext.metrics);
+      _toggleClass(this.element, "isVisible", isStarted && this.isVisible);
 
-    if (hasData) {
-      this._updateMetrics(subElements.audio.metrics, dataContext.streams.audio.metrics);
-      this._updateQualities(subElements.audio.qualities, dataContext.streams.audio.qualities);
+      this._updateMetrics(subElements.metrics, dataContext.metrics);
 
-      this._updateMetrics(subElements.video.metrics, dataContext.streams.video.metrics);
-      this._updateQualities(subElements.video.qualities, dataContext.streams.video.qualities);
+      var audio = (dataContext && dataContext.streams && dataContext.streams.audio) || {};
+      var video = (dataContext && dataContext.streams && dataContext.streams.video) || {};
+
+      _toggleClass(subElements.audio.element, "isVisible", !! (audio.metrics || audio.qualities));
+      _toggleClass(subElements.video.element, "isVisible", !! (video.metrics || video.qualities));
+      _toggleClass(subElements.key, "isVisible", !! (audio.qualities || video.qualities));
+
+      this._updateMetrics(subElements.audio.metrics, audio.metrics);
+      this._updateQualities(subElements.audio.qualities, audio.qualities);
+
+      this._updateMetrics(subElements.video.metrics, video.metrics);
+      this._updateQualities(subElements.video.qualities, video.qualities);
     }
   },
 
   _updateMetrics: function(metricListElement, metrics) {
+    _toggleClass(metricListElement, "isVisible", !! metrics);
+
     if (metrics) {
       var metricLookup = metricListElement._metricLookup = metricListElement._metricLookup || {};
 
@@ -208,69 +244,77 @@ window.DashMonitor.prototype = {
         metricElement.parentNode.className = (metric.value !== undefined && metric.value !== null && metric.value !== "") ? "hasValue" : "";
         metricElement.textContent = metric.value;
       }
-    }
+    } else {}
   },
 
   _updateQualities: function(qualityListElement, qualities) {
-    var qualityRowLookup = qualityListElement._qualityRowLookup = qualityListElement._qualityRowLookup || {};
+    _toggleClass(qualityListElement, "isVisible", !! qualities);
 
-    for (var qualityIndex = 0; qualityIndex < qualities.length; qualityIndex++) {
-      var quality = qualities[qualityIndex];
+    if (qualities) {
+      var qualityRowLookup = qualityListElement._qualityRowLookup = qualityListElement._qualityRowLookup || {};
 
-      if (quality) {
-        var qualityRow = qualityRowLookup[qualityIndex];
+      for (var qualityIndex = 0; qualityIndex < qualities.length; qualityIndex++) {
+        var quality = qualities[qualityIndex];
 
-        if (!qualityRow) {
-          qualityRow = qualityRowLookup[qualityIndex] = ce("div", "row");
-          ce("div", "rowHeader", quality.title, qualityRow);
-          ce("div", "rowFragments", null, qualityRow);
+        if (quality) {
+          var qualityRow = qualityRowLookup[qualityIndex];
 
-          qualityRow.qualityIndex = quality.index;
+          if (!qualityRow) {
+            qualityRow = qualityRowLookup[qualityIndex] = ce("div", "row");
+            ce("div", "rowHeader", quality.title, qualityRow);
+            ce("div", "rowFragments", null, qualityRow);
 
-          for (var i = 0; i < qualityListElement.childNodes.length; i++) {
-            if (quality.index > qualityListElement.childNodes[i].qualityIndex) {
-              qualityListElement.insertBefore(qualityRow, qualityListElement.childNodes[i]);
-              break;
+            qualityRow.qualityIndex = quality.index;
+
+            for (var i = 0; i < qualityListElement.childNodes.length; i++) {
+              if (quality.index > qualityListElement.childNodes[i].qualityIndex) {
+                qualityListElement.insertBefore(qualityRow, qualityListElement.childNodes[i]);
+                break;
+              }
+            }
+
+            if (!qualityRow.parentNode) {
+              qualityListElement.appendChild(qualityRow);
             }
           }
 
-          if (!qualityRow.parentNode) {
-            qualityListElement.appendChild(qualityRow);
-          }
+          this._updateFragments(_qs(".rowFragments", qualityRow), quality.fragments);
+
         }
-
-        this._updateFragments(_qs(".rowFragments", qualityRow), quality.fragments);
-
       }
     }
   },
 
   _updateFragments: function(fragmentListElement, fragments) {
-    var fragmentListLookup = fragmentListElement._fragmentListLookup = fragmentListElement._fragmentListLookup || {};
-    var newFragmentListLookup = {};
-    var videoDuration = this.dataContext.duration;
+    _toggleClass(fragmentListElement, "isVisible", !! fragments);
 
-    for (var fragmentIndex = 0; fragmentIndex < fragments.length; fragmentIndex++) {
-      var fragment = fragments[fragmentIndex];
-      var fragmentElement = fragmentListLookup[fragment.index];
+    if (fragments) {
+      var fragmentListLookup = fragmentListElement._fragmentListLookup = fragmentListElement._fragmentListLookup || {};
+      var newFragmentListLookup = {};
+      var videoDuration = this.dataContext.duration;
 
-      if (!fragmentElement) {
-        fragmentElement = ce("div", "rowRequest", null, fragmentListElement);
-        fragmentElement.style.left = (100 * fragment.start / videoDuration) + "%";
-        fragmentElement.style.width = (100 * fragment.length / videoDuration) + "%";
-      } else {
-        delete fragmentListLookup[fragment.index];
+      for (var fragmentIndex = 0; fragmentIndex < fragments.length; fragmentIndex++) {
+        var fragment = fragments[fragmentIndex];
+        var fragmentElement = fragmentListLookup[fragment.index];
+
+        if (!fragmentElement) {
+          fragmentElement = ce("div", "rowRequest", null, fragmentListElement);
+          fragmentElement.style.left = (100 * fragment.start / videoDuration) + "%";
+          fragmentElement.style.width = (100 * fragment.length / videoDuration) + "%";
+        } else {
+          delete fragmentListLookup[fragment.index];
+        }
+
+        newFragmentListLookup[fragment.index] = fragmentElement;
+
+        fragmentElement.className = "rowRequest " + fragment.state;
       }
 
-      newFragmentListLookup[fragment.index] = fragmentElement;
+      fragmentListElement._fragmentListLookup = newFragmentListLookup;
 
-      fragmentElement.className = "rowRequest " + fragment.state;
-    }
-
-    fragmentListElement._fragmentListLookup = newFragmentListLookup;
-
-    for (var i in fragmentListLookup) {
-      fragmentListElement.removeChild(fragmentListLookup[i]);
+      for (var i in fragmentListLookup) {
+        fragmentListElement.removeChild(fragmentListLookup[i]);
+      }
     }
   },
 
@@ -279,12 +323,24 @@ window.DashMonitor.prototype = {
     var controller = player._streamController;
     var manifest = player.settings.manifest;
 
+    context.state = player.state;
+    context.metrics = [];
+
+    context.metrics.push({
+      title: "State",
+      value: _findInEnum(player.state, Dashling.SessionState)
+    });
+
+    context.metrics.push({
+      title: "Last error",
+      value: player.lastError
+    });
+
     if (manifest && controller) {
       var fragmentList = [controller._streams[0].fragments, controller._streams[1].fragments];
       var qualityDictionary = {};
 
       context.duration = manifest.mediaDuration;
-      context.metrics = [];
 
       context.metrics.push({
         title: "Manifest",
@@ -328,11 +384,6 @@ window.DashMonitor.prototype = {
         value: timeUntilStall < Number.MAX_VALUE ? _round(timeUntilStall, 2, 2) + " s" : ""
       });
 
-      context.metrics.push({
-        title: "Last error",
-        value: ""
-      });
-
       context.streams = {
         audio: {
           metrics: [],
@@ -347,25 +398,29 @@ window.DashMonitor.prototype = {
       for (var streamIndex = 0; streamIndex < controller._streams.length; streamIndex++) {
         var stream = controller._streams[streamIndex];
         var contextStream = context.streams[stream._streamType];
+        var val;
 
         contextStream.metrics.push({
           title: "Quality",
           value: stream.qualityIndex
         });
 
+        val = stream._requestManager.getAverageWait();
         contextStream.metrics.push({
           title: "Avg wait",
-          value: Math.round(stream._requestManager.getAverageWait(), 2) + " ms"
+          value: val ? Math.round(val, 2) + " ms" : null
         });
 
+        val = stream._requestManager.getAverageReceive();
         contextStream.metrics.push({
           title: "Avg receive",
-          value: Math.round(stream._requestManager.getAverageReceive(), 2) + " ms"
+          value: val ? Math.round(val, 2) + " ms" : null
         });
 
+        val = stream._requestManager.getAverageBytesPerSecond();
         contextStream.metrics.push({
           title: "Avg bandwidth",
-          value: _formatBandwidth(stream._requestManager.getAverageBytesPerSecond())
+          value: val ? _formatBandwidth(val) : null
         });
 
         for (var fragmentIndex = 0; fragmentIndex < stream.fragments.length; fragmentIndex++) {
@@ -518,5 +573,38 @@ function _formatBandwidth(bytesPerSecond) {
     return _round(bitsPerSecond / bitsPerKilobit, 2, 2) + " kbps";
   } else {
     return _round(bitsPerSecond / bitsPerMegabit, 2, 2) + " mbps";
+  }
+}
+
+function _toggleClass(element, className, isEnabled) {
+  var classes = element.className.trim().split(" ");
+  var classesTable = {};
+  var i;
+  var fullName = "";
+
+  for (i = 0; i < classes.length; i++) {
+    if (classes[i]) {
+      classesTable[classes[i]] = true;
+    }
+  }
+
+  isEnabled = isEnabled === undefined ? (!classesTable[className]) : isEnabled;
+
+  if (isEnabled) {
+    classesTable[className] = true;
+  } else {
+    delete classesTable[className];
+  }
+
+  for (i in classesTable) {
+    fullName += i + " ";
+  }
+
+  element.className = fullName.trim();
+}
+
+function _bind(obj, func) {
+  return function() {
+    return func.apply(obj, arguments);
   }
 }

@@ -1,0 +1,26 @@
+<MPD type="static" maxSegmentDuration="PT5.000S" profiles="urn:mpeg:dash:profile:isoff-live:2011" mediaPresentationDuration="PT0H0M29.367S" minBufferTime="PT4.500S" xmlns="urn:mpeg:DASH:schema:MPD:2011">
+  <BaseURL>fifa/</BaseURL>
+  <Period>
+    <AdaptationSet id="0" contentType="audio" mimeType="audio/mp4" segmentAlignment="true" bitstreamSwitching="true" codecs="mp4a.40.2">
+      <SegmentTemplate timescale="48000" initialization="init-$RepresentationID$.bin" media="$RepresentationID$-$Time$.bin">
+        <SegmentTimeline>
+<!-- missing segments here -->
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="audio-low" audioSamplingRate="48000" bandwidth="96000" codecs="mp4a.40.2" />
+      <Representation id="audio-medium" audioSamplingRate="48000" bandwidth="128000" codecs="mp4a.40.2" />
+      <Representation id="audio-high" audioSamplingRate="48000" bandwidth="192000" codecs="mp4a.40.2" />
+    </AdaptationSet>
+    <AdaptationSet id="1" contentType="video" mimeType="video/mp4" segmentAlignment="true" bitstreamSwitching="true" maxFrameRate="30/1" maxWidth="1280" maxHeight="720" codecs="avc1.4d001f">
+      <SegmentTemplate timescale="30000" initialization="init-$RepresentationID$.bin" media="$RepresentationID$-$Time$.bin">
+        <SegmentTimeline>
+<!-- missing segments here -->
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="video-240p" width="426" height="240" frameRate="30/1" bandwidth="360000" codecs="avc1.4d401e" />
+      <Representation id="video-360p" width="640" height="360" frameRate="30/1" bandwidth="672000" codecs="avc1.4d401e" />
+      <Representation id="video-480p" width="852" height="480" frameRate="30/1" bandwidth="1200000" codecs="avc1.4d001f" />
+      <Representation id="video-720p" width="1280" height="720" frameRate="30/1" bandwidth="2704000" codecs="avc1.4d001f" />
+    </AdaptationSet>
+  </Period>
+</MPD>

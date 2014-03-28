@@ -31,16 +31,24 @@ Dashling.ManifestParser.prototype = {
     function _onSuccess() {
       if (_this._parseIndex == parseIndex) {
         var data = request.data;
-        var manifest = _this._parseManifest(request.data);
+        var manifest;
 
-        manifest.request = request;
-        onSuccess(manifest);
+        try {
+          manifest = _this._parseManifest(request.data);
+        } catch (e) {
+          onError(DashlingError.manifestParse + " (" + e + ")", request);
+        }
+
+        if (manifest) {
+          manifest.request = request;
+          onSuccess(manifest);
+        }
       }
     }
 
     function _onError() {
       if (_this._parseIndex == parseIndex) {
-        onError(request);
+        onError(DashlingError.manifestDownload + " (" + request.statusCode + ")");
       }
     }
   },
@@ -59,6 +67,10 @@ Dashling.ManifestParser.prototype = {
       xmlDoc.querySelector("AdaptationSet[contentType='audio']"),
       xmlDoc.querySelector("AdaptationSet[contentType='video']")
     ];
+
+    if (!adaptations[0] || !adaptations[1]) {
+      throw "Missing adaptations";
+    }
 
     for (var adaptIndex = 0; adaptIndex < adaptations.length; adaptIndex++) {
       var adaptationElement = adaptations[adaptIndex];
@@ -80,6 +92,9 @@ Dashling.ManifestParser.prototype = {
 
         var timeScale = segmentTemplateElement.getAttribute("timescale");
 
+        if (!timelineElements || !timelineElements.length) {
+          throw "Missing timeline";
+        }
 
         for (var repIndex = 0; repIndex < representationElements.length; repIndex++) {
           var repElement = representationElements[repIndex];

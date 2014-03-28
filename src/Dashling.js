@@ -18,8 +18,9 @@ Dashling.prototype = {
 
   _streamController: null,
   _sessionIndex: 0,
-  _lastError: null,
-  _state: DashlingSessionState.idle,
+
+  state: DashlingSessionState.idle,
+  lastError: null,
 
   // Public methods
 
@@ -31,7 +32,8 @@ Dashling.prototype = {
     var _this = this;
 
     _this.reset();
-    _this._setState(Dashling.initializing);
+
+    _this._setState(DashlingSessionState.initializing);
     _this._videoElement = videoElement;
     _this._initializeMediaSource(videoElement);
     _this._initializeManifest(url);
@@ -47,6 +49,10 @@ Dashling.prototype = {
     /// <summary>Resets dashling; aborts all network requests, closes all shops in the mall, cancels the 3-ring circus.</summary>
 
     var _this = this;
+
+    _this.startTime = null;
+    _this.timeAtLoad = null
+    _this.lastError = null;
 
     if (_this._streamController) {
       _this._streamController.dispose();
@@ -109,15 +115,17 @@ Dashling.prototype = {
   // Private methods
 
   _setState: function(state, error) {
-    if (this._state != state) {
+    if (this.state != state) {
 
-      this._state = state;
-      this._lastError = error;
+      this.state = state;
+      this.lastError = error;
 
-      this.raiseEvent(DashlingEvent.sessionStateChange, {
-        state: state,
-        error: error
-      });
+      // Stop stream controller immediately.
+      if (state == DashlingSessionState.error && this._streamController) {
+        this._streamController.dispose();
+      }
+
+      this.raiseEvent(DashlingEvent.sessionStateChange, state);
     }
   },
 
@@ -136,7 +144,9 @@ Dashling.prototype = {
 
     mediaSource.addEventListener("sourceopen", _onOpened, false);
 
-    videoElement.autoplay = false;
+    // videoElement.autoplay = false;
+    videoElement.autoplay = true;
+
     videoElement.src = window.URL.createObjectURL(mediaSource);
 
     function _onOpened() {
@@ -174,7 +184,7 @@ Dashling.prototype = {
 
     function _onManifestFailed(error) {
       if (_this._loadIndex == loadIndex) {
-        _this._setState(DashlingSessionState.error, Dashling.Error.manifestFailed);
+        _this._setState(DashlingSessionState.error, error);
       }
     }
   },
@@ -182,11 +192,9 @@ Dashling.prototype = {
   _tryStart: function() {
     var _this = this;
 
-    if (_this._state != DashlingSessionState.error &&
+    if (_this.state != DashlingSessionState.error &&
       _this._mediaSource &&
       _this.settings.manifest) {
-
-      _this._setState(DashlingSessionState.loading);
 
       _this._mediaSource.duration = _this.settings.manifest.mediaDuration;
 
@@ -198,6 +206,12 @@ Dashling.prototype = {
       _this._streamController.addEventListener(Dashling.Event.download, function(ev) {
         _this.raiseEvent(Dashling.Event.download, ev);
       });
+
+      _this._streamController.addEventListener(Dashling.Event.sessionStateChange, function(state, lastError) {
+        _this._setState(state, lastError);
+      });
+
+      _this._streamController.start();
     }
   }
 };

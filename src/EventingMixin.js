@@ -18,11 +18,11 @@ var EventingMixin = {
     this.__events = null;
   },
 
-  raiseEvent: function(eventName, args) {
+  raiseEvent: function(eventName) {
     var events = this.__events && this.__events[eventName];
 
     for (var i = 0; events && i < events.length; i++) {
-      if (events[i].call(this, args) === false) {
+      if (events[i].apply(this, Array.prototype.slice.apply(arguments, [1])) === false) {
         break;
       }
     }

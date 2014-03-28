@@ -3,13 +3,19 @@
 Dashling.StreamController = function(videoElement, mediaSource, settings) {
   var _this = this;
 
-  // Provide a bound instanced callbacks.
+  // Provide instanced callbacks that can be removed later.
   _this._onVideoSeeking = _bind(_this, _this._onVideoSeeking);
+  _this._onVideoError = _bind(_this, _this._onVideoError);
+  _this._onPauseStateChange = _bind(_this, _this._onPauseStateChange);
+
   _this._appendNextFragment = _bind(_this, _this._appendNextFragment);
   _this._onThrottledSeek = _bind(_this, _this._onThrottledSeek);
 
   _this._videoElement = videoElement;
   _this._videoElement.addEventListener("seeking", _this._onVideoSeeking);
+  _this._videoElement.addEventListener("error", _this._onVideoError);
+  _this._videoElement.addEventListener("play", _this._onPauseStateChange);
+  _this._videoElement.addEventListener("pause", _this._onPauseStateChange);
 
   _this._mediaSource = mediaSource;
   _this._settings = settings;
@@ -38,8 +44,6 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
   if (settings.startTime && firstFragmentDuration) {
     this._appendIndex = Math.max(0, Math.min(_this._audioStream.fragments.length - 1, (Math.floor((settings.startTime - .5) / firstFragmentDuration))));
   }
-
-  _this._loadNextFragment();
 };
 
 Dashling.StreamController.prototype = {
@@ -59,6 +63,9 @@ Dashling.StreamController.prototype = {
 
     if (_this._videoElement) {
       _this._videoElement.removeEventListener("seeking", _this._onVideoSeeking);
+      _this._videoElement.removeEventListener("error", _this._onVideoError);
+      _this._videoElement.removeEventListener("play", _this._onPauseStateChange);
+      _this._videoElement.removeEventListener("pause", _this._onPauseStateChange);
       _this._videoElement = null;
     }
 
@@ -81,10 +88,14 @@ Dashling.StreamController.prototype = {
       _this._seekingTimerId = 0;
     }
 
-    _this._streams = null;
     _this._mediaSource = null;
 
     _this.removeAllEventListeners();
+  },
+
+  start: function() {
+    this._setIsPlayAllowed(false);
+    this._loadNextFragment();
   },
 
   getPlayingQuality: function(streamType) {
@@ -103,7 +114,7 @@ Dashling.StreamController.prototype = {
   },
 
   getBufferRate: function() {
-    return _average(this._bufferRate);
+    return this._bufferRate.average || 0;
   },
 
   getRemainingBuffer: function() {
@@ -126,16 +137,23 @@ Dashling.StreamController.prototype = {
   },
 
   getTimeUntilUnderrun: function() {
-    var currentTime = this._videoElement.currentTime;
-    var remainingDuration = this._videoElement.duration - currentTime;
-    var remainingBuffer = this.getRemainingBuffer() + .5;
-    var bufferRate = this.getBufferRate();
     var timeUntilUnderrun = Number.MAX_VALUE;
+    if (!this.isDisposed) {
+      var currentTime = this._videoElement.currentTime;
+      var remainingDuration = this._videoElement.duration - currentTime - .5;
+      var remainingBuffer = this.getRemainingBuffer();
+      var bufferRate = this.getBufferRate();
 
-    if (remainingDuration > remainingBuffer && bufferRate < 1) {
-      var safeBufferRatio = Math.pow(Math.min(1, Math.max(0, remainingBuffer / this._settings.safeBufferSeconds)), 2);
+      var confidence = (remainingBuffer / this._settings.safeBufferSeconds);
 
-      timeUntilUnderrun = bufferRate < 1 ? safeBufferRatio * (remainingBuffer / (1 - bufferRate)) : Number.MAX_VALUE;
+      confidence = Math.min(1, Math.max(0, confidence));
+
+      if (remainingDuration > remainingBuffer) {
+
+        var estimatedAdditionalBuffer = remainingBuffer * bufferRate;
+
+        timeUntilUnderrun = remainingBuffer + (confidence * estimatedAdditionalBuffer);
+      }
     }
 
     return timeUntilUnderrun;
@@ -196,7 +214,7 @@ Dashling.StreamController.prototype = {
     var streamIndex;
     var currentTime = _this._settings.startTime || _this._videoElement.currentTime;
 
-    if (streams && streams.length) {
+    if (streams && streams.length && _this._mediaSource && _this._mediaSource.readyState != "closed") {
       var streamsAppendable = true;
 
       while (_this._appendIndex < streams[0].fragments.length) {
@@ -232,12 +250,8 @@ Dashling.StreamController.prototype = {
             _this._appendedSeconds += fragment.time.lengthSeconds;
             var now = new Date().getTime();
             var duration = (now - this._startTime) / 1000;
-            _this._bufferRate.push(_this._appendedSeconds / (duration || .1));
-            //this._timeSinceLastBuffer = now;
 
-            while (_this._bufferRate.length > 3) {
-              _this._bufferRate.shift();
-            }
+            _addMetric(_this._bufferRate, _this._appendedSeconds / (duration || .1), 3);
           }
 
           _this._appendIndex++;
@@ -248,12 +262,10 @@ Dashling.StreamController.prototype = {
             _this._settings.startTime = 0;
           }
 
-          var canPlay = this.getTimeUntilUnderrun() > this._settings.safeBufferSeconds;
-
-          if (canPlay && this._settings.shouldAutoPlay && !this._hasAutoPlayed) {
-            this._hasAutoPlayed = true;
-            this._videoElement.play();
+          if (!this._isPlayAllowed) {
+            this._setIsPlayAllowed(this.getTimeUntilUnderrun() > this._settings.safeBufferSeconds);
           }
+
         } else {
           break;
         }
@@ -336,6 +348,14 @@ Dashling.StreamController.prototype = {
     return downloadList;
   },
 
+  _setIsPlayAllowed: function(isAllowed) {
+    if (this._isPlayAllowed !== isAllowed) {
+      this._isPlayAllowed = isAllowed;
+      this._videoElement.playbackRate = isAllowed ? 1 : 0;
+      this._onPauseStateChange();
+    }
+  },
+
   _onVideoSeeking: function() {
     if (this._seekingTimerId) {
       clearTimeout(this._seekingTimerId);
@@ -348,7 +368,9 @@ Dashling.StreamController.prototype = {
   _onThrottledSeek: function() {
     var _this = this;
     var currentTime = _this._videoElement.currentTime;
-    var fragmentIndex = Math.floor(currentTime / _this._streams[0].fragments[0].time.lengthSeconds);
+    var fragmentIndex = Math.floor(Math.max(0, currentTime - .5) / _this._streams[0].fragments[0].time.lengthSeconds);
+
+    _this._setIsPlayAllowed(false);
 
     _this._seekingTimerId = 0;
     _log("Throttled seek: " + _this._videoElement.currentTime, _this._settings);
@@ -358,6 +380,7 @@ Dashling.StreamController.prototype = {
       _this._nextRequestTimerId = 0;
     }
 
+    // If seeking ahead, abort all.
     if (_this._appendIndex < fragmentIndex) {
 
       // Abortttttt
@@ -368,6 +391,24 @@ Dashling.StreamController.prototype = {
 
     _this._appendIndex = fragmentIndex;
     _this._appendNextFragment();
+  },
+
+  _onVideoError: function() {
+    var videoErrors = this._videoElement.error;
+    var error = videoErrors.code;
+
+    for (var i in videoErrors) {
+      if (videoErrors[i] == error && i != "code") {
+        error = i;
+        break;
+      }
+    }
+
+    this.raiseEvent(Dashling.Event.sessionStateChange, DashlingSessionState.error, error);
+  },
+
+  _onPauseStateChange: function() {
+    this.raiseEvent(Dashling.Event.sessionStateChange, this._isPlayAllowed ? (this._videoElement.paused ? DashlingSessionState.paused : DashlingSessionState.playing) : DashlingSessionState.buffering);
   }
 
 };

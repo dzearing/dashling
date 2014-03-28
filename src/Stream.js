@@ -51,14 +51,12 @@ Dashling.Stream.prototype = {
   dispose: function() {
     this.isDisposed = true;
 
-    this.clearAllThrottles();
-    this.removeAllEventListeners();
-
     if (this._requestManager) {
       this._requestManager.dispose();
-      this._requestManager = null;
     }
 
+    this.clearAllThrottles();
+    this.removeAllEventListeners();
   },
 
   abortAll: function() {
@@ -129,11 +127,8 @@ Dashling.Stream.prototype = {
           var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
 
           _this._appendLength += fragment.time.lengthSeconds;
-          _this._bufferRate.push(_this._appendLength / timeSinceStart);
 
-          if (_this._bufferRate.length > 3) {
-            _this._bufferRate.shift();
-          }
+          _addMetric(_this._bufferRate, _this._appendLength / timeSinceStart, 5);
 
           onComplete(fragment);
         }
@@ -164,7 +159,7 @@ Dashling.Stream.prototype = {
   },
 
   getBufferRate: function() {
-    return _average(this._bufferRate);
+    return this._bufferRate.average || 0;
   },
 
   getActiveRequestCount: function() {
@@ -264,14 +259,12 @@ Dashling.Stream.prototype = {
     }
 
     function _onFailure() {
-      if (!_this.isDisposed) {
-        if (!request.isAborted) {
-          fragment.state = DashlingFragmentState.error;
-        } else {
-          fragment.state = DashlingFragmentState.idle;
-          fragment.activeRequest = null;
-          fragment.requests = [];
-        }
+      if (!request.isAborted) {
+        fragment.state = DashlingFragmentState.error;
+      } else {
+        fragment.state = DashlingFragmentState.idle;
+        fragment.activeRequest = null;
+        fragment.requests = [];
       }
     }
   },

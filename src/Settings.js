@@ -23,8 +23,8 @@ Dashling.Settings = {
   // Logs debug data to console.
   logToConsole: true,
 
-  // TODO: Number of buffered seconds in which we will start to be more aggressive on estimates.
-  safeBufferSeconds: 15,
+  // Number of buffered seconds in which we will start to be more aggressive on estimates.
+  safeBufferSeconds: 12,
 
   // Number of buffered seconds before we stop buffering more.
   maxBufferSeconds: 119.5,

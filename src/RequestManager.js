@@ -180,22 +180,3 @@ Dashling.RequestManager.prototype = {
 };
 
 _mix(Dashling.RequestManager.prototype, EventingMixin);
-
-
-function _addMetric(array, val, max) {
-  var average = array.average || 0;
-
-  array.average = average + ((val - average) / (array.length + 1));
-  array.push(val);
-
-  while (array.length > max) {
-    _removeFirstMetric(array);
-  }
-}
-
-function _removeFirstMetric(array) {
-  var val = array.shift();
-  var average = array.average;
-
-  array.average = average + ((average - val) / array.length);
-}

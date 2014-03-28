@@ -1,0 +1,12 @@
+<MPD type="static" maxSegmentDuration="PT5.000S" profiles="urn:mpeg:dash:profile:isoff-live:2011" mediaPresentationDuration="PT0H0M29.367S" minBufferTime="PT4.500S" xmlns="urn:mpeg:DASH:schema:MPD:2011">
+  </BaseURL>fifa/</BaseURL>
+  <Period>
+    <AdaptationSet id="0" contentType="audio" mimeType="audio/mp4" segmentAlignment="true" bitstreamSwitching="true" codecs="mp4a.40.2">
+      <SegmentTemplate timescale="48000" initialization="init-$RepresentationID$.bin" media="$RepresentationID$-$Time$.bin">
+        <SegmentTimeline>
+          <S d="240000" r="4" />
+          <S d="209598" />
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="audio-low" audioSamplingRate="48000" bandwidth="96000" codecs="mp4a.40.2" />
+      <Represent

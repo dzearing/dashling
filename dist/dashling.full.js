@@ -16,22 +16,6 @@ function _bind(obj, func) {
   };
 }
 
-function _average(numbers, startIndex) {
-  startIndex = Math.max(0, startIndex || 0);
-
-  var total = 0;
-  var count = numbers ? numbers.length - startIndex : 0;
-
-  if (count) {
-    for (startIndex; startIndex < numbers.length; startIndex++) {
-      total += numbers[startIndex];
-    }
-    total /= count;
-  }
-
-  return total;
-}
-
 function _log(message, settings) {
   if (!settings || settings.logToConsole) {
     console.log(message);
@@ -68,6 +52,24 @@ function _fromISOToSeconds(isoString) {
   }
 
   return seconds;
+}
+
+function _addMetric(array, val, max) {
+  var average = array.average || 0;
+
+  array.average = average + ((val - average) / (array.length + 1));
+  array.push(val);
+
+  while (array.length > max) {
+    _removeFirstMetric(array);
+  }
+}
+
+function _removeFirstMetric(array) {
+  var val = array.shift();
+  var average = array.average;
+
+  array.average = average + ((average - val) / array.length);
 }
 var ThrottleMixin = {
   throttle: function(func, id, minTime, shouldReset, shouldCallImmediately) {
@@ -128,11 +130,11 @@ var EventingMixin = {
     this.__events = null;
   },
 
-  raiseEvent: function(eventName, args) {
+  raiseEvent: function(eventName) {
     var events = this.__events && this.__events[eventName];
 
     for (var i = 0; events && i < events.length; i++) {
-      if (events[i].call(this, args) === false) {
+      if (events[i].apply(this, Array.prototype.slice.apply(arguments, [1])) === false) {
         break;
       }
     }
@@ -157,8 +159,8 @@ var DashlingSessionState = {
   error: -1,
   idle: 0,
   initializing: 1,
-  loading: 2,
-  playbackInProgress: 4,
+  buffering: 2,
+  playing: 4,
   paused: 5
 };
 
@@ -190,8 +192,9 @@ Dashling.prototype = {
 
   _streamController: null,
   _sessionIndex: 0,
-  _lastError: null,
-  _state: DashlingSessionState.idle,
+
+  state: DashlingSessionState.idle,
+  lastError: null,
 
   // Public methods
 
@@ -203,7 +206,8 @@ Dashling.prototype = {
     var _this = this;
 
     _this.reset();
-    _this._setState(Dashling.initializing);
+
+    _this._setState(DashlingSessionState.initializing);
     _this._videoElement = videoElement;
     _this._initializeMediaSource(videoElement);
     _this._initializeManifest(url);
@@ -219,6 +223,10 @@ Dashling.prototype = {
     /// <summary>Resets dashling; aborts all network requests, closes all shops in the mall, cancels the 3-ring circus.</summary>
 
     var _this = this;
+
+    _this.startTime = null;
+    _this.timeAtLoad = null
+    _this.lastError = null;
 
     if (_this._streamController) {
       _this._streamController.dispose();
@@ -281,15 +289,17 @@ Dashling.prototype = {
   // Private methods
 
   _setState: function(state, error) {
-    if (this._state != state) {
+    if (this.state != state) {
 
-      this._state = state;
-      this._lastError = error;
+      this.state = state;
+      this.lastError = error;
 
-      this.raiseEvent(DashlingEvent.sessionStateChange, {
-        state: state,
-        error: error
-      });
+      // Stop stream controller immediately.
+      if (state == DashlingSessionState.error && this._streamController) {
+        this._streamController.dispose();
+      }
+
+      this.raiseEvent(DashlingEvent.sessionStateChange, state);
     }
   },
 
@@ -308,7 +318,9 @@ Dashling.prototype = {
 
     mediaSource.addEventListener("sourceopen", _onOpened, false);
 
-    videoElement.autoplay = false;
+    // videoElement.autoplay = false;
+    videoElement.autoplay = true;
+
     videoElement.src = window.URL.createObjectURL(mediaSource);
 
     function _onOpened() {
@@ -346,7 +358,7 @@ Dashling.prototype = {
 
     function _onManifestFailed(error) {
       if (_this._loadIndex == loadIndex) {
-        _this._setState(DashlingSessionState.error, Dashling.Error.manifestFailed);
+        _this._setState(DashlingSessionState.error, error);
       }
     }
   },
@@ -354,11 +366,9 @@ Dashling.prototype = {
   _tryStart: function() {
     var _this = this;
 
-    if (_this._state != DashlingSessionState.error &&
+    if (_this.state != DashlingSessionState.error &&
       _this._mediaSource &&
       _this.settings.manifest) {
-
-      _this._setState(DashlingSessionState.loading);
 
       _this._mediaSource.duration = _this.settings.manifest.mediaDuration;
 
@@ -370,12 +380,17 @@ Dashling.prototype = {
       _this._streamController.addEventListener(Dashling.Event.download, function(ev) {
         _this.raiseEvent(Dashling.Event.download, ev);
       });
+
+      _this._streamController.addEventListener(Dashling.Event.sessionStateChange, function(state, lastError) {
+        _this._setState(state, lastError);
+      });
+
+      _this._streamController.start();
     }
   }
 };
 
 _mix(Dashling.prototype, EventingMixin);
-
 Dashling.Settings = {
   // The manifest object to use, if you want to skip the serial call to fetch the xml.
   manifest: null,
@@ -401,8 +416,8 @@ Dashling.Settings = {
   // Logs debug data to console.
   logToConsole: true,
 
-  // TODO: Number of buffered seconds in which we will start to be more aggressive on estimates.
-  safeBufferSeconds: 15,
+  // Number of buffered seconds in which we will start to be more aggressive on estimates.
+  safeBufferSeconds: 12,
 
   // Number of buffered seconds before we stop buffering more.
   maxBufferSeconds: 119.5,
@@ -464,16 +479,24 @@ Dashling.ManifestParser.prototype = {
     function _onSuccess() {
       if (_this._parseIndex == parseIndex) {
         var data = request.data;
-        var manifest = _this._parseManifest(request.data);
+        var manifest;
 
-        manifest.request = request;
-        onSuccess(manifest);
+        try {
+          manifest = _this._parseManifest(request.data);
+        } catch (e) {
+          onError(DashlingError.manifestParse + " (" + e + ")", request);
+        }
+
+        if (manifest) {
+          manifest.request = request;
+          onSuccess(manifest);
+        }
       }
     }
 
     function _onError() {
       if (_this._parseIndex == parseIndex) {
-        onError(request);
+        onError(DashlingError.manifestDownload + " (" + request.statusCode + ")");
       }
     }
   },
@@ -492,6 +515,10 @@ Dashling.ManifestParser.prototype = {
       xmlDoc.querySelector("AdaptationSet[contentType='audio']"),
       xmlDoc.querySelector("AdaptationSet[contentType='video']")
     ];
+
+    if (!adaptations[0] || !adaptations[1]) {
+      throw "Missing adaptations";
+    }
 
     for (var adaptIndex = 0; adaptIndex < adaptations.length; adaptIndex++) {
       var adaptationElement = adaptations[adaptIndex];
@@ -513,6 +540,9 @@ Dashling.ManifestParser.prototype = {
 
         var timeScale = segmentTemplateElement.getAttribute("timescale");
 
+        if (!timelineElements || !timelineElements.length) {
+          throw "Missing timeline";
+        }
 
         for (var repIndex = 0; repIndex < representationElements.length; repIndex++) {
           var repElement = representationElements[repIndex];
@@ -555,19 +585,24 @@ Dashling.ManifestParser.prototype = {
 };
 
 _mix(Dashling.ManifestParser.prototype, EventingMixin);
-
 /// <summary></summary>
 
 Dashling.StreamController = function(videoElement, mediaSource, settings) {
   var _this = this;
 
-  // Provide a bound instanced callbacks.
+  // Provide instanced callbacks that can be removed later.
   _this._onVideoSeeking = _bind(_this, _this._onVideoSeeking);
+  _this._onVideoError = _bind(_this, _this._onVideoError);
+  _this._onPauseStateChange = _bind(_this, _this._onPauseStateChange);
+
   _this._appendNextFragment = _bind(_this, _this._appendNextFragment);
   _this._onThrottledSeek = _bind(_this, _this._onThrottledSeek);
 
   _this._videoElement = videoElement;
   _this._videoElement.addEventListener("seeking", _this._onVideoSeeking);
+  _this._videoElement.addEventListener("error", _this._onVideoError);
+  _this._videoElement.addEventListener("play", _this._onPauseStateChange);
+  _this._videoElement.addEventListener("pause", _this._onPauseStateChange);
 
   _this._mediaSource = mediaSource;
   _this._settings = settings;
@@ -596,8 +631,6 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
   if (settings.startTime && firstFragmentDuration) {
     this._appendIndex = Math.max(0, Math.min(_this._audioStream.fragments.length - 1, (Math.floor((settings.startTime - .5) / firstFragmentDuration))));
   }
-
-  _this._loadNextFragment();
 };
 
 Dashling.StreamController.prototype = {
@@ -617,6 +650,9 @@ Dashling.StreamController.prototype = {
 
     if (_this._videoElement) {
       _this._videoElement.removeEventListener("seeking", _this._onVideoSeeking);
+      _this._videoElement.removeEventListener("error", _this._onVideoError);
+      _this._videoElement.removeEventListener("play", _this._onPauseStateChange);
+      _this._videoElement.removeEventListener("pause", _this._onPauseStateChange);
       _this._videoElement = null;
     }
 
@@ -639,10 +675,14 @@ Dashling.StreamController.prototype = {
       _this._seekingTimerId = 0;
     }
 
-    _this._streams = null;
     _this._mediaSource = null;
 
     _this.removeAllEventListeners();
+  },
+
+  start: function() {
+    this._setIsPlayAllowed(false);
+    this._loadNextFragment();
   },
 
   getPlayingQuality: function(streamType) {
@@ -661,7 +701,7 @@ Dashling.StreamController.prototype = {
   },
 
   getBufferRate: function() {
-    return _average(this._bufferRate);
+    return this._bufferRate.average || 0;
   },
 
   getRemainingBuffer: function() {
@@ -684,16 +724,23 @@ Dashling.StreamController.prototype = {
   },
 
   getTimeUntilUnderrun: function() {
-    var currentTime = this._videoElement.currentTime;
-    var remainingDuration = this._videoElement.duration - currentTime;
-    var remainingBuffer = this.getRemainingBuffer() + .5;
-    var bufferRate = this.getBufferRate();
     var timeUntilUnderrun = Number.MAX_VALUE;
+    if (!this.isDisposed) {
+      var currentTime = this._videoElement.currentTime;
+      var remainingDuration = this._videoElement.duration - currentTime - .5;
+      var remainingBuffer = this.getRemainingBuffer();
+      var bufferRate = this.getBufferRate();
 
-    if (remainingDuration > remainingBuffer && bufferRate < 1) {
-      var safeBufferRatio = Math.pow(Math.min(1, Math.max(0, remainingBuffer / this._settings.safeBufferSeconds)), 2);
+      var confidence = (remainingBuffer / this._settings.safeBufferSeconds);
 
-      timeUntilUnderrun = bufferRate < 1 ? safeBufferRatio * (remainingBuffer / (1 - bufferRate)) : Number.MAX_VALUE;
+      confidence = Math.min(1, Math.max(0, confidence));
+
+      if (remainingDuration > remainingBuffer) {
+
+        var estimatedAdditionalBuffer = remainingBuffer * bufferRate;
+
+        timeUntilUnderrun = remainingBuffer + (confidence * estimatedAdditionalBuffer);
+      }
     }
 
     return timeUntilUnderrun;
@@ -754,7 +801,7 @@ Dashling.StreamController.prototype = {
     var streamIndex;
     var currentTime = _this._settings.startTime || _this._videoElement.currentTime;
 
-    if (streams && streams.length) {
+    if (streams && streams.length && _this._mediaSource && _this._mediaSource.readyState != "closed") {
       var streamsAppendable = true;
 
       while (_this._appendIndex < streams[0].fragments.length) {
@@ -790,12 +837,8 @@ Dashling.StreamController.prototype = {
             _this._appendedSeconds += fragment.time.lengthSeconds;
             var now = new Date().getTime();
             var duration = (now - this._startTime) / 1000;
-            _this._bufferRate.push(_this._appendedSeconds / (duration || .1));
-            //this._timeSinceLastBuffer = now;
 
-            while (_this._bufferRate.length > 3) {
-              _this._bufferRate.shift();
-            }
+            _addMetric(_this._bufferRate, _this._appendedSeconds / (duration || .1), 3);
           }
 
           _this._appendIndex++;
@@ -806,12 +849,10 @@ Dashling.StreamController.prototype = {
             _this._settings.startTime = 0;
           }
 
-          var canPlay = this.getTimeUntilUnderrun() > this._settings.safeBufferSeconds;
-
-          if (canPlay && this._settings.shouldAutoPlay && !this._hasAutoPlayed) {
-            this._hasAutoPlayed = true;
-            this._videoElement.play();
+          if (!this._isPlayAllowed) {
+            this._setIsPlayAllowed(this.getTimeUntilUnderrun() > this._settings.safeBufferSeconds);
           }
+
         } else {
           break;
         }
@@ -894,6 +935,14 @@ Dashling.StreamController.prototype = {
     return downloadList;
   },
 
+  _setIsPlayAllowed: function(isAllowed) {
+    if (this._isPlayAllowed !== isAllowed) {
+      this._isPlayAllowed = isAllowed;
+      this._videoElement.playbackRate = isAllowed ? 1 : 0;
+      this._onPauseStateChange();
+    }
+  },
+
   _onVideoSeeking: function() {
     if (this._seekingTimerId) {
       clearTimeout(this._seekingTimerId);
@@ -906,7 +955,9 @@ Dashling.StreamController.prototype = {
   _onThrottledSeek: function() {
     var _this = this;
     var currentTime = _this._videoElement.currentTime;
-    var fragmentIndex = Math.floor(currentTime / _this._streams[0].fragments[0].time.lengthSeconds);
+    var fragmentIndex = Math.floor(Math.max(0, currentTime - .5) / _this._streams[0].fragments[0].time.lengthSeconds);
+
+    _this._setIsPlayAllowed(false);
 
     _this._seekingTimerId = 0;
     _log("Throttled seek: " + _this._videoElement.currentTime, _this._settings);
@@ -916,6 +967,7 @@ Dashling.StreamController.prototype = {
       _this._nextRequestTimerId = 0;
     }
 
+    // If seeking ahead, abort all.
     if (_this._appendIndex < fragmentIndex) {
 
       // Abortttttt
@@ -926,6 +978,24 @@ Dashling.StreamController.prototype = {
 
     _this._appendIndex = fragmentIndex;
     _this._appendNextFragment();
+  },
+
+  _onVideoError: function() {
+    var videoErrors = this._videoElement.error;
+    var error = videoErrors.code;
+
+    for (var i in videoErrors) {
+      if (videoErrors[i] == error && i != "code") {
+        error = i;
+        break;
+      }
+    }
+
+    this.raiseEvent(Dashling.Event.sessionStateChange, DashlingSessionState.error, error);
+  },
+
+  _onPauseStateChange: function() {
+    this.raiseEvent(Dashling.Event.sessionStateChange, this._isPlayAllowed ? (this._videoElement.paused ? DashlingSessionState.paused : DashlingSessionState.playing) : DashlingSessionState.buffering);
   }
 
 };
@@ -997,14 +1067,12 @@ Dashling.Stream.prototype = {
   dispose: function() {
     this.isDisposed = true;
 
-    this.clearAllThrottles();
-    this.removeAllEventListeners();
-
     if (this._requestManager) {
       this._requestManager.dispose();
-      this._requestManager = null;
     }
 
+    this.clearAllThrottles();
+    this.removeAllEventListeners();
   },
 
   abortAll: function() {
@@ -1075,11 +1143,8 @@ Dashling.Stream.prototype = {
           var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
 
           _this._appendLength += fragment.time.lengthSeconds;
-          _this._bufferRate.push(_this._appendLength / timeSinceStart);
 
-          if (_this._bufferRate.length > 3) {
-            _this._bufferRate.shift();
-          }
+          _addMetric(_this._bufferRate, _this._appendLength / timeSinceStart, 5);
 
           onComplete(fragment);
         }
@@ -1110,7 +1175,7 @@ Dashling.Stream.prototype = {
   },
 
   getBufferRate: function() {
-    return _average(this._bufferRate);
+    return this._bufferRate.average || 0;
   },
 
   getActiveRequestCount: function() {
@@ -1210,14 +1275,12 @@ Dashling.Stream.prototype = {
     }
 
     function _onFailure() {
-      if (!_this.isDisposed) {
-        if (!request.isAborted) {
-          fragment.state = DashlingFragmentState.error;
-        } else {
-          fragment.state = DashlingFragmentState.idle;
-          fragment.activeRequest = null;
-          fragment.requests = [];
-        }
+      if (!request.isAborted) {
+        fragment.state = DashlingFragmentState.error;
+      } else {
+        fragment.state = DashlingFragmentState.idle;
+        fragment.activeRequest = null;
+        fragment.requests = [];
       }
     }
   },
@@ -1530,23 +1593,4 @@ Dashling.RequestManager.prototype = {
 };
 
 _mix(Dashling.RequestManager.prototype, EventingMixin);
-
-
-function _addMetric(array, val, max) {
-  var average = array.average || 0;
-
-  array.average = average + ((val - average) / (array.length + 1));
-  array.push(val);
-
-  while (array.length > max) {
-    _removeFirstMetric(array);
-  }
-}
-
-function _removeFirstMetric(array) {
-  var val = array.shift();
-  var average = array.average;
-
-  array.average = average + ((average - val) / array.length);
-}
 })();

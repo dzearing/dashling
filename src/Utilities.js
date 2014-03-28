@@ -14,22 +14,6 @@ function _bind(obj, func) {
   };
 }
 
-function _average(numbers, startIndex) {
-  startIndex = Math.max(0, startIndex || 0);
-
-  var total = 0;
-  var count = numbers ? numbers.length - startIndex : 0;
-
-  if (count) {
-    for (startIndex; startIndex < numbers.length; startIndex++) {
-      total += numbers[startIndex];
-    }
-    total /= count;
-  }
-
-  return total;
-}
-
 function _log(message, settings) {
   if (!settings || settings.logToConsole) {
     console.log(message);
@@ -66,4 +50,22 @@ function _fromISOToSeconds(isoString) {
   }
 
   return seconds;
+}
+
+function _addMetric(array, val, max) {
+  var average = array.average || 0;
+
+  array.average = average + ((val - average) / (array.length + 1));
+  array.push(val);
+
+  while (array.length > max) {
+    _removeFirstMetric(array);
+  }
+}
+
+function _removeFirstMetric(array) {
+  var val = array.shift();
+  var average = array.average;
+
+  array.average = average + ((average - val) / array.length);
 }
