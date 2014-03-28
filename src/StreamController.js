@@ -124,12 +124,13 @@ Dashling.StreamController.prototype = {
   },
 
   getRemainingBuffer: function() {
+    var _this = this;
     var remainingBuffer = 0;
 
-    if (!this.isDisposed) {
-      var currentTime = Math.max(.5, this._videoElement.currentTime);
-      var timeRemaining = this._videoElement.duration - currentTime;
-      var bufferRanges = this._videoElement.buffered;
+    if (!_this.isDisposed) {
+      var currentTime = _this._settings.startTime || Math.max(.5, _this._videoElement.currentTime);
+      var timeRemaining = _this._videoElement.duration - currentTime;
+      var bufferRanges = _this._videoElement.buffered;
 
       for (var i = 0; i < bufferRanges.length; i++) {
         if (currentTime >= bufferRanges.start(i) && currentTime <= bufferRanges.end(i)) {
@@ -270,8 +271,12 @@ Dashling.StreamController.prototype = {
 
           // After we're done appending, update the video element's time to the start time if provided.
           if (_this._settings.startTime) {
-            _this._videoElement.currentTime = _this._settings.startTime;
-            _this._settings.startTime = 0;
+            try {
+              _this._videoElement.currentTime = _this._settings.startTime;
+              _this._settings.startTime = 0;
+            }
+            catch (e) {}
+
           }
 
           if (!this._isPlayAllowed) {
