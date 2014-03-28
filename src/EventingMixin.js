@@ -11,6 +11,10 @@ var EventingMixin = {
 
     if (eventList) {
       var index = eventList.indexOf(callback);
+
+      if (index > -1) {
+        eventList.splice(index, 1);
+      }
     }
   },
 
