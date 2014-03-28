@@ -160,6 +160,10 @@ Dashling.StreamController.prototype = {
         var estimatedAdditionalBuffer = remainingBuffer * bufferRate;
 
         timeUntilUnderrun = remainingBuffer + (confidence * estimatedAdditionalBuffer);
+
+        if (timeUntilUnderrun > remainingDuration) {
+          timeUntilUnderrun = Number.MAX_VALUE;
+        }
       }
     }
 
