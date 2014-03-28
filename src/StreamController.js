@@ -161,7 +161,8 @@ Dashling.StreamController.prototype = {
 
         timeUntilUnderrun = remainingBuffer + (confidence * estimatedAdditionalBuffer);
 
-        if (timeUntilUnderrun > remainingDuration) {
+        // if we're 50% of the way to max or beyond duration.
+        if (timeUntilUnderrun > remainingDuration || (timeUntilUnderrun > (this._settings.maxBufferSeconds * .5))) {
           timeUntilUnderrun = Number.MAX_VALUE;
         }
       }
