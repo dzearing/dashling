@@ -30,7 +30,6 @@ Dashling.ManifestParser.prototype = {
 
     function _onSuccess() {
       if (_this._parseIndex == parseIndex) {
-        var data = request.data;
         var manifest;
 
         try {

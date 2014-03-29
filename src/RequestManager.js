@@ -116,7 +116,10 @@ Dashling.RequestManager.prototype = {
           _onError(request);
         }
 
-        _this.raiseEvent(Dashling.Event.download, request);
+        // Don't fire events for cache hits.
+        if (request.timeAtLastByte > 5) {
+          _this.raiseEvent(Dashling.Event.download, request);
+        }
       };
 
       function _onError() {

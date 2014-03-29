@@ -55,11 +55,15 @@ Dashling.StreamController.prototype = {
   _maxSegmentsAhead: 2,
   _nextRequestTimerId: 0,
   _seekingTimerId: 0,
+  _stalls: 0,
+  _lastSeekTime: 0,
+  _lastCurrentTime: 0,
 
   dispose: function() {
     var _this = this;
 
     _this.isDisposed = true;
+    _this._adjustPlaybackMonitor(false);
 
     if (_this._videoElement) {
       _this._videoElement.removeEventListener("seeking", _this._onVideoSeeking);
@@ -94,7 +98,7 @@ Dashling.StreamController.prototype = {
   },
 
   start: function() {
-    this._setIsPlayAllowed(false);
+    this._setCanPlay(false);
     this._loadNextFragment();
   },
 
@@ -123,13 +127,12 @@ Dashling.StreamController.prototype = {
     return this._bufferRate.average || 0;
   },
 
-  getRemainingBuffer: function() {
+  getRemainingBuffer: function(offsetFromCurrentTime) {
     var _this = this;
     var remainingBuffer = 0;
 
     if (!_this.isDisposed) {
-      var currentTime = _this._settings.startTime || Math.max(.5, _this._videoElement.currentTime);
-      var timeRemaining = _this._videoElement.duration - currentTime;
+      var currentTime = (_this._settings.startTime || Math.max(.5, _this._videoElement.currentTime)) + (offsetFromCurrentTime || 0);
       var bufferRanges = _this._videoElement.buffered;
 
       for (var i = 0; i < bufferRanges.length; i++) {
@@ -143,13 +146,14 @@ Dashling.StreamController.prototype = {
     return remainingBuffer;
   },
 
-  getTimeUntilUnderrun: function() {
+  getTimeUntilUnderrun: function(offsetFromCurrentTime) {
     var timeUntilUnderrun = Number.MAX_VALUE;
+    var _this = this;
 
-    if (!this.isDisposed) {
-      var currentTime = this._videoElement.currentTime;
+    if (!_this.isDisposed) {
+      var currentTime = (_this._settings.startTime || Math.max(.5, _this._videoElement.currentTime));
       var remainingDuration = this._videoElement.duration - currentTime - .5;
-      var remainingBuffer = this.getRemainingBuffer();
+      var remainingBuffer = this.getRemainingBuffer(offsetFromCurrentTime);
       var bufferRate = this.getBufferRate();
 
       var confidence = (remainingBuffer / this._settings.safeBufferSeconds);
@@ -163,7 +167,7 @@ Dashling.StreamController.prototype = {
         timeUntilUnderrun = remainingBuffer + (confidence * estimatedAdditionalBuffer);
 
         // if we're 50% of the way to max or beyond duration.
-        if (timeUntilUnderrun > remainingDuration || (timeUntilUnderrun > (this._settings.maxBufferSeconds * .5))) {
+        if (timeUntilUnderrun > remainingDuration || (timeUntilUnderrun > (_this._settings.maxBufferSeconds * .5))) {
           timeUntilUnderrun = Number.MAX_VALUE;
         }
       }
@@ -279,10 +283,7 @@ Dashling.StreamController.prototype = {
 
           }
 
-          if (!this._isPlayAllowed) {
-            this._setIsPlayAllowed(this.getTimeUntilUnderrun() > this._settings.safeBufferSeconds);
-          }
-
+          _this._checkCanPlay();
         } else {
           break;
         }
@@ -293,6 +294,45 @@ Dashling.StreamController.prototype = {
       }
 
       _this._loadNextFragment();
+    }
+  },
+
+  _adjustPlaybackMonitor: function(isEnabled) {
+    var _this = this;
+
+    if (!isEnabled && _this._playbackMonitorId) {
+      clearInterval(_this._playbackMonitorId);
+      _this._playbackMonitorId = 0;
+    }
+    else if (isEnabled && !_this._playbackMonitorId) {
+      _this._playbackMonitorId = setInterval(function() {
+        _this._checkCanPlay();
+      }, 200);
+    }
+  },
+
+  _checkCanPlay: function() {
+    var _this = this;
+    var timeUntilUnderrun = _this.getTimeUntilUnderrun();
+    var allowedSeekAhead = .5;
+
+    this._lastCurrentTime = _this._videoElement.currentTime;
+
+    if (_this._canPlay && timeUntilUnderrun < .1) {
+      // We are stalling!
+      _this._stalls++;
+      _this._setCanPlay(false);
+    }
+
+    if (!_this._canPlay) {
+      if (timeUntilUnderrun > _this._settings.safeBufferSeconds) {
+        this._setCanPlay(true);
+      }
+      else if (_this.getTimeUntilUnderrun(allowedSeekAhead) > _this._settings.safeBufferSeconds) {
+        // Wiggle ahead the current time.
+        _this._videoElement.currentTime = Math.min(_this._videoElement.currentTime + allowedSeekAhead, _this._videoElement.duration);
+        this._setCanPlay(true);
+      }
     }
   },
 
@@ -365,29 +405,34 @@ Dashling.StreamController.prototype = {
     return downloadList;
   },
 
-  _setIsPlayAllowed: function(isAllowed) {
-    if (this._isPlayAllowed !== isAllowed) {
-      this._isPlayAllowed = isAllowed;
+  _setCanPlay: function(isAllowed) {
+    if (this._canPlay !== isAllowed) {
+      this._canPlay = isAllowed;
       this._videoElement.playbackRate = isAllowed ? 1 : 0;
       this._onPauseStateChange();
     }
   },
 
   _onVideoSeeking: function() {
-    if (this._seekingTimerId) {
-      clearTimeout(this._seekingTimerId);
-    }
+    if (Math.abs(this._lastSeekTime - this._videoElement.currentTime) > .6) {
+      this._lastSeekTime = this._videoElement.currentTime;
 
-    this._settings.startTime = 0;
-    this._seekingTimerId = setTimeout(this._onThrottledSeek, 500);
+      if (this._seekingTimerId) {
+        clearTimeout(this._seekingTimerId);
+      }
+
+      this._setCanPlay(false);
+      this._settings.startTime = 0;
+
+      this._seekingTimerId = setTimeout(this._onThrottledSeek, 300);
+    }
   },
 
   _onThrottledSeek: function() {
     var _this = this;
     var currentTime = _this._videoElement.currentTime;
     var fragmentIndex = Math.floor(Math.max(0, currentTime - .5) / _this._streams[0].fragments[0].time.lengthSeconds);
-
-    _this._setIsPlayAllowed(false);
+    var streamIndex;
 
     _this._seekingTimerId = 0;
     _log("Throttled seek: " + _this._videoElement.currentTime, _this._settings);
@@ -397,12 +442,18 @@ Dashling.StreamController.prototype = {
       _this._nextRequestTimerId = 0;
     }
 
-    // If seeking ahead, abort all.
+    // If seeking ahead of the append index, abort all.
     if (_this._appendIndex < fragmentIndex) {
 
       // Abortttttt
-      for (var streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
+      for (streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
         _this._streams[streamIndex].abortAll();
+      }
+    }
+    else if (currentTime < _this._lastCurrentTime) {
+      // Going backwards from last position, clear all buffer content to avoid chrome from removing our new buffer.
+      for (streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
+        _this._streams[streamIndex].clearBuffer();
       }
     }
 
@@ -425,7 +476,9 @@ Dashling.StreamController.prototype = {
   },
 
   _onPauseStateChange: function() {
-    this.raiseEvent(Dashling.Event.sessionStateChange, this._isPlayAllowed ? (this._videoElement.paused ? DashlingSessionState.paused : DashlingSessionState.playing) : DashlingSessionState.buffering);
+    this.raiseEvent(Dashling.Event.sessionStateChange, this._canPlay ? (this._videoElement.paused ? DashlingSessionState.paused : DashlingSessionState.playing) : DashlingSessionState.buffering);
+
+    this._adjustPlaybackMonitor(this._videoElement.paused);
   }
 
 };

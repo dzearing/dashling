@@ -63,6 +63,23 @@ Dashling.Stream.prototype = {
     this._requestManager.abortAll();
   },
 
+  clearBuffer: function() {
+    try {
+      this._buffer.remove(0, this._videoElement.duration);
+    }
+    catch(e) {
+    }
+
+    for (var fragmentIndex = 0; fragmentIndex < this.fragments.length; fragmentIndex++) {
+      var fragment = this.fragments[fragmentIndex];
+
+      if (fragment.state == DashlingFragmentState.appended) {
+        fragment.state = DashlingFragmentState.idle;
+        fragment.activeRequest = null;
+      }
+    }
+  },
+
   canAppend: function(fragmentIndex) {
     var fragment = this.fragments[fragmentIndex];
     var initSegment = fragment ? this._initSegments[fragment.qualityIndex] : null;
