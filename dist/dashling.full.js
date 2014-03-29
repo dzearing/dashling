@@ -743,7 +743,7 @@ Dashling.StreamController.prototype = {
 
     if (!_this.isDisposed) {
       var currentTime = (_this._settings.startTime || Math.max(.5, _this._videoElement.currentTime));
-      var remainingDuration = this._videoElement.duration - currentTime - .5;
+      var remainingDuration = _this._settings.manifest.mediaDuration - currentTime - .5;
       var remainingBuffer = this.getRemainingBuffer(offsetFromCurrentTime);
       var bufferRate = this.getBufferRate();
 
