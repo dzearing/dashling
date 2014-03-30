@@ -653,8 +653,8 @@ Dashling.StreamController.prototype = {
   _nextRequestTimerId: 0,
   _seekingTimerId: 0,
   _stalls: 0,
-  _lastSeekTime: 0,
   _lastCurrentTime: 0,
+  _lastTimeBeforeSeek: 0,
 
   _startTime: 0,
 
@@ -1012,33 +1012,39 @@ Dashling.StreamController.prototype = {
   },
 
   _onVideoSeeking: function() {
-    if (Math.abs(this._lastSeekTime - this._videoElement.currentTime) > .6) {
-      this._lastSeekTime = this._videoElement.currentTime;
-
-      if (this._seekingTimerId) {
-        clearTimeout(this._seekingTimerId);
-      }
-
-      this._setCanPlay(false);
-      this._settings.startTime = 0;
-
-      this._seekingTimerId = setTimeout(this._onThrottledSeek, 300);
+    if (!this._lastTimeBeforeSeek) {
+      this._lastTimeBeforeSeek = this._lastCurrentTime;
     }
+
+    if (this._seekingTimerId) {
+      clearTimeout(this._seekingTimerId);
+    }
+
+    this._setCanPlay(false);
+    this._settings.startTime = 0;
+
+    this._seekingTimerId = setTimeout(this._onThrottledSeek, 300);
   },
 
   _onThrottledSeek: function() {
     var _this = this;
     var currentTime = _this._videoElement.currentTime;
+    var lastTimeBeforeSeek = this._lastTimeBeforeSeek;
     var fragmentIndex = Math.floor(Math.max(0, currentTime - .5) / _this._streams[0].fragments[0].time.lengthSeconds);
     var streamIndex;
+    var isBufferAcceptable =
+      _this._videoElement.buffered.length == 1 &&
+      _this._videoElement.buffered.start(0) <= .5 &&
+      _this._videoElement.buffered.end(0) > currentTime &&
+      _this._videoElement.buffered.end(0) < _this._settings.maxBufferSeconds;
 
-    _this._seekingTimerId = 0;
     _log("Throttled seek: " + _this._videoElement.currentTime, _this._settings);
 
-    if (_this._nextRequestTimerId) {
-      clearTimeout(_this._nextRequestTimerId);
-      _this._nextRequestTimerId = 0;
-    }
+    // Clear variables tracking seek.
+    _this._seekingTimerId = 0;
+    _this._lastTimeBeforeSeek = 0;
+    clearTimeout(_this._nextRequestTimerId);
+    _this._nextRequestTimerId = 0;
 
     // If seeking ahead of the append index, abort all.
     if (_this._appendIndex < fragmentIndex) {
@@ -1047,7 +1053,9 @@ Dashling.StreamController.prototype = {
       for (streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
         _this._streams[streamIndex].abortAll();
       }
-    } else if (currentTime < _this._lastCurrentTime) {
+    } else if (currentTime < lastTimeBeforeSeek && !isBufferAcceptable) {
+      _log("Clearing buffer due to reverse seek", _this._settings);
+
       // Going backwards from last position, clear all buffer content to avoid chrome from removing our new buffer.
       for (streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
         _this._streams[streamIndex].clearBuffer();
