@@ -691,6 +691,7 @@ Dashling.StreamController.prototype = {
   start: function() {
     this._setCanPlay(false);
     this._loadNextFragment();
+    this._adjustPlaybackMonitor(true);
   },
 
   getPlayingQuality: function(streamType) {
@@ -869,8 +870,7 @@ Dashling.StreamController.prototype = {
             try {
               _this._videoElement.currentTime = _this._settings.startTime;
               _this._settings.startTime = 0;
-            }
-            catch (e) {}
+            } catch (e) {}
 
           }
 
@@ -894,8 +894,7 @@ Dashling.StreamController.prototype = {
     if (!isEnabled && _this._playbackMonitorId) {
       clearInterval(_this._playbackMonitorId);
       _this._playbackMonitorId = 0;
-    }
-    else if (isEnabled && !_this._playbackMonitorId) {
+    } else if (isEnabled && !_this._playbackMonitorId) {
       _this._playbackMonitorId = setInterval(function() {
         _this._checkCanPlay();
       }, 200);
@@ -918,8 +917,7 @@ Dashling.StreamController.prototype = {
     if (!_this._canPlay) {
       if (timeUntilUnderrun > _this._settings.safeBufferSeconds) {
         this._setCanPlay(true);
-      }
-      else if (_this.getTimeUntilUnderrun(allowedSeekAhead) > _this._settings.safeBufferSeconds) {
+      } else if (_this.getTimeUntilUnderrun(allowedSeekAhead) > _this._settings.safeBufferSeconds) {
         // Wiggle ahead the current time.
         _this._videoElement.currentTime = Math.min(_this._videoElement.currentTime + allowedSeekAhead, _this._videoElement.duration);
         this._setCanPlay(true);
@@ -1040,8 +1038,7 @@ Dashling.StreamController.prototype = {
       for (streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
         _this._streams[streamIndex].abortAll();
       }
-    }
-    else if (currentTime < _this._lastCurrentTime) {
+    } else if (currentTime < _this._lastCurrentTime) {
       // Going backwards from last position, clear all buffer content to avoid chrome from removing our new buffer.
       for (streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
         _this._streams[streamIndex].clearBuffer();
@@ -1069,7 +1066,7 @@ Dashling.StreamController.prototype = {
   _onPauseStateChange: function() {
     this.raiseEvent(Dashling.Event.sessionStateChange, this._canPlay ? (this._videoElement.paused ? DashlingSessionState.paused : DashlingSessionState.playing) : DashlingSessionState.buffering);
 
-    this._adjustPlaybackMonitor(this._videoElement.paused);
+    this._adjustPlaybackMonitor(!this._videoElement.paused);
   }
 
 };
@@ -1088,7 +1085,6 @@ function _getBuffered(videoElement) {
 
   return ranges;
 }
-
 var c_bandwidthStorageKey = "Dashling.Stream.bytesPerSecond";
 
 Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {

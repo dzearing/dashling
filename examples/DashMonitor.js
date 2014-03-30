@@ -354,7 +354,7 @@ window.DashMonitor.prototype = {
 
       context.metrics.push({
         title: "Stalls",
-        value: ""
+        value: controller._stalls || null
       });
 
       context.metrics.push({
