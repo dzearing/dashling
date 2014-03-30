@@ -121,13 +121,14 @@ Dashling.RequestManager.prototype = {
         }
       };
 
+
       function _onError() {
 
         if (xhr.status == 0 && request.timeAtLastByte >= _this._settings.requestTimeout) {
           xhr.isTimedOut = true;
         }
 
-        if (!xhr.isAborted && ++retryIndex < maxRetries) {
+        if (_this._isRetriable(xhr) && ++retryIndex < maxRetries) {
 
           request.retryCount++;
           setTimeout(_startRequest, delaysBetweenRetries[Math.min(delaysBetweenRetries.length - 1, retryIndex)]);
@@ -149,6 +150,10 @@ Dashling.RequestManager.prototype = {
 
       xhr.send();
     }
+  },
+
+  _isRetriable: function(xhr) {
+    return (!xhr.isAborted && xhr.status != 404);
   },
 
   _postProgress: function(progressEvents) {
