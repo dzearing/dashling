@@ -336,6 +336,11 @@ window.DashMonitor.prototype = {
       value: player.lastError
     });
 
+    context.metrics.push({
+      title: "Load",
+      value: (player.timeAtFirstCanPlay ? player.timeAtFirstCanPlay : (new Date().getTime() - player.startTime)) + " ms"
+    });
+
     if (manifest && controller) {
       var fragmentList = [controller._streams[0].fragments, controller._streams[1].fragments];
       var qualityDictionary = {};
@@ -345,11 +350,6 @@ window.DashMonitor.prototype = {
       context.metrics.push({
         title: "Manifest",
         value: player.settings.manifest && player.settings.manifest.request && player.settings.manifest.request.timeAtLastByte ? player.settings.manifest.request.timeAtLastByte + " ms" : ""
-      });
-
-      context.metrics.push({
-        title: "Load",
-        value: ""
       });
 
       context.metrics.push({

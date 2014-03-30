@@ -19,9 +19,7 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
 
   _this._mediaSource = mediaSource;
   _this._settings = settings;
-  _this._startTime = new Date().getTime();
 
-  _this._timeSinceLastBuffer = new Date().getTime();
   _this._bufferRate = [];
   _this._appendedSeconds = 0;
 
@@ -58,6 +56,8 @@ Dashling.StreamController.prototype = {
   _stalls: 0,
   _lastSeekTime: 0,
   _lastCurrentTime: 0,
+
+  _startTime: 0,
 
   dispose: function() {
     var _this = this;
@@ -98,6 +98,7 @@ Dashling.StreamController.prototype = {
   },
 
   start: function() {
+    this._startTime = new Date().getTime();
     this._setCanPlay(false);
     this._loadNextFragment();
     this._adjustPlaybackMonitor(true);

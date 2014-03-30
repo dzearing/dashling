@@ -200,6 +200,9 @@ Dashling.prototype = {
   state: DashlingSessionState.idle,
   lastError: null,
 
+  startTime: null,
+  timeAtFirstCanPlay: null,
+
   // Public methods
 
   load: function(videoElement, url) {
@@ -211,6 +214,7 @@ Dashling.prototype = {
 
     _this.reset();
 
+    this.startTime = new Date().getTime();
     _this._setState(DashlingSessionState.initializing);
     _this._videoElement = videoElement;
     _this._initializeMediaSource(videoElement);
@@ -229,7 +233,7 @@ Dashling.prototype = {
     var _this = this;
 
     _this.startTime = null;
-    _this.timeAtLoad = null
+    _this.timeAtFirstCanPlay = null;
     _this.lastError = null;
 
     if (_this._streamController) {
@@ -301,6 +305,10 @@ Dashling.prototype = {
       // Stop stream controller immediately.
       if (state == DashlingSessionState.error && this._streamController) {
         this._streamController.dispose();
+      }
+
+      if (!this.timeAtFirstCanPlay && (state == DashlingSessionState.playing || state == DashlingSessionState.paused)) {
+        this.timeAtFirstCanPlay = new Date().getTime() - this.startTime;
       }
 
       this.raiseEvent(DashlingEvent.sessionStateChange, state);
@@ -610,9 +618,7 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
 
   _this._mediaSource = mediaSource;
   _this._settings = settings;
-  _this._startTime = new Date().getTime();
 
-  _this._timeSinceLastBuffer = new Date().getTime();
   _this._bufferRate = [];
   _this._appendedSeconds = 0;
 
@@ -649,6 +655,8 @@ Dashling.StreamController.prototype = {
   _stalls: 0,
   _lastSeekTime: 0,
   _lastCurrentTime: 0,
+
+  _startTime: 0,
 
   dispose: function() {
     var _this = this;
@@ -689,6 +697,7 @@ Dashling.StreamController.prototype = {
   },
 
   start: function() {
+    this._startTime = new Date().getTime();
     this._setCanPlay(false);
     this._loadNextFragment();
     this._adjustPlaybackMonitor(true);
