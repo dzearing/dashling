@@ -32,6 +32,10 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
     _this._streams[i].addEventListener(Dashling.Event.download, function(ev) {
       _this.raiseEvent(Dashling.Event.download, ev);
     });
+
+    _this._streams[i].addEventListener(Dashling.Event.sessionStateChange, function(state, errorType, errorMessage) {
+      _this.raiseEvent(Dashling.Event.sessionStateChange, state, errorType, errorMessage);
+    });
   }
 
   _this._requestTimerIds = [0, 0];

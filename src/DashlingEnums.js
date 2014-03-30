@@ -9,7 +9,7 @@ var DashlingError = {
   mediaSourceInit: "mediaSourceInit",
   mediaSourceAppend: "mediaSourceAppend",
   initSegmentDownload: "initSegmentDownload",
-  mediaSegmentDownload: "fragmentDownload",
+  mediaSegmentDownload: "mediaSegmentDownload",
   append: "append"
 };
 

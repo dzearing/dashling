@@ -118,11 +118,11 @@ Dashling.prototype = {
 
   // Private methods
 
-  _setState: function(state, error) {
+  _setState: function(state, errorType, errorMessage) {
     if (this.state != state) {
 
       this.state = state;
-      this.lastError = error;
+      this.lastError = errorType ? (errorType + " " + (errorMessage ? "(" + errorMessage + ")" : "")) : null;
 
       // Stop stream controller immediately.
       if (state == DashlingSessionState.error && this._streamController) {
@@ -133,7 +133,7 @@ Dashling.prototype = {
         this.timeAtFirstCanPlay = new Date().getTime() - this.startTime;
       }
 
-      this.raiseEvent(DashlingEvent.sessionStateChange, state, error);
+      this.raiseEvent(DashlingEvent.sessionStateChange, state, errorType, errorMessage);
     }
   },
 
@@ -176,7 +176,7 @@ Dashling.prototype = {
     } else {
       _this._parser = new Dashling.ManifestParser(_this.settings);
 
-      _this._parser.addEventListener(Dashling.Event.download, function(ev) {
+      _this._parser.addEventListener(DashlingEvent.download, function(ev) {
         _this.raiseEvent(Dashling.Event.download, ev);
       });
 
@@ -190,9 +190,9 @@ Dashling.prototype = {
       }
     }
 
-    function _onManifestFailed(error) {
+    function _onManifestFailed(errorType, errorMessage) {
       if (_this._loadIndex == loadIndex) {
-        _this._setState(DashlingSessionState.error, error);
+        _this._setState(DashlingSessionState.error, errorType, errorMessage);
       }
     }
   },
@@ -211,12 +211,12 @@ Dashling.prototype = {
         _this._mediaSource,
         _this.settings);
 
-      _this._streamController.addEventListener(Dashling.Event.download, function(ev) {
+      _this._streamController.addEventListener(DashlingEvent.download, function(ev) {
         _this.raiseEvent(Dashling.Event.download, ev);
       });
 
-      _this._streamController.addEventListener(Dashling.Event.sessionStateChange, function(state, lastError) {
-        _this._setState(state, lastError);
+      _this._streamController.addEventListener(DashlingEvent.sessionStateChange, function(state, errorType, errorMessage) {
+        _this._setState(state, errorType, errorMessage);
       });
 
       _this._streamController.start();

@@ -3,7 +3,7 @@ Dashling.ManifestParser = function(settings) {
 
   _this._requestManager = new Dashling.RequestManager(false, settings);
 
-  _this._requestManager.addEventListener(Dashling.Event.download, function(ev) {
+  _this._requestManager.addEventListener(DashlingEvent.download, function(ev) {
     _this.raiseEvent(DashlingEvent.download, ev);
   });
 };
@@ -35,7 +35,7 @@ Dashling.ManifestParser.prototype = {
         try {
           manifest = _this._parseManifest(request.data);
         } catch (e) {
-          onError(DashlingError.manifestParse + " (" + e + ")", request);
+          onError(DashlingError.manifestParse, e);
         }
 
         if (manifest) {
@@ -47,7 +47,7 @@ Dashling.ManifestParser.prototype = {
 
     function _onError() {
       if (_this._parseIndex == parseIndex) {
-        onError(DashlingError.manifestDownload + " (" + request.statusCode + ")");
+        onError(DashlingError.manifestDownload, request.statusCode);
       }
     }
   },

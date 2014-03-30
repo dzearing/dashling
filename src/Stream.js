@@ -66,9 +66,7 @@ Dashling.Stream.prototype = {
   clearBuffer: function() {
     try {
       this._buffer.remove(0, this._videoElement.duration);
-    }
-    catch(e) {
-    }
+    } catch (e) {}
 
     for (var fragmentIndex = 0; fragmentIndex < this.fragments.length; fragmentIndex++) {
       var fragment = this.fragments[fragmentIndex];
@@ -235,8 +233,6 @@ Dashling.Stream.prototype = {
     var _this = this;
     var fragment = this.fragments[fragmentIndex];
 
-    //this.assessQuality(fragmentIndex);
-
     if (fragment && fragment.state <= DashlingFragmentState.idle) {
       fragment.state = DashlingFragmentState.downloading;
       fragment.qualityIndex = _this.qualityIndex;
@@ -259,7 +255,7 @@ Dashling.Stream.prototype = {
 
       _log("Download started: " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index=" + request.fragmentIndex : "") + " time=" + (new Date().getTime() - _this._startTime) + "ms stagger=" + _this.getRequestStaggerTime() + "ms", _this._settings);
 
-      _this._requestManager.load(request, true, _onSuccess, _onFailure);
+      _this._requestManager.load(request, true, _onSuccess, _onError);
     }
 
     function _onSuccess(request) {
@@ -275,13 +271,18 @@ Dashling.Stream.prototype = {
       }
     }
 
-    function _onFailure() {
-      if (!request.isAborted) {
-        fragment.state = DashlingFragmentState.error;
-      } else {
-        fragment.state = DashlingFragmentState.idle;
-        fragment.activeRequest = null;
-        fragment.requests = [];
+    function _onError(request) {
+      if (!_this.isDisposed) {
+        if (!request.isAborted) {
+          fragment.state = DashlingFragmentState.error;
+
+          // Stop the session on a fragment download failure.
+          _this.raiseEvent(DashlingEvent.sessionStateChange, DashlingSessionState.error, DashlingError.mediaSegmentDownload, request.statusCode);
+        } else {
+          fragment.state = DashlingFragmentState.idle;
+          fragment.activeRequest = null;
+          fragment.requests = [];
+        }
       }
     }
   },
@@ -389,9 +390,12 @@ Dashling.Stream.prototype = {
       }
     }
 
-    function _onFailure(response) {
+    function _onFailure() {
       if (!_this.isDisposed) {
         request.state = DashlingFragmentState.error;
+
+        // Stop the session on a fragment download failure.
+        this.raiseEvent(DashlingEvent.sessionStateChange, DashlingSessionState.error, DashlingError.initSegmentDownload, request.statusCode);
       }
     }
   },

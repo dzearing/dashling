@@ -155,7 +155,7 @@ var DashlingError = {
   mediaSourceInit: "mediaSourceInit",
   mediaSourceAppend: "mediaSourceAppend",
   initSegmentDownload: "initSegmentDownload",
-  mediaSegmentDownload: "fragmentDownload",
+  mediaSegmentDownload: "mediaSegmentDownload",
   append: "append"
 };
 
@@ -296,11 +296,11 @@ Dashling.prototype = {
 
   // Private methods
 
-  _setState: function(state, error) {
+  _setState: function(state, errorType, errorMessage) {
     if (this.state != state) {
 
       this.state = state;
-      this.lastError = error;
+      this.lastError = errorType ? (errorType + " " + (errorMessage ? "(" + errorMessage + ")" : "")) : null;
 
       // Stop stream controller immediately.
       if (state == DashlingSessionState.error && this._streamController) {
@@ -311,7 +311,7 @@ Dashling.prototype = {
         this.timeAtFirstCanPlay = new Date().getTime() - this.startTime;
       }
 
-      this.raiseEvent(DashlingEvent.sessionStateChange, state, error);
+      this.raiseEvent(DashlingEvent.sessionStateChange, state, errorType, errorMessage);
     }
   },
 
@@ -354,7 +354,7 @@ Dashling.prototype = {
     } else {
       _this._parser = new Dashling.ManifestParser(_this.settings);
 
-      _this._parser.addEventListener(Dashling.Event.download, function(ev) {
+      _this._parser.addEventListener(DashlingEvent.download, function(ev) {
         _this.raiseEvent(Dashling.Event.download, ev);
       });
 
@@ -368,9 +368,9 @@ Dashling.prototype = {
       }
     }
 
-    function _onManifestFailed(error) {
+    function _onManifestFailed(errorType, errorMessage) {
       if (_this._loadIndex == loadIndex) {
-        _this._setState(DashlingSessionState.error, error);
+        _this._setState(DashlingSessionState.error, errorType, errorMessage);
       }
     }
   },
@@ -389,12 +389,12 @@ Dashling.prototype = {
         _this._mediaSource,
         _this.settings);
 
-      _this._streamController.addEventListener(Dashling.Event.download, function(ev) {
+      _this._streamController.addEventListener(DashlingEvent.download, function(ev) {
         _this.raiseEvent(Dashling.Event.download, ev);
       });
 
-      _this._streamController.addEventListener(Dashling.Event.sessionStateChange, function(state, lastError) {
-        _this._setState(state, lastError);
+      _this._streamController.addEventListener(DashlingEvent.sessionStateChange, function(state, errorType, errorMessage) {
+        _this._setState(state, errorType, errorMessage);
       });
 
       _this._streamController.start();
@@ -463,7 +463,7 @@ Dashling.ManifestParser = function(settings) {
 
   _this._requestManager = new Dashling.RequestManager(false, settings);
 
-  _this._requestManager.addEventListener(Dashling.Event.download, function(ev) {
+  _this._requestManager.addEventListener(DashlingEvent.download, function(ev) {
     _this.raiseEvent(DashlingEvent.download, ev);
   });
 };
@@ -495,7 +495,7 @@ Dashling.ManifestParser.prototype = {
         try {
           manifest = _this._parseManifest(request.data);
         } catch (e) {
-          onError(DashlingError.manifestParse + " (" + e + ")", request);
+          onError(DashlingError.manifestParse, e);
         }
 
         if (manifest) {
@@ -507,7 +507,7 @@ Dashling.ManifestParser.prototype = {
 
     function _onError() {
       if (_this._parseIndex == parseIndex) {
-        onError(DashlingError.manifestDownload + " (" + request.statusCode + ")");
+        onError(DashlingError.manifestDownload, request.statusCode);
       }
     }
   },
@@ -596,7 +596,6 @@ Dashling.ManifestParser.prototype = {
 };
 
 _mix(Dashling.ManifestParser.prototype, EventingMixin);
-
 /// <summary></summary>
 
 Dashling.StreamController = function(videoElement, mediaSource, settings) {
@@ -630,6 +629,10 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
   for (var i = 0; i < _this._streams.length; i++) {
     _this._streams[i].addEventListener(Dashling.Event.download, function(ev) {
       _this.raiseEvent(Dashling.Event.download, ev);
+    });
+
+    _this._streams[i].addEventListener(Dashling.Event.sessionStateChange, function(state, errorType, errorMessage) {
+      _this.raiseEvent(Dashling.Event.sessionStateChange, state, errorType, errorMessage);
     });
   }
 
@@ -1170,9 +1173,7 @@ Dashling.Stream.prototype = {
   clearBuffer: function() {
     try {
       this._buffer.remove(0, this._videoElement.duration);
-    }
-    catch(e) {
-    }
+    } catch (e) {}
 
     for (var fragmentIndex = 0; fragmentIndex < this.fragments.length; fragmentIndex++) {
       var fragment = this.fragments[fragmentIndex];
@@ -1339,8 +1340,6 @@ Dashling.Stream.prototype = {
     var _this = this;
     var fragment = this.fragments[fragmentIndex];
 
-    //this.assessQuality(fragmentIndex);
-
     if (fragment && fragment.state <= DashlingFragmentState.idle) {
       fragment.state = DashlingFragmentState.downloading;
       fragment.qualityIndex = _this.qualityIndex;
@@ -1363,7 +1362,7 @@ Dashling.Stream.prototype = {
 
       _log("Download started: " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index=" + request.fragmentIndex : "") + " time=" + (new Date().getTime() - _this._startTime) + "ms stagger=" + _this.getRequestStaggerTime() + "ms", _this._settings);
 
-      _this._requestManager.load(request, true, _onSuccess, _onFailure);
+      _this._requestManager.load(request, true, _onSuccess, _onError);
     }
 
     function _onSuccess(request) {
@@ -1379,13 +1378,18 @@ Dashling.Stream.prototype = {
       }
     }
 
-    function _onFailure() {
-      if (!request.isAborted) {
-        fragment.state = DashlingFragmentState.error;
-      } else {
-        fragment.state = DashlingFragmentState.idle;
-        fragment.activeRequest = null;
-        fragment.requests = [];
+    function _onError(request) {
+      if (!_this.isDisposed) {
+        if (!request.isAborted) {
+          fragment.state = DashlingFragmentState.error;
+
+          // Stop the session on a fragment download failure.
+          _this.raiseEvent(DashlingEvent.sessionStateChange, DashlingSessionState.error, DashlingError.mediaSegmentDownload, request.statusCode);
+        } else {
+          fragment.state = DashlingFragmentState.idle;
+          fragment.activeRequest = null;
+          fragment.requests = [];
+        }
       }
     }
   },
@@ -1493,9 +1497,12 @@ Dashling.Stream.prototype = {
       }
     }
 
-    function _onFailure(response) {
+    function _onFailure() {
       if (!_this.isDisposed) {
         request.state = DashlingFragmentState.error;
+
+        // Stop the session on a fragment download failure.
+        this.raiseEvent(DashlingEvent.sessionStateChange, DashlingSessionState.error, DashlingError.initSegmentDownload, request.statusCode);
       }
     }
   },
@@ -1516,7 +1523,6 @@ Dashling.Stream.prototype = {
 
 _mix(Dashling.Stream.prototype, EventingMixin);
 _mix(Dashling.Stream.prototype, ThrottleMixin);
-
 Dashling.RequestManager = function(shouldRecordStats, settings) {
   _mix(this, {
     _settings: settings,

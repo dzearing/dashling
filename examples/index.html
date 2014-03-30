@@ -31,6 +31,10 @@
             dashling.addEventListener(Dashling.Event.download, function(ev) {
                 console.log("Event download received: " + ev.url + " " + ev.timeAtLastByte + "ms [" + ev.timeAtFirstByte + "ms / " + (ev.timeAtLastByte  - ev.timeAtFirstByte)+ "ms]");
             });
+
+            dashling.addEventListener(Dashling.Event.sessionStateChange, function(state, errorType, errorMessage) {
+              console.log("Event sessionStateChange received: state=" + state + " error=" + errorType + " errorMessage=" + errorMessage);
+            });
         }
 
         function loadDashling() {
