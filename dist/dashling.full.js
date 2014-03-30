@@ -1156,14 +1156,19 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
 
 Dashling.Stream.prototype = {
   dispose: function() {
-    this.isDisposed = true;
-
     if (this._requestManager) {
       this._requestManager.dispose();
     }
 
+    if (this._initRequestManager) {
+      this._initRequestManager.dispose();
+
+    }
+
     this.clearAllThrottles();
     this.removeAllEventListeners();
+
+    this.isDisposed = true;
   },
 
   abortAll: function() {
@@ -1502,7 +1507,7 @@ Dashling.Stream.prototype = {
         request.state = DashlingFragmentState.error;
 
         // Stop the session on a fragment download failure.
-        this.raiseEvent(DashlingEvent.sessionStateChange, DashlingSessionState.error, DashlingError.initSegmentDownload, request.statusCode);
+        _this.raiseEvent(DashlingEvent.sessionStateChange, DashlingSessionState.error, DashlingError.initSegmentDownload, request.statusCode);
       }
     }
   },
