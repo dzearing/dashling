@@ -133,7 +133,7 @@ Dashling.prototype = {
         this.timeAtFirstCanPlay = new Date().getTime() - this.startTime;
       }
 
-      this.raiseEvent(DashlingEvent.sessionStateChange, state);
+      this.raiseEvent(DashlingEvent.sessionStateChange, state, error);
     }
   },
 

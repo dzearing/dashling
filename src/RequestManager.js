@@ -79,7 +79,7 @@ Dashling.RequestManager.prototype = {
           bytesLoaded: ev.lengthComputable ? ev.loaded : -1
         });
 
-        _this._postProgress(request.progressEvents);
+        _this._postProgress(request.progressEvents, false);
       };
 
       xhr.onloadend = function() {
@@ -93,6 +93,8 @@ Dashling.RequestManager.prototype = {
 
           // Ensure we've recorded firstbyte time.
           xhr.onreadystatechange();
+
+          _this._postProgress(request.progressEvents, true);
 
           if (request.progressEvents.length > 2) {
             var lastEvent = request.progressEvents[request.progressEvents.length - 1];
@@ -156,7 +158,7 @@ Dashling.RequestManager.prototype = {
     return (!xhr.isAborted && xhr.status != 404);
   },
 
-  _postProgress: function(progressEvents) {
+  _postProgress: function(progressEvents, isComplete) {
     if (progressEvents.length > 2) {
       var lastEvent = progressEvents[progressEvents.length - 1];
       var firstEvent = progressEvents[0];
@@ -165,7 +167,7 @@ Dashling.RequestManager.prototype = {
       if (bytesLoaded > 10000) {
         var timeDifference = lastEvent.timeFromStart - firstEvent.timeFromStart;
 
-        if (timeDifference > 1) {
+        if (timeDifference > 5 && (isComplete || this._bytesPerSeconds.length < 5)) {
           _addMetric(this._bytesPerSeconds, (bytesLoaded * 1000) / timeDifference, 20);
         }
       }
