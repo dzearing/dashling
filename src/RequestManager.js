@@ -104,9 +104,6 @@ Dashling.RequestManager.prototype = {
             request.timeAtFirstByte = request.timeAtLastByte - (request.bytesLoaded / request.bytesPerMillisecond);
           }
 
-          _addMetric(_this._waitTimes, request.timeAtFirstByte, 20);
-          _addMetric(_this._receiveTimes, request.timeAtLastByte - request.timeAtFirstByte, 20);
-
           request.data = isArrayBuffer ? new Uint8Array(xhr.response) : xhr.responseText;
           request.statusCode = xhr.status;
           request.state = DashlingFragmentState.downloaded;
@@ -118,6 +115,8 @@ Dashling.RequestManager.prototype = {
 
         // Don't fire events for cache hits.
         if (request.timeAtLastByte > 5) {
+          _addMetric(_this._waitTimes, request.timeAtFirstByte, 20);
+          _addMetric(_this._receiveTimes, request.timeAtLastByte - request.timeAtFirstByte, 20);
           _this.raiseEvent(Dashling.Event.download, request);
         }
       };
