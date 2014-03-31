@@ -1649,77 +1649,77 @@ Dashling.RequestManager.prototype = {
         }
 
         // Don't fire events for cache hits.
-        if ((request.timeAtLastByte - request.timeAtFirstByte) > 4) {
-          _addMetric(_this._waitTimes, request.timeAtFirstByte, 20);
-          _addMetric(_this._receiveTimes, request.timeAtLastByte - request.timeAtFirstByte, 20);
-          _this.raiseEvent(Dashling.Event.download, request);
-        }
-      };
+        if ((request.timeAtLastByte > _this._settings.requestCacheThreshold) {
+            _addMetric(_this._waitTimes, request.timeAtFirstByte, 20);
+            _addMetric(_this._receiveTimes, request.timeAtLastByte - request.timeAtFirstByte, 20);
+            _this.raiseEvent(Dashling.Event.download, request);
+          }
+        };
 
 
-      function _onError() {
+        function _onError() {
 
-        if (xhr.status == 0 && request.timeAtLastByte >= _this._settings.requestTimeout) {
-          xhr.isTimedOut = true;
-        }
+          if (xhr.status == 0 && request.timeAtLastByte >= _this._settings.requestTimeout) {
+            xhr.isTimedOut = true;
+          }
 
-        if (_this._isRetriable(xhr) && ++retryIndex < maxRetries) {
+          if (_this._isRetriable(xhr) && ++retryIndex < maxRetries) {
 
-          request.retryCount++;
-          setTimeout(_startRequest, delaysBetweenRetries[Math.min(delaysBetweenRetries.length - 1, retryIndex)]);
-        } else {
-          request.state = DashlingFragmentState.error;
-          request.hasError = true;
-          request.isAborted = xhr.isAborted;
-          request.statusCode = xhr.isAborted ? "aborted" : xhr.isTimedOut ? "timeout" : xhr.status;
-          onFailure && onFailure(request);
-        }
-      };
+            request.retryCount++;
+            setTimeout(_startRequest, delaysBetweenRetries[Math.min(delaysBetweenRetries.length - 1, retryIndex)]);
+          } else {
+            request.state = DashlingFragmentState.error;
+            request.hasError = true;
+            request.isAborted = xhr.isAborted;
+            request.statusCode = xhr.isAborted ? "aborted" : xhr.isTimedOut ? "timeout" : xhr.status;
+            onFailure && onFailure(request);
+          }
+        };
 
-      request.state = DashlingFragmentState.downloading;
+        request.state = DashlingFragmentState.downloading;
 
-      request.progressEvents = [];
-      request.timeAtFirstByte = -1;
-      request.timeAtLastByte = -1;
-      request.startTime = new Date().getTime();
+        request.progressEvents = [];
+        request.timeAtFirstByte = -1;
+        request.timeAtLastByte = -1;
+        request.startTime = new Date().getTime();
 
-      xhr.send();
-    }
-  },
-
-  _isRetriable: function(xhr) {
-    return (!xhr.isAborted && xhr.status != 404);
-  },
-
-  _postProgress: function(progressEvents, isComplete) {
-    if (progressEvents.length > 2) {
-      var lastEvent = progressEvents[progressEvents.length - 1];
-      var firstEvent = progressEvents[0];
-      var bytesLoaded = lastEvent.bytesLoaded - firstEvent.bytesLoaded;
-
-      if (bytesLoaded > 10000) {
-        var timeDifference = lastEvent.timeFromStart - firstEvent.timeFromStart;
-
-        if (timeDifference > 5 && (isComplete || this._bytesPerSeconds.length < 5)) {
-          _addMetric(this._bytesPerSeconds, (bytesLoaded * 1000) / timeDifference, 20);
-        }
+        xhr.send();
       }
+    },
 
+    _isRetriable: function(xhr) {
+      return (!xhr.isAborted && xhr.status != 404);
+    },
+
+    _postProgress: function(progressEvents, isComplete) {
+      if (progressEvents.length > 2) {
+        var lastEvent = progressEvents[progressEvents.length - 1];
+        var firstEvent = progressEvents[0];
+        var bytesLoaded = lastEvent.bytesLoaded - firstEvent.bytesLoaded;
+
+        if (bytesLoaded > 10000) {
+          var timeDifference = lastEvent.timeFromStart - firstEvent.timeFromStart;
+
+          if (timeDifference > 5 && (isComplete || this._bytesPerSeconds.length < 5)) {
+            _addMetric(this._bytesPerSeconds, (bytesLoaded * 1000) / timeDifference, 20);
+          }
+        }
+
+      }
+    },
+
+    getAverageWait: function() {
+      return this._waitTimes.average || 0;
+    },
+
+    getAverageReceive: function() {
+      return this._receiveTimes.average || 0;
+    },
+
+    getAverageBytesPerSecond: function() {
+      return this._bytesPerSeconds.average || 0;
     }
-  },
+  };
 
-  getAverageWait: function() {
-    return this._waitTimes.average || 0;
-  },
-
-  getAverageReceive: function() {
-    return this._receiveTimes.average || 0;
-  },
-
-  getAverageBytesPerSecond: function() {
-    return this._bytesPerSeconds.average || 0;
-  }
-};
-
-_mix(Dashling.RequestManager.prototype, EventingMixin);
+  _mix(Dashling.RequestManager.prototype, EventingMixin);
 })();
