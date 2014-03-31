@@ -125,36 +125,43 @@ Dashling.Stream.prototype = {
 
     function _appendNextEntry() {
       if (!_this.isDisposed) {
-        var request = fragmentsToAppend[0];
 
-        if (fragmentsToAppend.length) {
-          buffer.addEventListener("update", _onAppendComplete);
-
-          try {
-            _log("Append started: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
-            buffer.appendBuffer(request.data);
-          } catch (e) {
-            request.state = fragment.state = DashlingFragmentState.error;
-            _this._isAppending = false;
-
-            onComplete();
-            // TODO: Fire error?
-          }
+        // Gaurd against buffer clearing and appending too soon afterwards.
+        if (_this._buffer.updating) {
+          setTimeout(_appendNextEntry, 10);
         } else {
-          // We need to give a small slice of time because the video's buffered region doesn't update immediately after
-          // append is complete.
-          setTimeout(function() {
-            if (!_this.isDisposed) {
-              fragment.state = DashlingFragmentState.appended;
+          var request = fragmentsToAppend[0];
+
+          if (fragmentsToAppend.length) {
+            buffer.addEventListener("update", _onAppendComplete);
+
+            try {
+              _log("Append started: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
+              buffer.appendBuffer(request.data);
+            } catch (e) {
+              _log("Append exception: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : "") + " " + e, _this._settings);
+              request.state = fragment.state = DashlingFragmentState.error;
               _this._isAppending = false;
 
-              var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
-
-              _this._appendLength += fragment.time.lengthSeconds;
-              _addMetric(_this._bufferRate, _this._appendLength / timeSinceStart, 5);
-              onComplete(fragment);
+              onComplete();
+              // TODO: Fire error?
             }
-          }, 20);
+          } else {
+            // We need to give a small slice of time because the video's buffered region doesn't update immediately after
+            // append is complete.
+            setTimeout(function() {
+              if (!_this.isDisposed) {
+                fragment.state = DashlingFragmentState.appended;
+                _this._isAppending = false;
+
+                var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
+
+                _this._appendLength += fragment.time.lengthSeconds;
+                _addMetric(_this._bufferRate, _this._appendLength / timeSinceStart, 5);
+                onComplete(fragment);
+              }
+            }, 20);
+          }
         }
       }
     }
