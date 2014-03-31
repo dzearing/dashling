@@ -342,6 +342,16 @@ Dashling.StreamController.prototype = {
     }
   },
 
+  _allStreamsAppended: function(streams, fragmentIndex) {
+    var allStreamsAppended = false;
+
+    for (var streamIndex = 0; streamIndex < streams.length; streamIndex++) {
+      allStreamsAppended &= streams[streamIndex].fragments[fragmentIndex] == DashlingFragmentState.appended;
+    }
+
+    return allStreamsAppended;
+  },
+
   _getDownloadCandidates: function() {
     var _this = this;
     var downloadList = [
@@ -349,6 +359,7 @@ Dashling.StreamController.prototype = {
       []
     ];
     var streams = _this._streams;
+    var stream;
     var settings = _this._settings;
     var streamIndex;
     var fragmentLength = _this._audioStream.fragments[0].time.lengthSeconds;
@@ -360,19 +371,24 @@ Dashling.StreamController.prototype = {
     var fragmentCount = _this._videoStream.fragments.length;
     var fragmentIndex;
 
-    for (fragmentIndex = _this._appendIndex; fragmentIndex <= maxIndex && fragmentIndex < fragmentCount; fragmentIndex++) {
+    // Quality assessment.
+    for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
+      stream.assessQuality();
+    }
 
-      for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
+    for (fragmentIndex = _this._appendIndex; fragmentIndex <= maxIndex && fragmentIndex < fragmentCount; fragmentIndex++) {
+      var allStreamsAppended = _this._allStreamsAppended(streams, fragmentIndex);
+
+      // Missing fragment check.
+      for (streamIndex = 0; allStreamsAppended && streamIndex < streams.length; streamIndex++) {
         var stream = streams[streamIndex];
 
         if (stream.isMissing(fragmentIndex, currentTime)) {
           var fragment = stream.fragments[fragmentIndex];
 
-          _log("Missing fragment reset: index=" + fragmentIndex + " [" + fragment.time.startSeconds + "] ranges: " + _getBuffered(_this._videoElement), _this._settings);
+          _log("Missing fragment reset: stream=" + stream._streamType + " index=" + fragmentIndex + " [" + fragment.time.startSeconds + "] ranges: " + _getBuffered(_this._videoElement), _this._settings);
           stream.fragments[fragmentIndex].state = DashlingFragmentState.idle;
         }
-
-        stream.assessQuality();
       }
 
       var canLoadAudio = this._audioStream.canLoad(fragmentIndex);
