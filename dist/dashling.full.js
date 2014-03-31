@@ -974,7 +974,7 @@ Dashling.StreamController.prototype = {
 
     // Quality assessment.
     for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
-      stream.assessQuality();
+      streams[streamIndex].assessQuality();
     }
 
     for (fragmentIndex = _this._appendIndex; fragmentIndex <= maxIndex && fragmentIndex < fragmentCount; fragmentIndex++) {
@@ -982,7 +982,7 @@ Dashling.StreamController.prototype = {
 
       // Missing fragment check.
       for (streamIndex = 0; allStreamsAppended && streamIndex < streams.length; streamIndex++) {
-        var stream = streams[streamIndex];
+        stream = streams[streamIndex];
 
         if (stream.isMissing(fragmentIndex, currentTime)) {
           var fragment = stream.fragments[fragmentIndex];
