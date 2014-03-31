@@ -51,8 +51,13 @@
             dashling.settings.isABREnabled = !(selectMode == "fixed");
             dashling.settings.isRBREnabled = (selectMode == "random");
 
-            var selection = document.querySelector("#videoSelect");
-            var url = selection.options[selection.selectedIndex].value;
+            var selection = document.querySelector("#customUrl");
+            var url = selection.value;
+
+            if (!url) {
+                selection = document.querySelector("#videoSelect");
+                url = selection.options[selection.selectedIndex].value;
+            }
 
             dashling.settings.targetQuality.audio = audioQuality;
             dashling.settings.targetQuality.video = videoQuality;
@@ -148,6 +153,14 @@
             margin: 5px 0;
         }
 
+        .customUrlBox {
+            margin: 10px 0;
+        }
+
+        #customUrl {
+            width: 640px;
+        }
+
         .hidden {
             display: none;
         }
@@ -167,6 +180,7 @@
                 provided by the browsers <b>Media Source Extension</b> support. As latency is more understood and buffer availability changes, quality is adjusted appropriately.
                 <a href="#" onclick="toggleBenefits()">See benefits over dash.js.</a>
             </p>
+
             <div id="benefits" class="hidden">
                 <h2>Benefits over dash.js:</h2>
                 <ul>
@@ -194,6 +208,11 @@
                 <option value="invalid/invalidXml.xml">Invalid XML manifest</option>
                 <option value="invalid/missingData.xml">Missing timeline manifest</option>
             </select>
+
+            <div class="customUrlBox">
+                <div>Custom url (overrides selected video):</div>
+                <input id="customUrl" type="text"></input>
+            </div>
 
             <div>
                 <span>Quality adjustment method:</span>

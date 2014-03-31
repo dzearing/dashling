@@ -214,7 +214,7 @@ Dashling.prototype = {
 
     _this.reset();
 
-    this.startTime = new Date().getTime();
+    _this.startTime = new Date().getTime();
     _this._setState(DashlingSessionState.initializing);
     _this._videoElement = videoElement;
     _this._initializeMediaSource(videoElement);
@@ -329,10 +329,6 @@ Dashling.prototype = {
     }
 
     mediaSource.addEventListener("sourceopen", _onOpened, false);
-
-    // videoElement.autoplay = false;
-    videoElement.autoplay = true;
-
     videoElement.src = window.URL.createObjectURL(mediaSource);
 
     function _onOpened() {
@@ -383,6 +379,7 @@ Dashling.prototype = {
       _this.settings.manifest) {
 
       _this._mediaSource.duration = _this.settings.manifest.mediaDuration;
+      _this._videoElement.playbackRate = 0;
 
       _this._streamController = new Dashling.StreamController(
         _this._videoElement,
@@ -403,6 +400,7 @@ Dashling.prototype = {
 };
 
 _mix(Dashling.prototype, EventingMixin);
+
 Dashling.Settings = {
   // The manifest object to use, if you want to skip the serial call to fetch the xml.
   manifest: null,
@@ -1272,12 +1270,7 @@ Dashling.Stream.prototype = {
               _log("Append started: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
               buffer.appendBuffer(request.data);
             } catch (e) {
-              _log("Append exception: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : "") + " " + e, _this._settings);
-              request.state = fragment.state = DashlingFragmentState.error;
-              _this._isAppending = false;
-
-              onComplete();
-              // TODO: Fire error?
+              _onAppendError(e);
             }
           } else {
             // We need to give a small slice of time because the video's buffered region doesn't update immediately after
@@ -1286,6 +1279,10 @@ Dashling.Stream.prototype = {
               if (!_this.isDisposed) {
                 fragment.state = DashlingFragmentState.appended;
                 _this._isAppending = false;
+
+                if (_this.isMissing(fragmentIndex, _this._videoElement.currentTime)) {
+                  _onAppendError("Buffer missing appended fragment");
+                }
 
                 var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
 
@@ -1319,6 +1316,16 @@ Dashling.Stream.prototype = {
 
         _appendNextEntry();
       }
+    }
+
+    function _onAppendError(e) {
+      var statusCode = (e ? e.toString() : "error") + " (quality=" + fragment.qualityId + " index=" + (fragment.fragmentIndex !== undefined ? "index " + fragment.fragmentIndex : "") + ")";
+
+      fragment.state = DashlingFragmentState.error;
+      _this._isAppending = false;
+
+      _log("Append exception: " + statusCode);
+      _this.raiseEvent(DashlingEvent.sessionStateChange, DashlingSessionState.error, DashlingError.append, statusCode);
     }
   },
 
@@ -1565,6 +1572,7 @@ Dashling.Stream.prototype = {
 
 _mix(Dashling.Stream.prototype, EventingMixin);
 _mix(Dashling.Stream.prototype, ThrottleMixin);
+
 Dashling.RequestManager = function(shouldRecordStats, settings) {
   _mix(this, {
     _settings: settings,

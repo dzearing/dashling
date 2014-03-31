@@ -139,12 +139,7 @@ Dashling.Stream.prototype = {
               _log("Append started: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
               buffer.appendBuffer(request.data);
             } catch (e) {
-              _log("Append exception: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : "") + " " + e, _this._settings);
-              request.state = fragment.state = DashlingFragmentState.error;
-              _this._isAppending = false;
-
-              onComplete();
-              // TODO: Fire error?
+              _onAppendError(e);
             }
           } else {
             // We need to give a small slice of time because the video's buffered region doesn't update immediately after
@@ -153,6 +148,10 @@ Dashling.Stream.prototype = {
               if (!_this.isDisposed) {
                 fragment.state = DashlingFragmentState.appended;
                 _this._isAppending = false;
+
+                if (_this.isMissing(fragmentIndex, _this._videoElement.currentTime)) {
+                  _onAppendError("Buffer missing appended fragment");
+                }
 
                 var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
 
@@ -186,6 +185,16 @@ Dashling.Stream.prototype = {
 
         _appendNextEntry();
       }
+    }
+
+    function _onAppendError(e) {
+      var statusCode = (e ? e.toString() : "error") + " (quality=" + fragment.qualityId + " index=" + (fragment.fragmentIndex !== undefined ? "index " + fragment.fragmentIndex : "") + ")";
+
+      fragment.state = DashlingFragmentState.error;
+      _this._isAppending = false;
+
+      _log("Append exception: " + statusCode);
+      _this.raiseEvent(DashlingEvent.sessionStateChange, DashlingSessionState.error, DashlingError.append, statusCode);
     }
   },
 

@@ -36,7 +36,7 @@ Dashling.prototype = {
 
     _this.reset();
 
-    this.startTime = new Date().getTime();
+    _this.startTime = new Date().getTime();
     _this._setState(DashlingSessionState.initializing);
     _this._videoElement = videoElement;
     _this._initializeMediaSource(videoElement);
@@ -151,10 +151,6 @@ Dashling.prototype = {
     }
 
     mediaSource.addEventListener("sourceopen", _onOpened, false);
-
-    // videoElement.autoplay = false;
-    videoElement.autoplay = true;
-
     videoElement.src = window.URL.createObjectURL(mediaSource);
 
     function _onOpened() {
@@ -205,6 +201,7 @@ Dashling.prototype = {
       _this.settings.manifest) {
 
       _this._mediaSource.duration = _this.settings.manifest.mediaDuration;
+      _this._videoElement.playbackRate = 0;
 
       _this._streamController = new Dashling.StreamController(
         _this._videoElement,
