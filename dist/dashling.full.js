@@ -459,7 +459,7 @@ Dashling.Settings = {
   delaysBetweenRetries: [200, 1500, 3000],
 
   // Milliseconds that a request must be to register as a "download" that triggers the download event (used for ignoring cache responses.)
-  requestCacheThreshold: 100
+  requestCacheThreshold: 80
 };
 Dashling.ManifestParser = function(settings) {
   var _this = this;
@@ -1251,16 +1251,20 @@ Dashling.Stream.prototype = {
             // TODO: Fire error?
           }
         } else {
-          fragment.state = DashlingFragmentState.appended;
-          _this._isAppending = false;
+          // We need to give a small slice of time because the video's buffered region doesn't update immediately after
+          // append is complete.
+          setTimeout(function() {
+            fragment.state = DashlingFragmentState.appended;
+            _this._isAppending = false;
 
-          var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
+            var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
 
-          _this._appendLength += fragment.time.lengthSeconds;
+            _this._appendLength += fragment.time.lengthSeconds;
 
-          _addMetric(_this._bufferRate, _this._appendLength / timeSinceStart, 5);
+            _addMetric(_this._bufferRate, _this._appendLength / timeSinceStart, 5);
 
-          onComplete(fragment);
+            onComplete(fragment);
+          }, 20);
         }
       }
     }
