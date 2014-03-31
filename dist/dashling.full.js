@@ -836,70 +836,73 @@ Dashling.StreamController.prototype = {
     var streams = this._streams;
     var stream;
     var streamIndex;
-    var currentTime = _this._settings.startTime || _this._videoElement.currentTime;
 
-    if (streams && streams.length && _this._mediaSource && _this._mediaSource.readyState != "closed") {
-      var streamsAppendable = true;
+    if (!_this.isDisposed) {
+      var currentTime = _this._settings.startTime || _this._videoElement.currentTime;
 
-      while (_this._appendIndex < streams[0].fragments.length) {
-        // Try to append the current index.
-        var canAppend = true;
-        var allStreamsAppended = true;
+      if (streams && streams.length && _this._mediaSource && _this._mediaSource.readyState != "closed") {
+        var streamsAppendable = true;
 
-        for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
-          stream = streams[streamIndex];
-          canAppend &= stream.canAppend(_this._appendIndex);
-          allStreamsAppended &= stream.fragments[_this._appendIndex].state == DashlingFragmentState.appended && !stream.isMissing(_this._appendIndex, currentTime);
-        }
-
-        if (canAppend) {
-          allStreamsAppended = false;
+        while (_this._appendIndex < streams[0].fragments.length) {
+          // Try to append the current index.
+          var canAppend = true;
+          var allStreamsAppended = true;
 
           for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
-            var stream = streams[streamIndex];
+            stream = streams[streamIndex];
+            canAppend &= stream.canAppend(_this._appendIndex);
+            allStreamsAppended &= stream.fragments[_this._appendIndex].state == DashlingFragmentState.appended && !stream.isMissing(_this._appendIndex, currentTime);
+          }
 
-            stream.append(_this._appendIndex, _this._appendNextFragment);
-            allStreamsAppended &= stream.fragments[_this._appendIndex].state == DashlingFragmentState.appended;
+          if (canAppend) {
+            allStreamsAppended = false;
+
+            for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
+              var stream = streams[streamIndex];
+
+              stream.append(_this._appendIndex, _this._appendNextFragment);
+              allStreamsAppended &= stream.fragments[_this._appendIndex].state == DashlingFragmentState.appended;
+            }
+          }
+
+          // If the append index, and assess playback
+          if (allStreamsAppended) {
+            // Update buffer rate.
+            var fragment = _this._streams[0].fragments[_this._appendIndex];
+
+            if (!fragment.activeRequest._hasUpdatedBufferRate) {
+              fragment.activeRequest._hasUpdatedBufferRate = true;
+
+              _this._appendedSeconds += fragment.time.lengthSeconds;
+              var now = new Date().getTime();
+              var duration = (now - this._startTime) / 1000;
+
+              _addMetric(_this._bufferRate, _this._appendedSeconds / (duration || .1), 3);
+            }
+
+            _this._appendIndex++;
+
+            // After we're done appending, update the video element's time to the start time if provided.
+            if (_this._settings.startTime) {
+              try {
+                _this._videoElement.currentTime = _this._settings.startTime;
+                _this._settings.startTime = 0;
+              } catch (e) {}
+
+            }
+
+            _this._checkCanPlay();
+          } else {
+            break;
           }
         }
 
-        // If the append index, and assess playback
-        if (allStreamsAppended) {
-          // Update buffer rate.
-          var fragment = _this._streams[0].fragments[_this._appendIndex];
-
-          if (!fragment.activeRequest._hasUpdatedBufferRate) {
-            fragment.activeRequest._hasUpdatedBufferRate = true;
-
-            _this._appendedSeconds += fragment.time.lengthSeconds;
-            var now = new Date().getTime();
-            var duration = (now - this._startTime) / 1000;
-
-            _addMetric(_this._bufferRate, _this._appendedSeconds / (duration || .1), 3);
-          }
-
-          _this._appendIndex++;
-
-          // After we're done appending, update the video element's time to the start time if provided.
-          if (_this._settings.startTime) {
-            try {
-              _this._videoElement.currentTime = _this._settings.startTime;
-              _this._settings.startTime = 0;
-            } catch (e) {}
-
-          }
-
-          _this._checkCanPlay();
-        } else {
-          break;
+        if (_this._appendIndex == streams[0].fragments.length && _this._mediaSource.readyState == "open") {
+          _this._mediaSource.endOfStream();
         }
-      }
 
-      if (_this._appendIndex == streams[0].fragments.length && _this._mediaSource.readyState == "open") {
-        _this._mediaSource.endOfStream();
+        _this._loadNextFragment();
       }
-
-      _this._loadNextFragment();
     }
   },
 
@@ -1254,16 +1257,16 @@ Dashling.Stream.prototype = {
           // We need to give a small slice of time because the video's buffered region doesn't update immediately after
           // append is complete.
           setTimeout(function() {
-            fragment.state = DashlingFragmentState.appended;
-            _this._isAppending = false;
+            if (!_this.isDisposed) {
+              fragment.state = DashlingFragmentState.appended;
+              _this._isAppending = false;
 
-            var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
+              var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
 
-            _this._appendLength += fragment.time.lengthSeconds;
-
-            _addMetric(_this._bufferRate, _this._appendLength / timeSinceStart, 5);
-
-            onComplete(fragment);
+              _this._appendLength += fragment.time.lengthSeconds;
+              _addMetric(_this._bufferRate, _this._appendLength / timeSinceStart, 5);
+              onComplete(fragment);
+            }
           }, 20);
         }
       }
