@@ -51,5 +51,8 @@ Dashling.Settings = {
   maxRetries: 3,
 
   // Millisecond delays between retries.
-  delaysBetweenRetries: [200, 1500, 3000]
+  delaysBetweenRetries: [200, 1500, 3000],
+
+  // Milliseconds that a request must be to register as a "download" that triggers the download event (used for ignoring cache responses.)
+  requestCacheThreshold: 100
 };
