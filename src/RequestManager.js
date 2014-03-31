@@ -116,7 +116,7 @@ Dashling.RequestManager.prototype = {
         }
 
         // Don't fire events for cache hits.
-        if (request.timeAtLastByte > 5) {
+        if ((request.timeAtLastByte - request.timeAtFirstByte) > 4) {
           _addMetric(_this._waitTimes, request.timeAtFirstByte, 20);
           _addMetric(_this._receiveTimes, request.timeAtLastByte - request.timeAtFirstByte, 20);
           _this.raiseEvent(Dashling.Event.download, request);
