@@ -379,7 +379,6 @@ Dashling.prototype = {
       _this.settings.manifest) {
 
       _this._mediaSource.duration = _this.settings.manifest.mediaDuration;
-      _this._videoElement.playbackRate = 0;
 
       _this._streamController = new Dashling.StreamController(
         _this._videoElement,
