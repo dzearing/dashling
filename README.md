@@ -1,4 +1,4 @@
-# Dashling [![Build Status](https://travis-ci.org/dzearing/dashling.png?branch=gh-pages)](https://travis-ci.org/dzearing/dashling)
+# Dashling [![Build Status](https://travis-ci.org/dzearing/dashling.png?branch=gh-pages)](https://travis-ci.org/dzearing/dashling) [![Coverage Status](https://coveralls.io/repos/dzearing/dashling/badge.png)](https://coveralls.io/r/dzearing/dashling)
 
 Dashling is a client implementation for the playback of MPEG DASH via JavaScript and compliant browsers.
 
