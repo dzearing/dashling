@@ -441,7 +441,7 @@ Dashling.Settings = {
     video: 5
   },
 
-  // Default bytes per millisecond, used to determine default request staggering (480p is around 520 bytes per millisecond.)
+  // Default bytes per millisecond, used to determine default request staggering (480p is around 520 bytes per millisecond (4.16 mbps.)
   defaultBandwidth: 520,
 
   // Default request timeout
@@ -456,6 +456,7 @@ Dashling.Settings = {
   // Milliseconds that a request must be to register as a "download" that triggers the download event (used for ignoring cache responses.)
   requestCacheThreshold: 80
 };
+
 Dashling.ManifestParser = function(settings) {
   var _this = this;
 
