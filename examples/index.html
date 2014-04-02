@@ -62,7 +62,6 @@
             dashling.settings.targetQuality.video = videoQuality;
 
             var videoElement = document.querySelector("video");
-            //videoElement.muted = true;
 
             monitor.reset();
             dashling.load(videoElement, url);
@@ -251,7 +250,7 @@
             <button type="button" onclick="toggleMonitor()">Toggle dashboard</button>
 
             <div class="videoContainer">
-                <video controls></video>
+                <video controls autoplay></video>
             </div>
         </div>
     </div>
