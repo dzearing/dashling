@@ -6,6 +6,9 @@
     "email": "dzearing@hotmail.com",
     "url": "http://dzearing.github.io/dashling"
   },
+  "scripts": {
+    "test": "gulp tests"
+  },
   "devDependencies": {
     "gulp": "^3.5.5",
     "gulp-concat": "^2.1.7",
