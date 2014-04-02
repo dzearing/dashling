@@ -95,7 +95,6 @@ Dashling.prototype = {
     return this._streamController ? this._streamController.getBufferRate() : 0;
   },
 
-
   getPlayingQuality: function(streamType) {
     /// <summary>Gets the playing quality for the streamType at the current video location.</summary>
 
@@ -120,7 +119,6 @@ Dashling.prototype = {
 
   _setState: function(state, errorType, errorMessage) {
     if (this.state != state) {
-
       this.state = state;
       this.lastError = errorType ? (errorType + " " + (errorMessage ? "(" + errorMessage + ")" : "")) : null;
 

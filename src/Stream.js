@@ -188,7 +188,7 @@ Dashling.Stream.prototype = {
     }
 
     function _onAppendError(e) {
-      var statusCode = (e ? e.toString() : "error") + " (quality=" + fragment.qualityId + " index=" + (fragment.fragmentIndex !== undefined ? "index " + fragment.fragmentIndex : "") + ")";
+      var statusCode = (e ? e.toString() : "error") + " (quality=" + fragment.qualityId + (fragment.fragmentIndex !== undefined ? " index=" + fragment.fragmentIndex : "") + ")";
 
       fragment.state = DashlingFragmentState.error;
       _this._isAppending = false;
