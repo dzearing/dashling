@@ -9,6 +9,7 @@ TBD
 ### Install Dependencies
 1. [install nodejs](http://nodejs.org/)
 2. [Install dependencies from npm]
+    * npm install -g gulp
     * npm install
 3. Type "gulp" to build and run tests.
 
