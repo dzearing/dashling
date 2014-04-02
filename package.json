@@ -1,12 +1,17 @@
 {
-    "name": "dashling",
-    "version": "0.1.0",
-    "devDependencies": {
-        "gulp": "^3.5.5",
-        "gulp-concat": "^2.1.7",
-        "gulp-uglify": "^0.2.1",
-        "gulp-rename": "^1.2.0",
-        "qunitjs": "^1.14.0",
-        "gulp-qunit": ">=0.3.2"
-    }
+  "name": "dashling",
+  "version": "0.1.0",
+  "author": {
+    "name": "David Zearing",
+    "email": "dzearing@hotmail.com",
+    "url": "http://dzearing.github.io/dashling"
+  },
+  "devDependencies": {
+    "gulp": "^3.5.5",
+    "gulp-concat": "^2.1.7",
+    "gulp-uglify": "^0.2.1",
+    "gulp-rename": "^1.2.0",
+    "qunitjs": "^1.14.0",
+    "gulp-qunit": ">=0.3.2"
+  }
 }
