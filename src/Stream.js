@@ -272,7 +272,10 @@ Dashling.Stream.prototype = {
         requestType: "media",
         qualityIndex: fragment.qualityIndex,
         qualityId: fragment.qualityId,
-        clearDataAfterAppend: true
+        clearDataAfterAppend: true,
+        isArrayBuffer: true,
+        onSuccess: _onSuccess,
+        onError: _onError
       };
 
       fragment.activeRequest = request;
@@ -280,7 +283,7 @@ Dashling.Stream.prototype = {
 
       _log("Download started: " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index=" + request.fragmentIndex : "") + " time=" + (new Date().getTime() - _this._startTime) + "ms stagger=" + _this.getRequestStaggerTime() + "ms", _this._settings);
 
-      _this._requestManager.load(request, true, _onSuccess, _onError);
+      _this._requestManager.load(request);
     }
 
     function _onSuccess(request) {
@@ -397,12 +400,15 @@ Dashling.Stream.prototype = {
         timeAtDownloadStarted: new Date().getTime(),
         requestType: "init",
         qualityIndex: qualityIndex,
-        qualityId: this._streamInfo.qualities[qualityIndex].id
+        qualityId: this._streamInfo.qualities[qualityIndex].id,
+        isArrayBuffer: true,
+        onSuccess: _onSuccess,
+        onError: _onError
       };
 
       _log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
 
-      _this._initRequestManager.load(request, true, _onSuccess, _onFailure);
+      _this._initRequestManager.load(request);
     }
 
     function _onSuccess() {
@@ -415,7 +421,7 @@ Dashling.Stream.prototype = {
       }
     }
 
-    function _onFailure() {
+    function _onError() {
       if (!_this.isDisposed) {
         request.state = DashlingFragmentState.error;
 

@@ -11,10 +11,12 @@
     "type": "git",
     "url": "git://github.com/dzearing/dashling.git"
   },
-  "licenses": [{
-    "type": "MIT",
-    "url": "https://github.com/dzearing/dashling/blob/gh-pages/LICENSE"
-  }],
+  "licenses": [
+    {
+      "type": "MIT",
+      "url": "https://github.com/dzearing/dashling/blob/gh-pages/LICENSE"
+    }
+  ],
   "scripts": {
     "test": "gulp covertest"
   },
@@ -31,6 +33,7 @@
     "karma": "^0.12.3",
     "karma-phantomjs-launcher": "0.1.2",
     "karma-coverage": "^0.2.1",
-    "karma-qunit": "^0.1.1"
+    "karma-qunit": "^0.1.1",
+    "karma-chrome-launcher": "^0.1.3"
   }
 }

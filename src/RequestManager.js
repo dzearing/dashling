@@ -39,13 +39,12 @@ Dashling.RequestManager.prototype = {
       _log("Aborting request: " + xhr.url)
       xhr.isAborted = true;
       xhr.abort();
-
     }
 
     this._activeRequests = {};
   },
 
-  load: function(request, isArrayBuffer, onSuccess, onFailure) {
+  load: function(request) {
     var _this = this;
     var maxRetries = this._maxRetries;
     var retryIndex = -1;
@@ -63,7 +62,7 @@ Dashling.RequestManager.prototype = {
 
       xhr.url = request.url;
       xhr.open("GET", request.url, true);
-      isArrayBuffer && (xhr.responseType = "arraybuffer");
+      request.isArrayBuffer && (xhr.responseType = "arraybuffer");
 
       xhr.timeout = _this._settings.requestTimeout;
 
@@ -89,7 +88,7 @@ Dashling.RequestManager.prototype = {
         request.timeAtLastByte = new Date().getTime() - request.startTime;
 
         if (xhr.status >= 200 && xhr.status <= 299) {
-          request.bytesLoaded = isArrayBuffer ? xhr.response.byteLength : xhr.responseText.length;
+          request.bytesLoaded = request.isArrayBuffer ? xhr.response.byteLength : xhr.responseText ? xhr.responseText.length : 0;
 
           // Ensure we've recorded firstbyte time.
           xhr.onreadystatechange();
@@ -106,11 +105,11 @@ Dashling.RequestManager.prototype = {
             request.timeAtFirstByte = request.timeAtLastByte - (request.bytesLoaded / request.bytesPerMillisecond);
           }
 
-          request.data = isArrayBuffer ? new Uint8Array(xhr.response) : xhr.responseText;
+          request.data = request.isArrayBuffer ? new Uint8Array(xhr.response) : xhr.responseText;
           request.statusCode = xhr.status;
           request.state = DashlingFragmentState.downloaded;
 
-          onSuccess && onSuccess(request);
+          request.onSuccess && request.onSuccess(request);
         } else {
           _onError(request);
         }
@@ -139,7 +138,7 @@ Dashling.RequestManager.prototype = {
           request.hasError = true;
           request.isAborted = xhr.isAborted;
           request.statusCode = xhr.isAborted ? "aborted" : xhr.isTimedOut ? "timeout" : xhr.status;
-          onFailure && onFailure(request);
+          request.onError && request.onError(request);
         }
       };
 

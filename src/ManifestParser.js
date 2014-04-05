@@ -23,10 +23,12 @@ Dashling.ManifestParser.prototype = {
     var parseIndex = ++_this._parseIndex;
     var request = {
       url: url,
-      requestType: "manifest"
+      requestType: "manifest",
+      onSuccess: _onSuccess,
+      onError: _onError
     };
 
-    this._requestManager.load(request, false, _onSuccess, _onError);
+    this._requestManager.load(request);
 
     function _onSuccess() {
       if (_this._parseIndex == parseIndex) {

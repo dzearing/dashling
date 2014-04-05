@@ -482,10 +482,12 @@ Dashling.ManifestParser.prototype = {
     var parseIndex = ++_this._parseIndex;
     var request = {
       url: url,
-      requestType: "manifest"
+      requestType: "manifest",
+      onSuccess: _onSuccess,
+      onError: _onError
     };
 
-    this._requestManager.load(request, false, _onSuccess, _onError);
+    this._requestManager.load(request);
 
     function _onSuccess() {
       if (_this._parseIndex == parseIndex) {
@@ -1401,7 +1403,10 @@ Dashling.Stream.prototype = {
         requestType: "media",
         qualityIndex: fragment.qualityIndex,
         qualityId: fragment.qualityId,
-        clearDataAfterAppend: true
+        clearDataAfterAppend: true,
+        isArrayBuffer: true,
+        onSuccess: _onSuccess,
+        onError: _onError
       };
 
       fragment.activeRequest = request;
@@ -1409,7 +1414,7 @@ Dashling.Stream.prototype = {
 
       _log("Download started: " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index=" + request.fragmentIndex : "") + " time=" + (new Date().getTime() - _this._startTime) + "ms stagger=" + _this.getRequestStaggerTime() + "ms", _this._settings);
 
-      _this._requestManager.load(request, true, _onSuccess, _onError);
+      _this._requestManager.load(request);
     }
 
     function _onSuccess(request) {
@@ -1526,12 +1531,15 @@ Dashling.Stream.prototype = {
         timeAtDownloadStarted: new Date().getTime(),
         requestType: "init",
         qualityIndex: qualityIndex,
-        qualityId: this._streamInfo.qualities[qualityIndex].id
+        qualityId: this._streamInfo.qualities[qualityIndex].id,
+        isArrayBuffer: true,
+        onSuccess: _onSuccess,
+        onError: _onError
       };
 
       _log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
 
-      _this._initRequestManager.load(request, true, _onSuccess, _onFailure);
+      _this._initRequestManager.load(request);
     }
 
     function _onSuccess() {
@@ -1544,7 +1552,7 @@ Dashling.Stream.prototype = {
       }
     }
 
-    function _onFailure() {
+    function _onError() {
       if (!_this.isDisposed) {
         request.state = DashlingFragmentState.error;
 
@@ -1570,7 +1578,6 @@ Dashling.Stream.prototype = {
 
 _mix(Dashling.Stream.prototype, EventingMixin);
 _mix(Dashling.Stream.prototype, ThrottleMixin);
-
 Dashling.RequestManager = function(shouldRecordStats, settings) {
   _mix(this, {
     _settings: settings,
@@ -1612,13 +1619,12 @@ Dashling.RequestManager.prototype = {
       _log("Aborting request: " + xhr.url)
       xhr.isAborted = true;
       xhr.abort();
-
     }
 
     this._activeRequests = {};
   },
 
-  load: function(request, isArrayBuffer, onSuccess, onFailure) {
+  load: function(request) {
     var _this = this;
     var maxRetries = this._maxRetries;
     var retryIndex = -1;
@@ -1636,7 +1642,7 @@ Dashling.RequestManager.prototype = {
 
       xhr.url = request.url;
       xhr.open("GET", request.url, true);
-      isArrayBuffer && (xhr.responseType = "arraybuffer");
+      request.isArrayBuffer && (xhr.responseType = "arraybuffer");
 
       xhr.timeout = _this._settings.requestTimeout;
 
@@ -1662,7 +1668,7 @@ Dashling.RequestManager.prototype = {
         request.timeAtLastByte = new Date().getTime() - request.startTime;
 
         if (xhr.status >= 200 && xhr.status <= 299) {
-          request.bytesLoaded = isArrayBuffer ? xhr.response.byteLength : xhr.responseText.length;
+          request.bytesLoaded = request.isArrayBuffer ? xhr.response.byteLength : xhr.responseText ? xhr.responseText.length : 0;
 
           // Ensure we've recorded firstbyte time.
           xhr.onreadystatechange();
@@ -1679,11 +1685,11 @@ Dashling.RequestManager.prototype = {
             request.timeAtFirstByte = request.timeAtLastByte - (request.bytesLoaded / request.bytesPerMillisecond);
           }
 
-          request.data = isArrayBuffer ? new Uint8Array(xhr.response) : xhr.responseText;
+          request.data = request.isArrayBuffer ? new Uint8Array(xhr.response) : xhr.responseText;
           request.statusCode = xhr.status;
           request.state = DashlingFragmentState.downloaded;
 
-          onSuccess && onSuccess(request);
+          request.onSuccess && request.onSuccess(request);
         } else {
           _onError(request);
         }
@@ -1712,7 +1718,7 @@ Dashling.RequestManager.prototype = {
           request.hasError = true;
           request.isAborted = xhr.isAborted;
           request.statusCode = xhr.isAborted ? "aborted" : xhr.isTimedOut ? "timeout" : xhr.status;
-          onFailure && onFailure(request);
+          request.onError && request.onError(request);
         }
       };
 
