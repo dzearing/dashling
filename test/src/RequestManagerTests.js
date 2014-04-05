@@ -1,9 +1,10 @@
 var settings = {
   maxRetries: 0,
-  delaysBetweenRetries: [0]
+  delaysBetweenRetries: [0],
+  logToConsole: false
 };
 
-asyncTest("Request.load success", function() {
+asyncTest("RequestManager load success", function() {
   expect(5);
 
   var requests = new Dashling.RequestManager(false, settings);
@@ -39,7 +40,7 @@ asyncTest("Request.load success", function() {
   };
 });
 
-asyncTest("Request.load failure", function() {
+asyncTest("RequestManager load failure", function() {
   expect(4);
 
   var requests = new Dashling.RequestManager(false, settings);
@@ -74,7 +75,7 @@ asyncTest("Request.load failure", function() {
   }
 });
 
-test("Request.abortAll", function() {
+test("RequestManager abortAll", function() {
   var requests = new Dashling.RequestManager(false, settings);
   var successCalled, errorCalled;
   var request = {
@@ -95,6 +96,32 @@ test("Request.abortAll", function() {
   requests.abortAll();
 
   equal(requests.getActiveRequestCount(), 0, "After abort, there were 0 active requests");
+  ok(!successCalled, "Success callback was not called");
+  ok(errorCalled, "Error callback was called");
+  equal(request.statusCode, "aborted", "Request status marked as aborted");
+});
+
+test("RequestManager dispose", function() {
+  var requests = new Dashling.RequestManager(false, settings);
+  var successCalled, errorCalled;
+  var request = {
+    url: 'foo',
+    onSuccess: function() {
+      successCalled = true;
+    },
+    onError: function() {
+      errorCalled = true;
+    }
+  };
+
+  requests._xhrType = MockXHR.mockTextResponse();
+  requests.load(request);
+
+  equal(requests.getActiveRequestCount(), 1, "There was 1 active request");
+
+  requests.dispose();
+
+  equal(requests.getActiveRequestCount(), 0, "dispose, there were 0 active requests");
   ok(!successCalled, "Success callback was not called");
   ok(errorCalled, "Error callback was called");
   equal(request.statusCode, "aborted", "Request status marked as aborted");

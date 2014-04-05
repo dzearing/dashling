@@ -39,6 +39,13 @@ MockXHR.prototype = {
       _this.responseText = response.responseText;
 
       if (_this.status >= 200 && _this.status <= 299) {
+        var responseLength = response ? response.length : -1;
+
+        _this.onprogress && _this.onprogress({
+          lengthComputable: (responseLength > -1),
+          loaded: responseLength
+        });
+
         _this.onload && _this.onload();
       } else {
         _this.onerror && _this.onerror();
