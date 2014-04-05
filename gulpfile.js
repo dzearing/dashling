@@ -36,6 +36,10 @@ function inDirectory(dir, files) {
 
 gulp.task('scripts', function() {
 
+  gulp.src(paths.scripts)
+    .pipe(concat('dashling.test.js'))
+    .pipe(gulp.dest('./dist'));
+
   gulp.src(paths.wrappedScripts)
     .pipe(concat('dashling.full.js'))
     .pipe(gulp.dest('./dist'))
