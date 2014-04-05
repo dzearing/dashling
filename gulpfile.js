@@ -60,7 +60,7 @@ gulp.task('test', ['scripts'], function(cb) {
     });
 });
 
-gulp.task('officialTest', ['scripts'], function() {
+gulp.task('covertest', ['scripts'], function() {
   gulp.run('test', function() {
     gulp.src('coverage/**/lcov.info')
       .pipe(coveralls());
