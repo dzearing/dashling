@@ -57,15 +57,12 @@ gulp.task('test', ['scripts'], function(cb) {
     .on('error', function(err) {
       // Make sure failed tests cause gulp to exit non-zero
       throw err;
-    })
-    .on('end', cb);
+    });
 });
 
-gulp.task('covertest', ['scripts'], function() {
-  gulp.run('test', function() {
-    gulp.src('coverage/**/lcov.info')
-      .pipe(coveralls());
-  });
+gulp.task('covertest', ['scripts', 'test'], function() {
+  gulp.src('coverage/**/lcov.info')
+    .pipe(coveralls());
 });
 
 // Rerun the task when a file changes
