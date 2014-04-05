@@ -1,11 +1,20 @@
 {
   "name": "dashling",
   "version": "0.1.0",
+  "homepage": "http://dzearing.github.io/dashling",
   "author": {
     "name": "David Zearing",
     "email": "dzearing@hotmail.com",
     "url": "http://dzearing.github.io/dashling"
   },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/dzearing/dashling.git"
+  },
+  "licenses": [{
+    "type": "MIT",
+    "url": "https://github.com/dzearing/dashling/blob/gh-pages/LICENSE"
+  }],
   "scripts": {
     "test": "gulp covertest"
   },
@@ -23,9 +32,5 @@
     "karma-phantomjs-launcher": "0.1.2",
     "karma-coverage": "^0.2.1",
     "karma-qunit": "^0.1.1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "http://github.com/dzearing/dashling.git"
   }
 }
