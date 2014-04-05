@@ -21,7 +21,8 @@
     "phantomjs": "^1.9.7-3",
     "karma": "^0.12.3",
     "karma-phantomjs-launcher": "0.1.2",
-    "karma-coverage": "^0.2.1"
+    "karma-coverage": "^0.2.1",
+    "karma-qunit": "^0.1.1"
   },
   "repository": {
     "type": "git",
