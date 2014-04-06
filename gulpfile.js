@@ -5,6 +5,8 @@ var uglify = require('gulp-uglify')
 var rename = require('gulp-rename');
 var karma = require('gulp-karma');
 var coveralls = require('gulp-coveralls');
+var jshint = require('gulp-jshint');
+var stylish = require('jshint-stylish');
 
 var paths = {
   scripts: inDirectory('src/', [
@@ -40,7 +42,15 @@ gulp.task('clean', function() {
     .pipe(clean());
 });
 
-gulp.task('scripts', ['clean'], function(cb) {
+
+gulp.task('jshint', function() {
+  return gulp.src(paths.scripts)
+    .pipe(jshint())
+    .pipe(jshint.reporter(stylish))
+    .pipe(jshint.reporter('fail'));
+});
+
+gulp.task('scripts', ['clean', 'jshint'], function(cb) {
   return gulp.src(paths.wrappedScripts)
     .pipe(concat('dashling.full.js'))
     .pipe(gulp.dest('dist'))
@@ -49,7 +59,7 @@ gulp.task('scripts', ['clean'], function(cb) {
     .pipe(gulp.dest('dist'));
 });
 
-gulp.task('buildtest', function() {
+gulp.task('buildtest', ['clean', 'jshint'], function() {
   return gulp.src(paths.scripts)
     .pipe(concat('dashling.test.js'))
     .pipe(gulp.dest('dist'));
@@ -74,6 +84,6 @@ gulp.task('watch', function() {
   gulp.watch(paths.testFiles, ['test']);
 });
 
-gulp.task('default', ['scripts', 'test'], function() {
+gulp.task('default', ['jshint', 'scripts', 'test'], function() {
 
 });

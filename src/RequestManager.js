@@ -36,7 +36,7 @@ Dashling.RequestManager.prototype = {
     for (var requestIndex in this._activeRequests) {
       var xhr = this._activeRequests[requestIndex];
 
-      _log("Aborting request: " + xhr.url, this._settings)
+      _log("Aborting request: " + xhr.url, this._settings);
       xhr.isAborted = true;
       xhr.abort();
     }
@@ -62,7 +62,10 @@ Dashling.RequestManager.prototype = {
 
       xhr.url = request.url;
       xhr.open("GET", request.url, true);
-      request.isArrayBuffer && (xhr.responseType = "arraybuffer");
+
+      if (request.isArrayBuffer) {
+        xhr.responseType = "arraybuffer";
+      }
 
       xhr.timeout = _this._settings.requestTimeout;
 
@@ -109,7 +112,9 @@ Dashling.RequestManager.prototype = {
           request.statusCode = xhr.status;
           request.state = DashlingFragmentState.downloaded;
 
-          request.onSuccess && request.onSuccess(request);
+          if (request.onSuccess) {
+            request.onSuccess(request);
+          }
         } else {
           _onError(request);
         }
@@ -125,7 +130,7 @@ Dashling.RequestManager.prototype = {
 
       function _onError() {
 
-        if (xhr.status == 0 && request.timeAtLastByte >= _this._settings.requestTimeout) {
+        if (xhr.status === 0 && request.timeAtLastByte >= _this._settings.requestTimeout) {
           xhr.isTimedOut = true;
         }
 
@@ -138,9 +143,12 @@ Dashling.RequestManager.prototype = {
           request.hasError = true;
           request.isAborted = xhr.isAborted;
           request.statusCode = xhr.isAborted ? "aborted" : xhr.isTimedOut ? "timeout" : xhr.status;
-          request.onError && request.onError(request);
+
+          if (request.onError) {
+            request.onError(request);
+          }
         }
-      };
+      }
 
       request.state = DashlingFragmentState.downloading;
 

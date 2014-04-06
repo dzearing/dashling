@@ -28,15 +28,11 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
     _this._videoStream = new Dashling.Stream("video", mediaSource, videoElement, settings)
   ];
 
-  for (var i = 0; i < _this._streams.length; i++) {
-    _this._streams[i].addEventListener(Dashling.Event.download, function(ev) {
-      _this.raiseEvent(Dashling.Event.download, ev);
-    });
+  _this._audioStream.addEventListener(DashlingEvent.download, _forwardDownloadEvent);
+  _this._audioStream.addEventListener(DashlingEvent.sessionStateChange, _forwardSessionStateChange);
 
-    _this._streams[i].addEventListener(Dashling.Event.sessionStateChange, function(state, errorType, errorMessage) {
-      _this.raiseEvent(Dashling.Event.sessionStateChange, state, errorType, errorMessage);
-    });
-  }
+  _this._videoStream.addEventListener(DashlingEvent.download, _forwardDownloadEvent);
+  _this._videoStream.addEventListener(DashlingEvent.sessionStateChange, _forwardSessionStateChange);
 
   _this._requestTimerIds = [0, 0];
 
@@ -44,7 +40,15 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
 
   // If a start time has been provided, start at the right location.
   if (settings.startTime && firstFragmentDuration) {
-    this._appendIndex = Math.max(0, Math.min(_this._audioStream.fragments.length - 1, (Math.floor((settings.startTime - .5) / firstFragmentDuration))));
+    this._appendIndex = Math.max(0, Math.min(_this._audioStream.fragments.length - 1, (Math.floor((settings.startTime - 0.5) / firstFragmentDuration))));
+  }
+
+  function _forwardDownloadEvent(ev) {
+    _this.raiseEvent(DashlingEvent.download, ev);
+  }
+
+  function _forwardSessionStateChange(state, errorType, errorMessage) {
+    _this.raiseEvent(DashlingEvent.sessionStateChange, state, errorType, errorMessage);
   }
 };
 
@@ -115,9 +119,9 @@ Dashling.StreamController.prototype = {
       var currentTime = this._videoElement.currentTime;
       var stream = streamType == "video" ? this._videoStream : streamType._audioStream;
       var fragmentIndex = Math.min(stream.fragments.length - 1, Math.floor(currentTime / stream.fragments[0].time.lengthSeconds));
-      var qualityIndex = stream.fragments[fragmentIndex].qualityIndex;
 
-      qualityIndex >= 0 ? qualityIndex : stream.qualityIndex
+      qualityIndex = stream.fragments[fragmentIndex].qualityIndex;
+      qualityIndex = qualityIndex >= 0 ? qualityIndex : stream.qualityIndex;
     }
 
     return qualityIndex;
@@ -138,7 +142,7 @@ Dashling.StreamController.prototype = {
     var remainingBuffer = 0;
 
     if (!_this.isDisposed) {
-      var currentTime = (_this._settings.startTime || Math.max(.5, _this._videoElement.currentTime)) + (offsetFromCurrentTime || 0);
+      var currentTime = (_this._settings.startTime || Math.max(0.5, _this._videoElement.currentTime)) + (offsetFromCurrentTime || 0);
       var bufferRanges = _this._videoElement.buffered;
 
       for (var i = 0; i < bufferRanges.length; i++) {
@@ -157,8 +161,8 @@ Dashling.StreamController.prototype = {
     var _this = this;
 
     if (!_this.isDisposed) {
-      var currentTime = (_this._settings.startTime || Math.max(.5, _this._videoElement.currentTime));
-      var remainingDuration = _this._settings.manifest.mediaDuration - currentTime - .5;
+      var currentTime = (_this._settings.startTime || Math.max(0.5, _this._videoElement.currentTime));
+      var remainingDuration = _this._settings.manifest.mediaDuration - currentTime - 0.5;
       var remainingBuffer = this.getRemainingBuffer(offsetFromCurrentTime);
       var bufferRate = this.getBufferRate();
 
@@ -173,7 +177,7 @@ Dashling.StreamController.prototype = {
         timeUntilUnderrun = remainingBuffer + (confidence * estimatedAdditionalBuffer);
 
         // if we're 50% of the way to max or beyond duration.
-        if (timeUntilUnderrun > remainingDuration || (timeUntilUnderrun > (_this._settings.maxBufferSeconds * .5))) {
+        if (timeUntilUnderrun > remainingDuration || (timeUntilUnderrun > (_this._settings.maxBufferSeconds * 0.5))) {
           timeUntilUnderrun = Number.MAX_VALUE;
         }
       }
@@ -257,7 +261,7 @@ Dashling.StreamController.prototype = {
             allStreamsAppended = false;
 
             for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
-              var stream = streams[streamIndex];
+              stream = streams[streamIndex];
 
               stream.append(_this._appendIndex, _this._appendNextFragment);
               allStreamsAppended &= stream.fragments[_this._appendIndex].state == DashlingFragmentState.appended;
@@ -276,7 +280,7 @@ Dashling.StreamController.prototype = {
               var now = new Date().getTime();
               var duration = (now - this._startTime) / 1000;
 
-              _addMetric(_this._bufferRate, _this._appendedSeconds / (duration || .1), 3);
+              _addMetric(_this._bufferRate, _this._appendedSeconds / (duration || 0.1), 3);
             }
 
             _this._appendIndex++;
@@ -321,11 +325,11 @@ Dashling.StreamController.prototype = {
   _checkCanPlay: function() {
     var _this = this;
     var timeUntilUnderrun = _this.getTimeUntilUnderrun();
-    var allowedSeekAhead = .5;
+    var allowedSeekAhead = 0.5;
 
     this._lastCurrentTime = _this._videoElement.currentTime;
 
-    if (_this._canPlay && timeUntilUnderrun < .1) {
+    if (_this._canPlay && timeUntilUnderrun < 0.1) {
       // We are stalling!
       _this._stalls++;
       _this._setCanPlay(false);
@@ -458,11 +462,11 @@ Dashling.StreamController.prototype = {
     var _this = this;
     var currentTime = _this._videoElement.currentTime;
     var lastTimeBeforeSeek = this._lastTimeBeforeSeek;
-    var fragmentIndex = Math.floor(Math.max(0, currentTime - .5) / _this._streams[0].fragments[0].time.lengthSeconds);
+    var fragmentIndex = Math.floor(Math.max(0, currentTime - 0.5) / _this._streams[0].fragments[0].time.lengthSeconds);
     var streamIndex;
     var isBufferAcceptable =
       _this._videoElement.buffered.length == 1 &&
-      _this._videoElement.buffered.start(0) <= .5 &&
+      _this._videoElement.buffered.start(0) <= 0.5 &&
       _this._videoElement.buffered.end(0) > currentTime &&
       _this._videoElement.buffered.end(0) < _this._settings.maxBufferSeconds;
 

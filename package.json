@@ -11,12 +11,10 @@
     "type": "git",
     "url": "git://github.com/dzearing/dashling.git"
   },
-  "licenses": [
-    {
-      "type": "MIT",
-      "url": "https://github.com/dzearing/dashling/blob/gh-pages/LICENSE"
-    }
-  ],
+  "licenses": [{
+    "type": "MIT",
+    "url": "https://github.com/dzearing/dashling/blob/gh-pages/LICENSE"
+  }],
   "scripts": {
     "test": "gulp covertest"
   },
@@ -28,12 +26,14 @@
     "gulp-karma": "0.0.4",
     "gulp-coveralls": "^0.1.2",
     "gulp-clean": "^0.2.4",
+    "gulp-jshint": "^1.5.3",
     "qunitjs": "~1.12.0",
     "phantomjs": "^1.9.7-3",
     "karma": "^0.12.3",
     "karma-phantomjs-launcher": "0.1.2",
     "karma-coverage": "^0.2.1",
     "karma-qunit": "^0.1.1",
-    "karma-chrome-launcher": "^0.1.3"
+    "karma-chrome-launcher": "^0.1.3",
+    "jshint-stylish": "^0.1.5"
   }
 }

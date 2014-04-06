@@ -75,8 +75,13 @@ var ThrottleMixin = {
   throttle: function(func, id, minTime, shouldReset, shouldCallImmediately) {
     var _this = this;
 
-    (!_this._throttleIds) && (_this._throttleIds = {});
-    (shouldReset) && (_this.clearThrottle(id));
+    if (!_this._throttleIds) {
+      _this._throttleIds = {};
+    }
+
+    if (shouldReset) {
+      _this.clearThrottle(id);
+    }
 
     if (!_this._throttleIds[id]) {
       _this._throttleIds[id] = setTimeout(function() {
@@ -626,15 +631,11 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
     _this._videoStream = new Dashling.Stream("video", mediaSource, videoElement, settings)
   ];
 
-  for (var i = 0; i < _this._streams.length; i++) {
-    _this._streams[i].addEventListener(Dashling.Event.download, function(ev) {
-      _this.raiseEvent(Dashling.Event.download, ev);
-    });
+  _this._audioStream.addEventListener(DashlingEvent.download, _forwardDownloadEvent);
+  _this._audioStream.addEventListener(DashlingEvent.sessionStateChange, _forwardSessionStateChange);
 
-    _this._streams[i].addEventListener(Dashling.Event.sessionStateChange, function(state, errorType, errorMessage) {
-      _this.raiseEvent(Dashling.Event.sessionStateChange, state, errorType, errorMessage);
-    });
-  }
+  _this._videoStream.addEventListener(DashlingEvent.download, _forwardDownloadEvent);
+  _this._videoStream.addEventListener(DashlingEvent.sessionStateChange, _forwardSessionStateChange);
 
   _this._requestTimerIds = [0, 0];
 
@@ -642,7 +643,15 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
 
   // If a start time has been provided, start at the right location.
   if (settings.startTime && firstFragmentDuration) {
-    this._appendIndex = Math.max(0, Math.min(_this._audioStream.fragments.length - 1, (Math.floor((settings.startTime - .5) / firstFragmentDuration))));
+    this._appendIndex = Math.max(0, Math.min(_this._audioStream.fragments.length - 1, (Math.floor((settings.startTime - 0.5) / firstFragmentDuration))));
+  }
+
+  function _forwardDownloadEvent(ev) {
+    _this.raiseEvent(DashlingEvent.download, ev);
+  }
+
+  function _forwardSessionStateChange(state, errorType, errorMessage) {
+    _this.raiseEvent(DashlingEvent.sessionStateChange, state, errorType, errorMessage);
   }
 };
 
@@ -713,9 +722,9 @@ Dashling.StreamController.prototype = {
       var currentTime = this._videoElement.currentTime;
       var stream = streamType == "video" ? this._videoStream : streamType._audioStream;
       var fragmentIndex = Math.min(stream.fragments.length - 1, Math.floor(currentTime / stream.fragments[0].time.lengthSeconds));
-      var qualityIndex = stream.fragments[fragmentIndex].qualityIndex;
 
-      qualityIndex >= 0 ? qualityIndex : stream.qualityIndex
+      qualityIndex = stream.fragments[fragmentIndex].qualityIndex;
+      qualityIndex = qualityIndex >= 0 ? qualityIndex : stream.qualityIndex;
     }
 
     return qualityIndex;
@@ -736,7 +745,7 @@ Dashling.StreamController.prototype = {
     var remainingBuffer = 0;
 
     if (!_this.isDisposed) {
-      var currentTime = (_this._settings.startTime || Math.max(.5, _this._videoElement.currentTime)) + (offsetFromCurrentTime || 0);
+      var currentTime = (_this._settings.startTime || Math.max(0.5, _this._videoElement.currentTime)) + (offsetFromCurrentTime || 0);
       var bufferRanges = _this._videoElement.buffered;
 
       for (var i = 0; i < bufferRanges.length; i++) {
@@ -755,8 +764,8 @@ Dashling.StreamController.prototype = {
     var _this = this;
 
     if (!_this.isDisposed) {
-      var currentTime = (_this._settings.startTime || Math.max(.5, _this._videoElement.currentTime));
-      var remainingDuration = _this._settings.manifest.mediaDuration - currentTime - .5;
+      var currentTime = (_this._settings.startTime || Math.max(0.5, _this._videoElement.currentTime));
+      var remainingDuration = _this._settings.manifest.mediaDuration - currentTime - 0.5;
       var remainingBuffer = this.getRemainingBuffer(offsetFromCurrentTime);
       var bufferRate = this.getBufferRate();
 
@@ -771,7 +780,7 @@ Dashling.StreamController.prototype = {
         timeUntilUnderrun = remainingBuffer + (confidence * estimatedAdditionalBuffer);
 
         // if we're 50% of the way to max or beyond duration.
-        if (timeUntilUnderrun > remainingDuration || (timeUntilUnderrun > (_this._settings.maxBufferSeconds * .5))) {
+        if (timeUntilUnderrun > remainingDuration || (timeUntilUnderrun > (_this._settings.maxBufferSeconds * 0.5))) {
           timeUntilUnderrun = Number.MAX_VALUE;
         }
       }
@@ -855,7 +864,7 @@ Dashling.StreamController.prototype = {
             allStreamsAppended = false;
 
             for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
-              var stream = streams[streamIndex];
+              stream = streams[streamIndex];
 
               stream.append(_this._appendIndex, _this._appendNextFragment);
               allStreamsAppended &= stream.fragments[_this._appendIndex].state == DashlingFragmentState.appended;
@@ -874,7 +883,7 @@ Dashling.StreamController.prototype = {
               var now = new Date().getTime();
               var duration = (now - this._startTime) / 1000;
 
-              _addMetric(_this._bufferRate, _this._appendedSeconds / (duration || .1), 3);
+              _addMetric(_this._bufferRate, _this._appendedSeconds / (duration || 0.1), 3);
             }
 
             _this._appendIndex++;
@@ -919,11 +928,11 @@ Dashling.StreamController.prototype = {
   _checkCanPlay: function() {
     var _this = this;
     var timeUntilUnderrun = _this.getTimeUntilUnderrun();
-    var allowedSeekAhead = .5;
+    var allowedSeekAhead = 0.5;
 
     this._lastCurrentTime = _this._videoElement.currentTime;
 
-    if (_this._canPlay && timeUntilUnderrun < .1) {
+    if (_this._canPlay && timeUntilUnderrun < 0.1) {
       // We are stalling!
       _this._stalls++;
       _this._setCanPlay(false);
@@ -1056,11 +1065,11 @@ Dashling.StreamController.prototype = {
     var _this = this;
     var currentTime = _this._videoElement.currentTime;
     var lastTimeBeforeSeek = this._lastTimeBeforeSeek;
-    var fragmentIndex = Math.floor(Math.max(0, currentTime - .5) / _this._streams[0].fragments[0].time.lengthSeconds);
+    var fragmentIndex = Math.floor(Math.max(0, currentTime - 0.5) / _this._streams[0].fragments[0].time.lengthSeconds);
     var streamIndex;
     var isBufferAcceptable =
       _this._videoElement.buffered.length == 1 &&
-      _this._videoElement.buffered.start(0) <= .5 &&
+      _this._videoElement.buffered.start(0) <= 0.5 &&
       _this._videoElement.buffered.end(0) > currentTime &&
       _this._videoElement.buffered.end(0) < _this._settings.maxBufferSeconds;
 
@@ -1304,7 +1313,9 @@ Dashling.Stream.prototype = {
         request.timeAtAppended = new Date().getTime() - request.startTime;
         request.state = DashlingFragmentState.appended;
 
-        (request.clearDataAfterAppend) && (request.data = null);
+        if (request.clearDataAfterAppend) {
+          request.data = null;
+        }
 
         if (request.requestType === "init") {
           _this._initializedQualityIndex = request.qualityIndex;
@@ -1356,8 +1367,8 @@ Dashling.Stream.prototype = {
       var fragmentTime = fragment.time;
 
       // Allow for up to .5 second of wiggle room at start of playback. else be more meticulous.
-      var atStart = fragmentTime.startSeconds < .3;
-      var atEnd = (fragmentTime.startSeconds + fragmentTime.lengthSeconds + .3) >= (this._manifest.mediaDuration);
+      var atStart = fragmentTime.startSeconds < 0.3;
+      var atEnd = (fragmentTime.startSeconds + fragmentTime.lengthSeconds + 0.3) >= (this._manifest.mediaDuration);
 
       var safeStartTime = Math.max(currentTime, fragmentTime.startSeconds + (atStart ? 0.5 : 0.05));
       var safeEndTime = fragmentTime.startSeconds + fragmentTime.lengthSeconds - (atEnd ? 0.8 : 0.05);
@@ -1465,7 +1476,7 @@ Dashling.Stream.prototype = {
       var targetQuality = 0;
       var logEntry = "Quality check " + _this._streamType + ": bps=" + Math.round(bytesPerSecond);
       var segmentLength = _this._streamInfo.timeline[0].lengthSeconds;
-      var averageWaitPerSegment = segmentLength * .4;
+      var averageWaitPerSegment = segmentLength * 0.4;
 
       for (var qualityIndex = 0; qualityIndex <= maxQuality; qualityIndex++) {
         var duration = _this._estimateDownloadSeconds(qualityIndex, 0);
@@ -1615,7 +1626,7 @@ Dashling.RequestManager.prototype = {
     for (var requestIndex in this._activeRequests) {
       var xhr = this._activeRequests[requestIndex];
 
-      _log("Aborting request: " + xhr.url, this._settings)
+      _log("Aborting request: " + xhr.url, this._settings);
       xhr.isAborted = true;
       xhr.abort();
     }
@@ -1641,7 +1652,10 @@ Dashling.RequestManager.prototype = {
 
       xhr.url = request.url;
       xhr.open("GET", request.url, true);
-      request.isArrayBuffer && (xhr.responseType = "arraybuffer");
+
+      if (request.isArrayBuffer) {
+        xhr.responseType = "arraybuffer";
+      }
 
       xhr.timeout = _this._settings.requestTimeout;
 
@@ -1688,7 +1702,9 @@ Dashling.RequestManager.prototype = {
           request.statusCode = xhr.status;
           request.state = DashlingFragmentState.downloaded;
 
-          request.onSuccess && request.onSuccess(request);
+          if (request.onSuccess) {
+            request.onSuccess(request);
+          }
         } else {
           _onError(request);
         }
@@ -1704,7 +1720,7 @@ Dashling.RequestManager.prototype = {
 
       function _onError() {
 
-        if (xhr.status == 0 && request.timeAtLastByte >= _this._settings.requestTimeout) {
+        if (xhr.status === 0 && request.timeAtLastByte >= _this._settings.requestTimeout) {
           xhr.isTimedOut = true;
         }
 
@@ -1717,9 +1733,12 @@ Dashling.RequestManager.prototype = {
           request.hasError = true;
           request.isAborted = xhr.isAborted;
           request.statusCode = xhr.isAborted ? "aborted" : xhr.isTimedOut ? "timeout" : xhr.status;
-          request.onError && request.onError(request);
+
+          if (request.onError) {
+            request.onError(request);
+          }
         }
-      };
+      }
 
       request.state = DashlingFragmentState.downloading;
 

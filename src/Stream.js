@@ -174,7 +174,9 @@ Dashling.Stream.prototype = {
         request.timeAtAppended = new Date().getTime() - request.startTime;
         request.state = DashlingFragmentState.appended;
 
-        (request.clearDataAfterAppend) && (request.data = null);
+        if (request.clearDataAfterAppend) {
+          request.data = null;
+        }
 
         if (request.requestType === "init") {
           _this._initializedQualityIndex = request.qualityIndex;
@@ -226,8 +228,8 @@ Dashling.Stream.prototype = {
       var fragmentTime = fragment.time;
 
       // Allow for up to .5 second of wiggle room at start of playback. else be more meticulous.
-      var atStart = fragmentTime.startSeconds < .3;
-      var atEnd = (fragmentTime.startSeconds + fragmentTime.lengthSeconds + .3) >= (this._manifest.mediaDuration);
+      var atStart = fragmentTime.startSeconds < 0.3;
+      var atEnd = (fragmentTime.startSeconds + fragmentTime.lengthSeconds + 0.3) >= (this._manifest.mediaDuration);
 
       var safeStartTime = Math.max(currentTime, fragmentTime.startSeconds + (atStart ? 0.5 : 0.05));
       var safeEndTime = fragmentTime.startSeconds + fragmentTime.lengthSeconds - (atEnd ? 0.8 : 0.05);
@@ -335,7 +337,7 @@ Dashling.Stream.prototype = {
       var targetQuality = 0;
       var logEntry = "Quality check " + _this._streamType + ": bps=" + Math.round(bytesPerSecond);
       var segmentLength = _this._streamInfo.timeline[0].lengthSeconds;
-      var averageWaitPerSegment = segmentLength * .4;
+      var averageWaitPerSegment = segmentLength * 0.4;
 
       for (var qualityIndex = 0; qualityIndex <= maxQuality; qualityIndex++) {
         var duration = _this._estimateDownloadSeconds(qualityIndex, 0);

@@ -2,8 +2,13 @@ var ThrottleMixin = {
   throttle: function(func, id, minTime, shouldReset, shouldCallImmediately) {
     var _this = this;
 
-    (!_this._throttleIds) && (_this._throttleIds = {});
-    (shouldReset) && (_this.clearThrottle(id));
+    if (!_this._throttleIds) {
+      _this._throttleIds = {};
+    }
+
+    if (shouldReset) {
+      _this.clearThrottle(id);
+    }
 
     if (!_this._throttleIds[id]) {
       _this._throttleIds[id] = setTimeout(function() {
