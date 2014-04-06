@@ -421,7 +421,7 @@ Dashling.Settings = {
   shouldAutoPlay: true,
 
   // Logs debug data to console.
-  logToConsole: true,
+  logToConsole: false,
 
   // Number of buffered seconds in which we will start to be more aggressive on estimates.
   safeBufferSeconds: 12,
@@ -456,7 +456,6 @@ Dashling.Settings = {
   // Milliseconds that a request must be to register as a "download" that triggers the download event (used for ignoring cache responses.)
   requestCacheThreshold: 80
 };
-
 Dashling.ManifestParser = function(settings) {
   var _this = this;
 
@@ -1616,7 +1615,7 @@ Dashling.RequestManager.prototype = {
     for (var requestIndex in this._activeRequests) {
       var xhr = this._activeRequests[requestIndex];
 
-      _log("Aborting request: " + xhr.url)
+      _log("Aborting request: " + xhr.url, this._settings)
       xhr.isAborted = true;
       xhr.abort();
     }

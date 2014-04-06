@@ -36,7 +36,7 @@ Dashling.RequestManager.prototype = {
     for (var requestIndex in this._activeRequests) {
       var xhr = this._activeRequests[requestIndex];
 
-      _log("Aborting request: " + xhr.url)
+      _log("Aborting request: " + xhr.url, this._settings)
       xhr.isAborted = true;
       xhr.abort();
     }

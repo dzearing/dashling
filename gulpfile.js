@@ -34,34 +34,33 @@ function inDirectory(dir, files) {
   return newSet;
 }
 
-gulp.task('scripts', function() {
 
-  gulp.src(paths.scripts)
-    .pipe(concat('dashling.test.js'))
-    .pipe(gulp.dest('./dist'));
-
-  gulp.src(paths.wrappedScripts)
-    .pipe(concat('dashling.full.js'))
-    .pipe(gulp.dest('./dist'))
-    .pipe(uglify())
-    .pipe(rename('dashling.min.js'))
-    .pipe(gulp.dest('./dist'));
-
+gulp.task('clean', function() {
+  gulp.src(['coverage', 'dist'])
+    .pipe(clean());
 });
 
-gulp.task('test', ['scripts'], function(cb) {
-  gulp.src('coverage')
-    .pipe(clean());
+gulp.task('scripts', ['clean'], function(cb) {
+  return gulp.src(paths.wrappedScripts)
+    .pipe(concat('dashling.full.js'))
+    .pipe(gulp.dest('dist'))
+    .pipe(uglify())
+    .pipe(rename('dashling.min.js'))
+    .pipe(gulp.dest('dist'));
+});
 
+gulp.task('buildtest', function() {
+  return gulp.src(paths.scripts)
+    .pipe(concat('dashling.test.js'))
+    .pipe(gulp.dest('dist'));
+});
+
+gulp.task('test', ['clean', 'buildtest', 'scripts'], function(cb) {
   return gulp.src(paths.wrappedScripts.concat(paths.testFiles))
     .pipe(karma({
       configFile: 'karma.config.js',
       action: 'run'
-    }))
-    .on('error', function(err) {
-      // Make sure failed tests cause gulp to exit non-zero
-      throw err;
-    });
+    }));
 });
 
 gulp.task('covertest', ['scripts', 'test'], function() {

@@ -21,7 +21,7 @@ Dashling.Settings = {
   shouldAutoPlay: true,
 
   // Logs debug data to console.
-  logToConsole: true,
+  logToConsole: false,
 
   // Number of buffered seconds in which we will start to be more aggressive on estimates.
   safeBufferSeconds: 12,

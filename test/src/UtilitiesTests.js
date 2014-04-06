@@ -1,4 +1,4 @@
-test("mix", function() {
+test("_mix", function() {
   var obj1 = {
     foo: "foo"
   };
@@ -13,7 +13,7 @@ test("mix", function() {
   equal(result.bar, "bar", "has new property");
 });
 
-test("bind", function() {
+test("_bind", function() {
   var result = null;
   var obj = {
     foo: "passed"
@@ -32,14 +32,14 @@ test("bind", function() {
 });
 
 
-test("fromISOToSeconds", function() {
+test("_fromISOToSeconds", function() {
   equal(_fromISOToSeconds("PT0H0M0S"), 0, "0");
   equal(_fromISOToSeconds("PT0H0M29.367S"), 29.367, "29.367");
   equal(_fromISOToSeconds("PT0H1M1S"), 61, "61");
   equal(_fromISOToSeconds("PT1H1M1S"), 3661, "3661");
 });
 
-test("addMetric", function() {
+test("_addMetric", function() {
   var metrics = [];
 
   _addMetric(metrics, 1, 2);
@@ -55,4 +55,12 @@ test("addMetric", function() {
   _addMetric(metrics, 4, 2);
   equal(metrics.average, 3, "3");
   equal(metrics.length, 2, "should be 2 after 3");
+});
+
+test("_getXmlNodeValue", function() {
+  var parser = new DOMParser();
+  var xmlDoc = parser.parseFromString('<xml><node>text</node></xml>', "text/xml");
+
+  equal(_getXmlNodeValue(xmlDoc, "node", "blah"), "text", "Success query works");
+  equal(_getXmlNodeValue(xmlDoc, "foo", "blah"), "blah", "Missing node works");
 });
