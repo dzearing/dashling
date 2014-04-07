@@ -1162,14 +1162,6 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
     _initSegments: []
   });
 
-  _this._requestManager.addEventListener(Dashling.Event.download, function(ev) {
-    _this.raiseEvent(DashlingEvent.download, ev);
-  });
-
-  _this._initRequestManager.addEventListener(Dashling.Event.download, function(ev) {
-    _this.raiseEvent(DashlingEvent.download, ev);
-  });
-
   var fragmentCount = streamInfo.timeline.length;
 
   for (var i = 0; i < fragmentCount; i++) {
@@ -1184,6 +1176,13 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
       requests: []
     });
   }
+
+  _this._requestManager.addEventListener(DashlingEvent.download, _forwardDownloadEvent);
+  _this._initRequestManager.addEventListener(DashlingEvent.download, _forwardDownloadEvent);
+
+  function _forwardDownloadEvent(ev) {
+    _this.raiseEvent(DashlingEvent.download, ev);
+  }
 };
 
 Dashling.Stream.prototype = {
@@ -1194,7 +1193,6 @@ Dashling.Stream.prototype = {
 
     if (this._initRequestManager) {
       this._initRequestManager.dispose();
-
     }
 
     this.clearAllThrottles();
@@ -1588,6 +1586,7 @@ Dashling.Stream.prototype = {
 
 _mix(Dashling.Stream.prototype, EventingMixin);
 _mix(Dashling.Stream.prototype, ThrottleMixin);
+
 Dashling.RequestManager = function(shouldRecordStats, settings) {
   _mix(this, {
     _settings: settings,

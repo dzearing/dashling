@@ -33,7 +33,7 @@
             });
 
             dashling.addEventListener(Dashling.Event.sessionStateChange, function(state, errorType, errorMessage) {
-              console.log("Event sessionStateChange received: state=" + state + " error=" + errorType + " errorMessage=" + errorMessage);
+              console.log("Event sessionStateChange received: state=" + _findInEnum(state, Dashling.SessionState) + (errorType ? (" error=" + errorType) : "") + (errorMessage ? (" errorMessage=" + errorMessage) : ""));
             });
         }
 
@@ -84,6 +84,15 @@
         function _updateLogging() {
             dashling.settings.logToConsole = document.querySelector("#logDashling").checked;
             VideoDebug.logToConsole = document.querySelector("#logVideo").checked;
+        }
+
+        function _findInEnum(val, en) {
+          for (var i in en) {
+            if (en[i] == val) {
+              return i;
+            }
+          }
+          return "";
         }
 
     </script>
