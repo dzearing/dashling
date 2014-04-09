@@ -16,7 +16,7 @@
     "url": "https://github.com/dzearing/dashling/blob/gh-pages/LICENSE"
   }],
   "scripts": {
-    "test": "gulp covertest"
+    "test": "gulp"
   },
   "devDependencies": {
     "gulp": "^3.5.5",
