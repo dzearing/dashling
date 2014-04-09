@@ -505,7 +505,6 @@ Dashling.ManifestParser.prototype = {
         }
 
         if (manifest) {
-          manifest.request = request;
           onSuccess(manifest);
         }
       }
@@ -528,17 +527,11 @@ Dashling.ManifestParser.prototype = {
     manifest.mediaDuration = _fromISOToSeconds(xmlDoc.documentElement.getAttribute("mediaPresentationDuration"));
     manifest.streams = {};
 
-    var adaptations = [
-      xmlDoc.querySelector("AdaptationSet[contentType='audio']"),
-      xmlDoc.querySelector("AdaptationSet[contentType='video']")
-    ];
+    var adaptationSets = xmlDoc.querySelectorAll("AdaptationSet");
 
-    if (!adaptations[0] || !adaptations[1]) {
-      throw "Missing adaptations";
-    }
+    for (var adaptIndex = 0; adaptIndex < adaptationSets.length; adaptIndex++) {
 
-    for (var adaptIndex = 0; adaptIndex < adaptations.length; adaptIndex++) {
-      var adaptationElement = adaptations[adaptIndex];
+      var adaptationElement = adaptationSets[adaptIndex];
 
       if (adaptationElement) {
         var contentType = adaptationElement.getAttribute("contentType");
