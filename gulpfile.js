@@ -36,7 +36,6 @@ function inDirectory(dir, files) {
   return newSet;
 }
 
-
 gulp.task('clean', function() {
   gulp.src(['coverage', 'dist'])
     .pipe(clean());
