@@ -459,13 +459,16 @@ Dashling.Settings = {
   delaysBetweenRetries: [200, 1500, 3000],
 
   // Milliseconds that a request must be to register as a "download" that triggers the download event (used for ignoring cache responses.)
-  requestCacheThreshold: 80
+  requestCacheThreshold: 80,
+
+  // Optional override for manifest baseurl.
+  baseUrlOverride: null
 };
 Dashling.ManifestParser = function(settings) {
   var _this = this;
 
+  _this._settings = settings;
   _this._requestManager = new Dashling.RequestManager(false, settings);
-
   _this._requestManager.addEventListener(DashlingEvent.download, function(ev) {
     _this.raiseEvent(DashlingEvent.download, ev);
   });
@@ -523,7 +526,7 @@ Dashling.ManifestParser.prototype = {
     var xmlDoc = parser.parseFromString(manifestText, "text/xml");
     var i;
 
-    manifest.baseUrl = _getXmlNodeValue(xmlDoc, "BaseURL", "");
+    manifest.baseUrl = this._settings.baseUrlOverride || _getXmlNodeValue(xmlDoc, "BaseURL", "");
     manifest.mediaDuration = _fromISOToSeconds(xmlDoc.documentElement.getAttribute("mediaPresentationDuration"));
     manifest.streams = {};
 
@@ -610,6 +613,7 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
   _this._onVideoSeeking = _bind(_this, _this._onVideoSeeking);
   _this._onVideoError = _bind(_this, _this._onVideoError);
   _this._onPauseStateChange = _bind(_this, _this._onPauseStateChange);
+  _this._onVideoEnded = _bind(_this, _this._onVideoEnded);
 
   _this._appendNextFragment = _bind(_this, _this._appendNextFragment);
   _this._onThrottledSeek = _bind(_this, _this._onThrottledSeek);
@@ -619,6 +623,7 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
   _this._videoElement.addEventListener("error", _this._onVideoError);
   _this._videoElement.addEventListener("play", _this._onPauseStateChange);
   _this._videoElement.addEventListener("pause", _this._onPauseStateChange);
+  _this._videoElement.addEventListener("ended", _this._onVideoEnded);
 
   _this._mediaSource = mediaSource;
   _this._settings = settings;
@@ -681,6 +686,7 @@ Dashling.StreamController.prototype = {
       _this._videoElement.removeEventListener("error", _this._onVideoError);
       _this._videoElement.removeEventListener("play", _this._onPauseStateChange);
       _this._videoElement.removeEventListener("pause", _this._onPauseStateChange);
+      _this._videoElement.removeEventListener("ended", _this._onVideoEnded);
       _this._videoElement = null;
     }
 
@@ -792,7 +798,7 @@ Dashling.StreamController.prototype = {
   _loadNextFragment: function() {
     var _this = this;
 
-    if (_this._streams) {
+    if (!_this.isDisposed) {
       var downloads = _this._getDownloadCandidates();
 
       for (var streamIndex = 0; streamIndex < downloads.length; streamIndex++) {
@@ -1063,42 +1069,45 @@ Dashling.StreamController.prototype = {
 
   _onThrottledSeek: function() {
     var _this = this;
-    var currentTime = _this._videoElement.currentTime;
-    var lastTimeBeforeSeek = this._lastTimeBeforeSeek;
-    var fragmentIndex = Math.floor(Math.max(0, currentTime - 0.5) / _this._streams[0].fragments[0].time.lengthSeconds);
-    var streamIndex;
-    var isBufferAcceptable =
-      _this._videoElement.buffered.length == 1 &&
-      _this._videoElement.buffered.start(0) <= 0.5 &&
-      _this._videoElement.buffered.end(0) > currentTime &&
-      _this._videoElement.buffered.end(0) < _this._settings.maxBufferSeconds;
 
-    _log("Throttled seek: " + _this._videoElement.currentTime, _this._settings);
+    if (!_this.isDisposed) {
+      var currentTime = _this._videoElement.currentTime;
+      var lastTimeBeforeSeek = this._lastTimeBeforeSeek;
+      var fragmentIndex = Math.floor(Math.max(0, currentTime - 0.5) / _this._streams[0].fragments[0].time.lengthSeconds);
+      var streamIndex;
+      var isBufferAcceptable =
+        _this._videoElement.buffered.length == 1 &&
+        _this._videoElement.buffered.start(0) <= 0.5 &&
+        _this._videoElement.buffered.end(0) > currentTime &&
+        _this._videoElement.buffered.end(0) < _this._settings.maxBufferSeconds;
 
-    // Clear variables tracking seek.
-    _this._seekingTimerId = 0;
-    _this._lastTimeBeforeSeek = 0;
-    clearTimeout(_this._nextRequestTimerId);
-    _this._nextRequestTimerId = 0;
+      _log("Throttled seek: " + _this._videoElement.currentTime, _this._settings);
 
-    // If seeking ahead of the append index, abort all.
-    if (_this._appendIndex < fragmentIndex) {
+      // Clear variables tracking seek.
+      _this._seekingTimerId = 0;
+      _this._lastTimeBeforeSeek = 0;
+      clearTimeout(_this._nextRequestTimerId);
+      _this._nextRequestTimerId = 0;
 
-      // Abortttttt
-      for (streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
-        _this._streams[streamIndex].abortAll();
+      // If seeking ahead of the append index, abort all.
+      if (_this._appendIndex < fragmentIndex) {
+
+        // Abortttttt
+        for (streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
+          _this._streams[streamIndex].abortAll();
+        }
+      } else if (currentTime < lastTimeBeforeSeek && !isBufferAcceptable) {
+        _log("Clearing buffer due to reverse seek", _this._settings);
+
+        // Going backwards from last position, clear all buffer content to avoid chrome from removing our new buffer.
+        for (streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
+          _this._streams[streamIndex].clearBuffer();
+        }
       }
-    } else if (currentTime < lastTimeBeforeSeek && !isBufferAcceptable) {
-      _log("Clearing buffer due to reverse seek", _this._settings);
 
-      // Going backwards from last position, clear all buffer content to avoid chrome from removing our new buffer.
-      for (streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
-        _this._streams[streamIndex].clearBuffer();
-      }
+      _this._appendIndex = fragmentIndex;
+      _this._appendNextFragment();
     }
-
-    _this._appendIndex = fragmentIndex;
-    _this._appendNextFragment();
   },
 
   _onVideoError: function() {
@@ -1116,9 +1125,12 @@ Dashling.StreamController.prototype = {
   },
 
   _onPauseStateChange: function() {
-    this.raiseEvent(Dashling.Event.sessionStateChange, this._canPlay ? (this._videoElement.paused ? DashlingSessionState.paused : DashlingSessionState.playing) : DashlingSessionState.buffering);
-
     this._adjustPlaybackMonitor(!this._videoElement.paused);
+    this.raiseEvent(Dashling.Event.sessionStateChange, this._canPlay ? (this._videoElement.paused ? DashlingSessionState.paused : DashlingSessionState.playing) : DashlingSessionState.buffering);
+  },
+
+  _onVideoEnded: function() {
+    this.raiseEvent(DashlingEvent.sessionStateChange, DashlingSessionState.idle);
   }
 
 };

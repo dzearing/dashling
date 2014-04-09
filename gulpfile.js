@@ -50,7 +50,7 @@ gulp.task('jshint', function() {
     .pipe(jshint.reporter('fail'));
 });
 
-gulp.task('scripts', ['clean', 'jshint'], function(cb) {
+gulp.task('scripts', ['clean', 'jshint', 'testscripts'], function(cb) {
   return gulp.src(paths.wrappedScripts)
     .pipe(concat('dashling.full.js'))
     .pipe(gulp.dest('dist'))
@@ -59,13 +59,13 @@ gulp.task('scripts', ['clean', 'jshint'], function(cb) {
     .pipe(gulp.dest('dist'));
 });
 
-gulp.task('buildtest', ['clean', 'jshint'], function() {
+gulp.task('testscripts', ['clean', 'jshint'], function() {
   return gulp.src(paths.scripts)
     .pipe(concat('dashling.test.js'))
     .pipe(gulp.dest('dist'));
 });
 
-gulp.task('test', ['clean', 'buildtest', 'scripts'], function(cb) {
+gulp.task('test', ['clean', 'scripts'], function(cb) {
   return gulp.src(paths.wrappedScripts.concat(paths.testFiles))
     .pipe(karma({
       configFile: 'karma.config.js',

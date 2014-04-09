@@ -6,7 +6,7 @@ Dashling is a client implementation for the playback of MPEG DASH via JavaScript
 
 See [example page](http://dzearing.github.io/dashling/examples/index.html) for a demo of playback.
 
-Run [unit tests](http://dzearing.github.io/dashling/test/runner.html).
+Run [unit tests](http://dzearing.github.io/dashling/test/unitTests.html).
 
 ### Install Dependencies
 1. [install nodejs](http://nodejs.org/)

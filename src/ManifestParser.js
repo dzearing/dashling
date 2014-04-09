@@ -1,8 +1,8 @@
 Dashling.ManifestParser = function(settings) {
   var _this = this;
 
+  _this._settings = settings;
   _this._requestManager = new Dashling.RequestManager(false, settings);
-
   _this._requestManager.addEventListener(DashlingEvent.download, function(ev) {
     _this.raiseEvent(DashlingEvent.download, ev);
   });
@@ -60,7 +60,7 @@ Dashling.ManifestParser.prototype = {
     var xmlDoc = parser.parseFromString(manifestText, "text/xml");
     var i;
 
-    manifest.baseUrl = _getXmlNodeValue(xmlDoc, "BaseURL", "");
+    manifest.baseUrl = this._settings.baseUrlOverride || _getXmlNodeValue(xmlDoc, "BaseURL", "");
     manifest.mediaDuration = _fromISOToSeconds(xmlDoc.documentElement.getAttribute("mediaPresentationDuration"));
     manifest.streams = {};
 

@@ -54,5 +54,8 @@ Dashling.Settings = {
   delaysBetweenRetries: [200, 1500, 3000],
 
   // Milliseconds that a request must be to register as a "download" that triggers the download event (used for ignoring cache responses.)
-  requestCacheThreshold: 80
+  requestCacheThreshold: 80,
+
+  // Optional override for manifest baseurl.
+  baseUrlOverride: null
 };
