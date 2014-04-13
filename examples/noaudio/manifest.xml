@@ -1,0 +1,18 @@
+<MPD type="static" maxSegmentDuration="PT5.000S" profiles="urn:mpeg:dash:profile:isoff-live:2011" mediaPresentationDuration="PT0H0M11.553S" minBufferTime="PT4.500S" xmlns="urn:mpeg:DASH:schema:MPD:2011">
+  <BaseURL>noaudio/</BaseURL>
+  <Period>
+    <AdaptationSet id="1" contentType="video" mimeType="video/mp4" segmentAlignment="true" bitstreamSwitching="true" maxFrameRate="10000000/417083" maxWidth="1920" maxHeight="1080" codecs="avc1.4d0028">
+      <SegmentTemplate timescale="23976" initialization="init-$RepresentationID$.bin" media="$RepresentationID$-$Time$.bin">
+        <SegmentTimeline>
+          <S d="119880" r="1" />
+          <S d="37240" />
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="video-240p" width="426" height="240" frameRate="10000000/417083" bandwidth="360000" codecs="avc1.4d401e" />
+      <Representation id="video-360p" width="640" height="360" frameRate="10000000/417083" bandwidth="672000" codecs="avc1.4d401e" />
+      <Representation id="video-480p" width="852" height="480" frameRate="10000000/417083" bandwidth="1200000" codecs="avc1.4d001f" />
+      <Representation id="video-720p" width="1280" height="720" frameRate="10000000/417083" bandwidth="2704000" codecs="avc1.4d001f" />
+      <Representation id="video-1080p" width="1920" height="1080" frameRate="10000000/417083" bandwidth="6072000" codecs="avc1.4d0028" />
+    </AdaptationSet>
+  </Period>
+</MPD>
