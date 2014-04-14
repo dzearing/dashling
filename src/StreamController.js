@@ -2,47 +2,55 @@
 
 Dashling.StreamController = function(videoElement, mediaSource, settings) {
   var _this = this;
+  var stream;
+  var i;
 
   // Provide instanced callbacks that can be removed later.
   _this._onVideoSeeking = _bind(_this, _this._onVideoSeeking);
   _this._onVideoError = _bind(_this, _this._onVideoError);
   _this._onPauseStateChange = _bind(_this, _this._onPauseStateChange);
   _this._onVideoEnded = _bind(_this, _this._onVideoEnded);
-
   _this._appendNextFragment = _bind(_this, _this._appendNextFragment);
   _this._onThrottledSeek = _bind(_this, _this._onThrottledSeek);
 
   _this._videoElement = videoElement;
-  _this._videoElement.addEventListener("seeking", _this._onVideoSeeking);
-  _this._videoElement.addEventListener("error", _this._onVideoError);
-  _this._videoElement.addEventListener("play", _this._onPauseStateChange);
-  _this._videoElement.addEventListener("pause", _this._onPauseStateChange);
-  _this._videoElement.addEventListener("ended", _this._onVideoEnded);
+
+  videoElement.addEventListener("seeking", _this._onVideoSeeking);
+  videoElement.addEventListener("error", _this._onVideoError);
+  videoElement.addEventListener("play", _this._onPauseStateChange);
+  videoElement.addEventListener("pause", _this._onPauseStateChange);
+  videoElement.addEventListener("ended", _this._onVideoEnded);
 
   _this._mediaSource = mediaSource;
   _this._settings = settings;
 
   _this._bufferRate = [];
+  _this._streams = [];
   _this._appendedSeconds = 0;
 
-  _this._streams = [
-    _this._audioStream = new Dashling.Stream("audio", mediaSource, videoElement, settings),
-    _this._videoStream = new Dashling.Stream("video", mediaSource, videoElement, settings)
-  ];
+  if (settings.manifest.streams.audio) {
+    _this._audioStream = new Dashling.Stream("audio", mediaSource, videoElement, settings);
+    _this._streams.push(_this._audioStream);
+  }
 
-  _this._audioStream.addEventListener(DashlingEvent.download, _forwardDownloadEvent);
-  _this._audioStream.addEventListener(DashlingEvent.sessionStateChange, _forwardSessionStateChange);
+  if (settings.manifest.streams.video) {
+    _this._videoStream = new Dashling.Stream("video", mediaSource, videoElement, settings);
+    _this._streams.push(_this._videoStream);
+  }
 
-  _this._videoStream.addEventListener(DashlingEvent.download, _forwardDownloadEvent);
-  _this._videoStream.addEventListener(DashlingEvent.sessionStateChange, _forwardSessionStateChange);
+  for (i = 0; i < _this._streams.length; i++) {
+    stream = _this._streams[i];
+    stream.addEventListener(DashlingEvent.download, _forwardDownloadEvent);
+    stream.addEventListener(DashlingEvent.sessionStateChange, _forwardSessionStateChange);
+  }
 
   _this._requestTimerIds = [0, 0];
 
-  var firstFragmentDuration = _this._audioStream.fragments[0].time.lengthSeconds;
+  var firstFragmentDuration = stream.fragments[0].time.lengthSeconds;
 
   // If a start time has been provided, start at the right location.
   if (settings.startTime && firstFragmentDuration) {
-    this._appendIndex = Math.max(0, Math.min(_this._audioStream.fragments.length - 1, (Math.floor((settings.startTime - 0.5) / firstFragmentDuration))));
+    this._appendIndex = Math.max(0, Math.min(stream.fragments.length - 1, (Math.floor((settings.startTime - 0.5) / firstFragmentDuration))));
   }
 
   function _forwardDownloadEvent(ev) {
@@ -121,10 +129,13 @@ Dashling.StreamController.prototype = {
     if (!this.isDisposed) {
       var currentTime = this._videoElement.currentTime;
       var stream = streamType == "video" ? this._videoStream : streamType._audioStream;
-      var fragmentIndex = Math.min(stream.fragments.length - 1, Math.floor(currentTime / stream.fragments[0].time.lengthSeconds));
 
-      qualityIndex = stream.fragments[fragmentIndex].qualityIndex;
-      qualityIndex = qualityIndex >= 0 ? qualityIndex : stream.qualityIndex;
+      if (stream) {
+        var fragmentIndex = Math.min(stream.fragments.length - 1, Math.floor(currentTime / stream.fragments[0].time.lengthSeconds));
+
+        qualityIndex = stream.fragments[fragmentIndex].qualityIndex;
+        qualityIndex = qualityIndex >= 0 ? qualityIndex : stream.qualityIndex;
+      }
     }
 
     return qualityIndex;
@@ -133,7 +144,7 @@ Dashling.StreamController.prototype = {
   getBufferingQuality: function(streamType) {
     var stream = streamType == "video" ? this._videoStream : this._audioStream;
 
-    return stream.qualityIndex;
+    return stream ? stream.qualityIndex : 0;
   },
 
   getBufferRate: function() {
