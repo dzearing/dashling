@@ -389,20 +389,15 @@ window.DashMonitor.prototype = {
         value: timeUntilStall < Number.MAX_VALUE ? _round(timeUntilStall, 2, 2) + " s" : ""
       });
 
-      context.streams = {
-        audio: {
-          metrics: [],
-          qualities: []
-        },
-        video: {
-          metrics: [],
-          qualities: []
-        }
-      };
+      context.streams = {};
 
       for (var streamIndex = 0; streamIndex < controller._streams.length; streamIndex++) {
         var stream = controller._streams[streamIndex];
-        var contextStream = context.streams[stream.streamType];
+        var contextStream = {
+          metrics: [],
+          qualities: []
+        };
+        context.streams[stream.streamType] = contextStream;
         var val;
 
         contextStream.metrics.push({
