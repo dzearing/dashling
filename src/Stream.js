@@ -376,8 +376,18 @@ Dashling.Stream.prototype = {
   },
 
   _getSourceBuffer: function() {
+    var bufferType = this._streamInfo.mimeType + ";codecs=" + this._streamInfo.codecs;
+
     if (!this._buffer) {
-      this._buffer = this._mediaSource.addSourceBuffer(this._streamInfo.mimeType + ";codecs=" + this._streamInfo.codecs);
+      try {
+        this._buffer = this._mediaSource.addSourceBuffer(bufferType);
+      } catch (e) {
+        this.raiseEvent(
+          DashlingEvent.sessionStateChange,
+          DashlingSessionState.error,
+          DashlingError.mediaSourceInit,
+          "type=" + bufferType + " error=" + e);
+      }
     }
 
     return this._buffer;
