@@ -46,6 +46,7 @@ Dashling.prototype = {
   dispose: function() {
     /// <summary>Disposes dashling.</summary>
 
+    this.isDisposed = true;
     this.reset();
   },
 
@@ -118,7 +119,7 @@ Dashling.prototype = {
   // Private methods
 
   _setState: function(state, errorType, errorMessage) {
-    if (this.state != state) {
+    if (!this.isDisposed && this.state != state) {
       this.state = state;
       this.lastError = errorType ? (errorType + " " + (errorMessage ? "(" + errorMessage + ")" : "")) : null;
 

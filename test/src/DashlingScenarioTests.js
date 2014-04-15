@@ -10,9 +10,9 @@ if (window.MediaSource) {
       Dashling.SessionState.buffering,
       Dashling.SessionState.paused,
       Dashling.SessionState.playing,
-      Dashling.SessionState.paused,
-      Dashling.SessionState.idle
+      Dashling.SessionState.paused
     ];
+
     var currentEventIndex = 0;
 
     expect(expectedStateTransitions.length + 1);
