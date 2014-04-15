@@ -227,6 +227,7 @@ Dashling.prototype = {
   dispose: function() {
     /// <summary>Disposes dashling.</summary>
 
+    this.isDisposed = true;
     this.reset();
   },
 
@@ -299,7 +300,7 @@ Dashling.prototype = {
   // Private methods
 
   _setState: function(state, errorType, errorMessage) {
-    if (this.state != state) {
+    if (!this.isDisposed && this.state != state) {
       this.state = state;
       this.lastError = errorType ? (errorType + " " + (errorMessage ? "(" + errorMessage + ")" : "")) : null;
 
@@ -400,7 +401,6 @@ Dashling.prototype = {
 };
 
 _mix(Dashling.prototype, EventingMixin);
-
 Dashling.Settings = {
   // The manifest object to use, if you want to skip the serial call to fetch the xml.
   manifest: null,
@@ -605,49 +605,24 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
   _this._onVideoError = _bind(_this, _this._onVideoError);
   _this._onPauseStateChange = _bind(_this, _this._onPauseStateChange);
   _this._onVideoEnded = _bind(_this, _this._onVideoEnded);
-
   _this._appendNextFragment = _bind(_this, _this._appendNextFragment);
   _this._onThrottledSeek = _bind(_this, _this._onThrottledSeek);
 
-  _this._videoElement = videoElement;
-  _this._videoElement.addEventListener("seeking", _this._onVideoSeeking);
-  _this._videoElement.addEventListener("error", _this._onVideoError);
-  _this._videoElement.addEventListener("play", _this._onPauseStateChange);
-  _this._videoElement.addEventListener("pause", _this._onPauseStateChange);
-  _this._videoElement.addEventListener("ended", _this._onVideoEnded);
-
   _this._mediaSource = mediaSource;
   _this._settings = settings;
-
   _this._bufferRate = [];
   _this._appendedSeconds = 0;
-
-  _this._streams = [
-    _this._audioStream = new Dashling.Stream("audio", mediaSource, videoElement, settings),
-    _this._videoStream = new Dashling.Stream("video", mediaSource, videoElement, settings)
-  ];
-
-  _this._audioStream.addEventListener(DashlingEvent.download, _forwardDownloadEvent);
-  _this._audioStream.addEventListener(DashlingEvent.sessionStateChange, _forwardSessionStateChange);
-
-  _this._videoStream.addEventListener(DashlingEvent.download, _forwardDownloadEvent);
-  _this._videoStream.addEventListener(DashlingEvent.sessionStateChange, _forwardSessionStateChange);
-
   _this._requestTimerIds = [0, 0];
 
-  var firstFragmentDuration = _this._audioStream.fragments[0].time.lengthSeconds;
+  _this._intializeVideoElement(videoElement);
+  _this._initializeStreams(videoElement, mediaSource, settings);
 
-  // If a start time has been provided, start at the right location.
-  if (settings.startTime && firstFragmentDuration) {
-    this._appendIndex = Math.max(0, Math.min(_this._audioStream.fragments.length - 1, (Math.floor((settings.startTime - 0.5) / firstFragmentDuration))));
-  }
+  // If we have streams and a start time defined in settings, try to initialize the appendIndex correctly.
+  if (_this._streams.length && settings && settings.startTime) {
+    var stream = _this._streams[0];
+    var firstFragmentDuration = stream.fragments[0].time.lengthSeconds;
 
-  function _forwardDownloadEvent(ev) {
-    _this.raiseEvent(DashlingEvent.download, ev);
-  }
-
-  function _forwardSessionStateChange(state, errorType, errorMessage) {
-    _this.raiseEvent(DashlingEvent.sessionStateChange, state, errorType, errorMessage);
+    this._appendIndex = Math.max(0, Math.min(stream.fragments.length - 1, (Math.floor((settings.startTime - 0.5) / firstFragmentDuration))));
   }
 };
 
@@ -718,10 +693,13 @@ Dashling.StreamController.prototype = {
     if (!this.isDisposed) {
       var currentTime = this._videoElement.currentTime;
       var stream = streamType == "video" ? this._videoStream : streamType._audioStream;
-      var fragmentIndex = Math.min(stream.fragments.length - 1, Math.floor(currentTime / stream.fragments[0].time.lengthSeconds));
 
-      qualityIndex = stream.fragments[fragmentIndex].qualityIndex;
-      qualityIndex = qualityIndex >= 0 ? qualityIndex : stream.qualityIndex;
+      if (stream) {
+        var fragmentIndex = Math.min(stream.fragments.length - 1, Math.floor(currentTime / stream.fragments[0].time.lengthSeconds));
+
+        qualityIndex = stream.fragments[fragmentIndex].qualityIndex;
+        qualityIndex = qualityIndex >= 0 ? qualityIndex : stream.qualityIndex;
+      }
     }
 
     return qualityIndex;
@@ -730,7 +708,7 @@ Dashling.StreamController.prototype = {
   getBufferingQuality: function(streamType) {
     var stream = streamType == "video" ? this._videoStream : this._audioStream;
 
-    return stream.qualityIndex;
+    return stream ? stream.qualityIndex : 0;
   },
 
   getBufferRate: function() {
@@ -786,6 +764,51 @@ Dashling.StreamController.prototype = {
     return timeUntilUnderrun;
   },
 
+  _intializeVideoElement: function(videoElement) {
+    var _this = this;
+
+    if (videoElement) {
+      _this._videoElement = videoElement;
+      videoElement.addEventListener("seeking", _this._onVideoSeeking);
+      videoElement.addEventListener("error", _this._onVideoError);
+      videoElement.addEventListener("play", _this._onPauseStateChange);
+      videoElement.addEventListener("pause", _this._onPauseStateChange);
+      videoElement.addEventListener("ended", _this._onVideoEnded);
+    }
+  },
+
+  _initializeStreams: function(videoElement, mediaSource, settings) {
+    // Initializes streams based on manifest content.
+
+    var _this = this;
+    var manifestStreams = (settings && settings.manifest && settings.manifest.streams) ? settings.manifest.streams : null;
+
+    _this._streams = [];
+
+    if (manifestStreams) {
+      if (manifestStreams.audio) {
+        _this._streams.push(new Dashling.Stream("audio", mediaSource, videoElement, settings));
+      }
+      if (manifestStreams.video) {
+        _this._streams.push(new Dashling.Stream("video", mediaSource, videoElement, settings));
+      }
+    }
+
+    for (i = 0; i < _this._streams.length; i++) {
+      stream = _this._streams[i];
+      stream.addEventListener(DashlingEvent.download, _forwardDownloadEvent);
+      stream.addEventListener(DashlingEvent.sessionStateChange, _forwardSessionStateChange);
+    }
+
+    function _forwardDownloadEvent(ev) {
+      _this.raiseEvent(DashlingEvent.download, ev);
+    }
+
+    function _forwardSessionStateChange(state, errorType, errorMessage) {
+      _this.raiseEvent(DashlingEvent.sessionStateChange, state, errorType, errorMessage);
+    }
+  },
+
   _loadNextFragment: function() {
     var _this = this;
 
@@ -815,7 +838,7 @@ Dashling.StreamController.prototype = {
       }
 
       // If we are at the end of our limit, poll every 300ms for more downloadable content.
-      if (!downloads[0].length && !downloads[1].length && downloads.hitMaxLimit) {
+      if (downloads.isAtMax) {
         _enqueueNextLoad(0, 300);
       }
     }
@@ -957,82 +980,156 @@ Dashling.StreamController.prototype = {
   },
 
   _getDownloadCandidates: function() {
-    var _this = this;
-    var downloadList = [
-      [],
-      []
-    ];
-    var streams = _this._streams;
-    var stream;
-    var settings = _this._settings;
-    var streamIndex;
-    var fragmentLength = _this._audioStream.fragments[0].time.lengthSeconds;
-    var currentTime = _this._settings.startTime || _this._videoElement.currentTime;
-    var currentSegment = Math.floor(currentTime / fragmentLength);
-    var maxIndex = currentSegment + Math.ceil(settings.maxBufferSeconds / fragmentLength);
-    var maxAudioIndex = -1;
-    var maxVideoIndex = -1;
-    var fragmentCount = _this._videoStream.fragments.length;
-    var fragmentIndex;
+    /// <summary>
+    /// This method builds up an array of arrays, one for each stream, where the contents are the fragment indexes that can
+    /// be downloaded.
+    ///
+    /// There are a number of criteria we need to look at to determine what the candidates are:
+    ///
+    /// 1. The fragment must be in "idle" or less state.
+    /// 2. The index must not start beyond the (currentTime + maxBufferSeconds) max index.
+    /// 3. Respect max concurrency: downloading the fragment will not result in concurrent requests than allowed in settings.
+    /// 4. The index must not be greater (than an amount specified in settings) than the first "non-ready"
+    ///    index of any other stream. (We don't want one stream to get too far ahead of another, it's a waste
+    ///    of bandwidth.)
+    ///
+    /// In order to find candidates that fit all of these criteria, we do this:
+    ///
+    /// 1. We start with a fragment range that's valid: fragmentAtCurrentTime to (currentTime + maxBufferTime).
+    /// 2. We ask the stream to ensure this range's states are correct (by scanning for fragments that report appended but are missing.)
+    /// 3. We need to understand what the soonest missing fragment of all streams is. We go find this minMissingIndex value.
+    /// 4. From there, we go through each stream and start adding missing indexes to an array, until either any of these occur:
+    ///      a. Our active requests + the current length is > max concurrent for the stream
+    ///      b. The index exceeds (startIndex + maxSegmentLeadCount)
+    ///
+    /// Once we have all stream's missing index arrays built, we return the result which is used to enqueue loading.
+    /// </summary>
 
-    // Quality assessment.
-    for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
-      streams[streamIndex].assessQuality();
+    var _this = this;
+    var currentRange = _this._getCurrentFragmentRange();
+    var candidates = [];
+    var totalCandidates = 0;
+
+    if (currentRange.start > -1) {
+      _this._ensureStreamsUpdated(currentRange);
+
+      var firstMissingIndex = _this._getMissingFragmentIndex(currentRange);
+
+      if (firstMissingIndex >= 0) {
+        currentRange.start = Math.max(currentRange.start, firstMissingIndex);
+
+        for (var i = 0; i < _this._streams.length; i++) {
+          var stream = _this._streams[i];
+
+          candidates.push(_this._getDownloadableIndexes(stream, currentRange));
+          totalCandidates += candidates[candidates.length - 1].length;
+        }
+      }
     }
 
-    for (fragmentIndex = _this._appendIndex; fragmentIndex <= maxIndex && fragmentIndex < fragmentCount; fragmentIndex++) {
-      var allStreamsAppended = _this._allStreamsAppended(streams, fragmentIndex);
+    // Return a flag indicating when we're unable to return candidates because we have max buffer.
+    // That way we know that we need to try to evaluate candidates again soon.
+    candidates.isAtMax = !totalCandidates && currentRange.end >= 0 && (currentRange.end < (_this._streams[0].fragments.length - 1));
 
-      // Missing fragment check.
-      for (streamIndex = 0; allStreamsAppended && streamIndex < streams.length; streamIndex++) {
-        stream = streams[streamIndex];
+    return candidates;
+  },
 
+  _getCurrentFragmentRange: function() {
+    /// <summary>
+    // Gets the current fragment range, starting at video currentTime and ending at
+    // video end, or time+maxBufferSeconds if it's sooner, and returns as an
+    // object: { start: 0, stop: 0 }
+    /// </summary>
+
+    var _this = this;
+    var videoElement = _this._videoElement;
+    var duration = _this._settings.manifest.mediaDuration;
+    var range = {
+      start: -1,
+      end: -1
+    };
+
+    if (duration > 0) {
+      var currentTime = videoElement.currentTime;
+      var isAtEnd = (currentTime + 0.005) >= duration;
+      var firstStream = _this._streams[0];
+      var fragmentCount = firstStream.fragments.length;
+      var fragmentLength = firstStream.fragments[0].time.lengthSeconds;
+
+      if (!isAtEnd) {
+        range.start = Math.max(0, Math.min(fragmentCount - 1, Math.floor((currentTime - 0.005) / fragmentLength)));
+        range.end = Math.max(0, Math.min(fragmentCount - 1, Math.ceil((currentTime + _this._settings.maxBufferSeconds) / fragmentLength)));
+      }
+    }
+
+    return range;
+  },
+
+  _ensureStreamsUpdated: function(range) {
+    /// <summary>
+    // Assess quality level for ABR and check for missing fragments.
+    /// </summary>
+
+    var _this = this;
+
+    var currentTime = _this._videoElement.currentTime;
+
+    for (var streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
+      stream = _this._streams[streamIndex];
+
+      stream.assessQuality();
+
+      for (var fragmentIndex = range.start; fragmentIndex <= range.end; fragmentIndex++) {
         if (stream.isMissing(fragmentIndex, currentTime)) {
           var fragment = stream.fragments[fragmentIndex];
 
-          _log("Missing fragment reset: stream=" + stream._streamType + " index=" + fragmentIndex + " [" + fragment.time.startSeconds + "] ranges: " + _getBuffered(_this._videoElement), _this._settings);
+          _log("Missing fragment reset: stream=" + stream.streamType + " index=" + fragmentIndex + " [" + fragment.time.startSeconds + "]", _this._settings);
           stream.fragments[fragmentIndex].state = DashlingFragmentState.idle;
         }
       }
+    }
+  },
 
-      var canLoadAudio = this._audioStream.canLoad(fragmentIndex);
-      var canLoadVideo = this._videoStream.canLoad(fragmentIndex);
+  _getMissingFragmentIndex: function(range) {
+    /// <summary>
+    // Gets the first missing fragment index in all streams.
+    /// </summary>
 
-      if (maxVideoIndex == -1 && this._audioStream.fragments[fragmentIndex].state < DashlingFragmentState.downloaded) {
-        maxVideoIndex = fragmentIndex + settings.maxSegmentLeadCount.video;
-      }
+    var _this = this;
 
-      if (maxAudioIndex == -1 && this._videoStream.fragments[fragmentIndex].state < DashlingFragmentState.downloaded) {
-        maxAudioIndex = fragmentIndex + settings.maxSegmentLeadCount.audio;
-      }
+    for (var fragmentIndex = range.start; fragmentIndex <= range.end; fragmentIndex++) {
+      for (var streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
+        var fragment = _this._streams[streamIndex].fragments[fragmentIndex];
 
-      // Ensure we don't try to load segments too far ahead of the other
-      var isAudioInRange = (maxAudioIndex == -1 || maxAudioIndex >= fragmentIndex);
-      var isVideoInRange = (maxVideoIndex == -1 || maxVideoIndex >= fragmentIndex);
-
-      // Ensure we don't try to suggest loading more requests than we can execute.
-      var audioRequestsHaveRoom = (this._audioStream.getActiveRequestCount() + downloadList[0].length + 1) < settings.maxConcurrentRequests.audio;
-      var videoRequestsHaveRoom = (this._videoStream.getActiveRequestCount() + downloadList[1].length) < settings.maxConcurrentRequests.video;
-
-      if (canLoadAudio && isAudioInRange && audioRequestsHaveRoom) {
-        downloadList[0].push(fragmentIndex);
-      }
-
-      if (canLoadVideo && isVideoInRange && videoRequestsHaveRoom) {
-        downloadList[1].push(fragmentIndex);
-      }
-
-      if ((!audioRequestsHaveRoom || !isAudioInRange) &&
-        (!videoRequestsHaveRoom || !isVideoInRange)) {
-        break;
+        if (fragment.state <= DashlingFragmentState.idle) {
+          return fragmentIndex;
+        }
       }
     }
 
-    if (fragmentIndex > maxIndex && fragmentIndex < fragmentCount) {
-      downloadList.hitMaxLimit = true;
+    return -1;
+  },
+
+  _getDownloadableIndexes: function(stream, range) {
+    /// <summary>
+    // Builds up an array of indexes of download candidates for the stream, taking into consideration
+    // the range given, the lead count defined in settings, and the max concurrency for the stream.
+    /// </summary>
+
+    var _this = this;
+    var indexes = [];
+
+    // Limit the range based on settings for the stream.
+    var endIndex = Math.min(range.end, range.start + _this._settings.maxSegmentLeadCount[stream.streamType]);
+    var maxRequests = _this._settings.maxConcurrentRequests[stream.streamType] - stream.getActiveRequestCount();
+
+    for (var fragmentIndex = range.start; indexes.length < maxRequests && fragmentIndex <= endIndex; fragmentIndex++) {
+      if (stream.fragments[fragmentIndex].state <= DashlingFragmentState.idle) {
+        indexes.push(fragmentIndex);
+      }
     }
 
-    return downloadList;
+    return indexes;
   },
 
   _setCanPlay: function(isAllowed) {
@@ -1121,7 +1218,7 @@ Dashling.StreamController.prototype = {
   },
 
   _onVideoEnded: function() {
-    this.raiseEvent(DashlingEvent.sessionStateChange, DashlingSessionState.idle);
+    this.raiseEvent(DashlingEvent.sessionStateChange, DashlingSessionState.paused);
   }
 
 };
@@ -1154,7 +1251,7 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
     _initializedQualityIndex: -1,
     _initRequestManager: new Dashling.RequestManager(false, settings),
     _requestManager: new Dashling.RequestManager(streamType == "video", settings),
-    _streamType: streamType,
+    streamType: streamType,
     _mediaSource: mediaSource,
     _videoElement: videoElement,
     _settings: settings,
@@ -1276,7 +1373,7 @@ Dashling.Stream.prototype = {
             buffer.addEventListener("update", _onAppendComplete);
 
             try {
-              _log("Append started: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
+              _log("Append started: " + _this.streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
               buffer.appendBuffer(request.data);
             } catch (e) {
               _onAppendError(e);
@@ -1322,7 +1419,7 @@ Dashling.Stream.prototype = {
           _this._initializedQualityIndex = request.qualityIndex;
         }
 
-        _log("Append complete: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
+        _log("Append complete: " + _this.streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
         fragmentsToAppend.shift();
 
         _appendNextEntry();
@@ -1465,17 +1562,17 @@ Dashling.Stream.prototype = {
 
     if (!bytesPerSecond) {
       bytesPerSecond = parseFloat(localStorage.getItem(c_bandwidthStorageKey));
-    } else if (this._streamType === "video") {
+    } else if (this.streamType === "video") {
       localStorage.setItem(c_bandwidthStorageKey, bytesPerSecond);
     }
 
     if (!settings.isABREnabled || !bytesPerSecond) {
-      _this.qualityIndex = Math.min(_this._streamInfo.qualities.length - 1, settings.targetQuality[_this._streamType]);
+      _this.qualityIndex = Math.min(_this._streamInfo.qualities.length - 1, settings.targetQuality[_this.streamType]);
     } else if (settings.isRBREnabled) {
       _this.qualityIndex = Math.round(Math.random() * maxQuality);
     } else {
       var targetQuality = 0;
-      var logEntry = "Quality check " + _this._streamType + ": bps=" + Math.round(bytesPerSecond);
+      var logEntry = "Quality check " + _this.streamType + ": bps=" + Math.round(bytesPerSecond);
       var segmentLength = _this._streamInfo.timeline[0].lengthSeconds;
       var averageWaitPerSegment = segmentLength * 0.4;
 
@@ -1508,7 +1605,7 @@ Dashling.Stream.prototype = {
 
     if (!bytesPerSecond) {
       bytesPerSecond = parseFloat(localStorage.getItem(c_bandwidthStorageKey));
-    } else if (this._streamType === "video") {
+    } else if (this.streamType === "video") {
       localStorage.setItem(c_bandwidthStorageKey, bytesPerSecond);
     }
 
@@ -1548,7 +1645,7 @@ Dashling.Stream.prototype = {
         onError: _onError
       };
 
-      _log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
+      _log("Download started: " + _this.streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
 
       _this._initRequestManager.load(request);
     }
@@ -1557,7 +1654,7 @@ Dashling.Stream.prototype = {
       if (!_this.isDisposed) {
         request.state = DashlingFragmentState.downloaded;
 
-        _log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
+        _log("Download complete: " + _this.streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
 
         onFragmentAvailable(request);
       }
@@ -1589,7 +1686,6 @@ Dashling.Stream.prototype = {
 
 _mix(Dashling.Stream.prototype, EventingMixin);
 _mix(Dashling.Stream.prototype, ThrottleMixin);
-
 Dashling.RequestManager = function(shouldRecordStats, settings) {
   _mix(this, {
     _settings: settings,

@@ -12,7 +12,7 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
     _initializedQualityIndex: -1,
     _initRequestManager: new Dashling.RequestManager(false, settings),
     _requestManager: new Dashling.RequestManager(streamType == "video", settings),
-    _streamType: streamType,
+    streamType: streamType,
     _mediaSource: mediaSource,
     _videoElement: videoElement,
     _settings: settings,
@@ -134,7 +134,7 @@ Dashling.Stream.prototype = {
             buffer.addEventListener("update", _onAppendComplete);
 
             try {
-              _log("Append started: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
+              _log("Append started: " + _this.streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
               buffer.appendBuffer(request.data);
             } catch (e) {
               _onAppendError(e);
@@ -180,7 +180,7 @@ Dashling.Stream.prototype = {
           _this._initializedQualityIndex = request.qualityIndex;
         }
 
-        _log("Append complete: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
+        _log("Append complete: " + _this.streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
         fragmentsToAppend.shift();
 
         _appendNextEntry();
@@ -323,17 +323,17 @@ Dashling.Stream.prototype = {
 
     if (!bytesPerSecond) {
       bytesPerSecond = parseFloat(localStorage.getItem(c_bandwidthStorageKey));
-    } else if (this._streamType === "video") {
+    } else if (this.streamType === "video") {
       localStorage.setItem(c_bandwidthStorageKey, bytesPerSecond);
     }
 
     if (!settings.isABREnabled || !bytesPerSecond) {
-      _this.qualityIndex = Math.min(_this._streamInfo.qualities.length - 1, settings.targetQuality[_this._streamType]);
+      _this.qualityIndex = Math.min(_this._streamInfo.qualities.length - 1, settings.targetQuality[_this.streamType]);
     } else if (settings.isRBREnabled) {
       _this.qualityIndex = Math.round(Math.random() * maxQuality);
     } else {
       var targetQuality = 0;
-      var logEntry = "Quality check " + _this._streamType + ": bps=" + Math.round(bytesPerSecond);
+      var logEntry = "Quality check " + _this.streamType + ": bps=" + Math.round(bytesPerSecond);
       var segmentLength = _this._streamInfo.timeline[0].lengthSeconds;
       var averageWaitPerSegment = segmentLength * 0.4;
 
@@ -366,7 +366,7 @@ Dashling.Stream.prototype = {
 
     if (!bytesPerSecond) {
       bytesPerSecond = parseFloat(localStorage.getItem(c_bandwidthStorageKey));
-    } else if (this._streamType === "video") {
+    } else if (this.streamType === "video") {
       localStorage.setItem(c_bandwidthStorageKey, bytesPerSecond);
     }
 
@@ -406,7 +406,7 @@ Dashling.Stream.prototype = {
         onError: _onError
       };
 
-      _log("Download started: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
+      _log("Download started: " + _this.streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
 
       _this._initRequestManager.load(request);
     }
@@ -415,7 +415,7 @@ Dashling.Stream.prototype = {
       if (!_this.isDisposed) {
         request.state = DashlingFragmentState.downloaded;
 
-        _log("Download complete: " + _this._streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
+        _log("Download complete: " + _this.streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
 
         onFragmentAvailable(request);
       }

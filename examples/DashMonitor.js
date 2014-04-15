@@ -342,7 +342,12 @@ window.DashMonitor.prototype = {
     });
 
     if (manifest && controller) {
-      var fragmentList = [controller._streams[0].fragments, controller._streams[1].fragments];
+      var fragmentList = [];
+
+      for (var streamIndex = 0; streamIndex < controller._streams.length; streamIndex++) {
+        fragmentList.push(controller._streams[streamIndex].fragments);
+      }
+
       var qualityDictionary = {};
 
       context.duration = manifest.mediaDuration;
@@ -397,7 +402,7 @@ window.DashMonitor.prototype = {
 
       for (var streamIndex = 0; streamIndex < controller._streams.length; streamIndex++) {
         var stream = controller._streams[streamIndex];
-        var contextStream = context.streams[stream._streamType];
+        var contextStream = context.streams[stream.streamType];
         var val;
 
         contextStream.metrics.push({
