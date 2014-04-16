@@ -155,13 +155,27 @@ var DashlingEvent = {
 };
 
 var DashlingError = {
+  // Occurs when the manifest fails to download.
   manifestDownload: "manifestDownload",
-  manifestParse: "manifestParse",
-  mediaSourceInit: "mediaSourceInit",
-  mediaSourceAppend: "mediaSourceAppend",
+
+  // Occurs when the initSegment fails to download.
   initSegmentDownload: "initSegmentDownload",
+
+  // Occurs when the mediaSegment fails to download.
   mediaSegmentDownload: "mediaSegmentDownload",
-  append: "append"
+
+  // Occurs when we can't parse the manifest.
+  manifestParse: "manifestParse",
+
+  // Occurs when we can't initialize a sourceBuffer from the mediaSource.
+  sourceBufferInit: "sourceBufferInit",
+
+  // Occurs when we try to append a segment but it doesn't seem to append.
+  sourceBufferAppendException: "sourceBufferAppendException",
+
+  // Occurs when we try to append a segment, and afterwards don't find it in the buffer.
+  sourceBufferAppendMissing: "sourceBufferAppendMissing"
+
 };
 
 var DashlingSessionState = {
@@ -181,6 +195,7 @@ var DashlingFragmentState = {
   appending: 3,
   appended: 4
 };
+
 /// <summary>Dashling main object.</summary>
 
 window.Dashling = function() {
@@ -722,8 +737,13 @@ Dashling.StreamController.prototype = {
     var remainingBuffer = 0;
 
     if (!_this.isDisposed) {
-      var currentTime = (_this._settings.startTime || Math.max(0.5, _this._videoElement.currentTime)) + (offsetFromCurrentTime || 0);
+      var currentTime = (_this._settings.startTime || _this._videoElement.currentTime) + (offsetFromCurrentTime || 0);
       var bufferRanges = _this._videoElement.buffered;
+
+      // Workaround: if the currentTime is 0 and the first range  start is less than 1, default currentTime to start time.
+      if (!currentTime && bufferRanges.length > 0 && bufferRanges.start(0) < 1) {
+        currentTime = bufferRanges.start(0);
+      }
 
       for (var i = 0; i < bufferRanges.length; i++) {
         if (currentTime >= bufferRanges.start(i) && currentTime <= bufferRanges.end(i)) {
@@ -951,13 +971,19 @@ Dashling.StreamController.prototype = {
     var _this = this;
     var timeUntilUnderrun = _this.getTimeUntilUnderrun();
     var allowedSeekAhead = 0.5;
+    var canPlay = false;
 
     this._lastCurrentTime = _this._videoElement.currentTime;
 
     if (_this._canPlay && timeUntilUnderrun < 0.1) {
-      // We are stalling!
-      _this._stalls++;
-      _this._setCanPlay(false);
+
+      // We may be stalling! Check in 200ms if we haven't moved. If we have, then go into a buffering state.
+      setTimeout(function() {
+        if (!_this.isDisposed && _this._videoElement.currentTime == _this._lastCurrentTime) {
+          _this._stalls++;
+          _this._setCanPlay(false);
+        }
+      }, 200);
     }
 
     if (!_this._canPlay) {
@@ -1135,9 +1161,10 @@ Dashling.StreamController.prototype = {
   },
 
   _setCanPlay: function(isAllowed) {
+    this._videoElement.playbackRate = isAllowed ? 1 : 0;
+
     if (this._canPlay !== isAllowed) {
       this._canPlay = isAllowed;
-      this._videoElement.playbackRate = isAllowed ? 1 : 0;
       this._onPauseStateChange();
     }
   },
@@ -1216,6 +1243,7 @@ Dashling.StreamController.prototype = {
 
   _onPauseStateChange: function() {
     this._adjustPlaybackMonitor(!this._videoElement.paused);
+    this._checkCanPlay();
     this.raiseEvent(Dashling.Event.sessionStateChange, this._canPlay ? (this._videoElement.paused ? DashlingSessionState.paused : DashlingSessionState.playing) : DashlingSessionState.buffering);
   },
 
@@ -1239,6 +1267,7 @@ function _getBuffered(videoElement) {
 
   return ranges;
 }
+
 var c_bandwidthStorageKey = "Dashling.Stream.bytesPerSecond";
 
 Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
@@ -1378,7 +1407,7 @@ Dashling.Stream.prototype = {
               _log("Append started: " + _this.streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
               buffer.appendBuffer(request.data);
             } catch (e) {
-              _onAppendError(e);
+              _onAppendError(DashlingError.sourceBufferAppendException, e);
             }
           } else {
             // We need to give a small slice of time because the video's buffered region doesn't update immediately after
@@ -1389,7 +1418,7 @@ Dashling.Stream.prototype = {
                 _this._isAppending = false;
 
                 if (_this.isMissing(fragmentIndex, _this._videoElement.currentTime)) {
-                  _onAppendError("Buffer missing appended fragment");
+                  _onAppendError(DashlingError.sourceBufferAppendMissing, "Buffer missing appended fragment");
                 }
 
                 var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
@@ -1428,14 +1457,17 @@ Dashling.Stream.prototype = {
       }
     }
 
-    function _onAppendError(e) {
-      var statusCode = (e ? e.toString() : "error") + " (quality=" + fragment.qualityId + (fragment.fragmentIndex !== undefined ? " index=" + fragment.fragmentIndex : "") + ")";
+    function _onAppendError(error, details) {
+
+      details = details || "";
+
+      var statusCode = "error=" + details + " (quality=" + fragment.qualityId + (fragment.fragmentIndex !== undefined ? " index=" + fragment.fragmentIndex : "") + ")";
 
       fragment.state = DashlingFragmentState.error;
       _this._isAppending = false;
 
       _log("Append exception: " + statusCode);
-      _this.raiseEvent(DashlingEvent.sessionStateChange, DashlingSessionState.error, DashlingError.append, statusCode);
+      _this.raiseEvent(DashlingEvent.sessionStateChange, error, DashlingError.sourceBufferAppend, statusCode);
     }
   },
 
@@ -1626,7 +1658,7 @@ Dashling.Stream.prototype = {
         this.raiseEvent(
           DashlingEvent.sessionStateChange,
           DashlingSessionState.error,
-          DashlingError.mediaSourceInit,
+          DashlingError.sourceBufferInit,
           "type=" + bufferType + " error=" + e);
       }
     }

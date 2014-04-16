@@ -239,5 +239,59 @@ test("StreamController._getDownloadableIndexes", function() {
         end: 4
       }), [2, 3, 4],
     "Full range test with partial completion restricting requests");
+});
 
+test("StreamController.getRemainingBuffer", function() {
+  var streamController = new Dashling.StreamController();
+  var buffered = {
+    length: 1,
+    ranges: [{
+      start: 0,
+      end: 0.25
+    }],
+    start: function(index) {
+      return this.ranges[index].start;
+    },
+    end: function(index) {
+      return this.ranges[index].end;
+    }
+  };
+
+  _mix(streamController, {
+    _settings: {
+      startTime: 0
+    },
+    _videoElement: {
+      currentTime: 0,
+      buffered: buffered
+    }
+  });
+
+  equal(streamController.getRemainingBuffer(), 0.25, "0.25 seconds left");
+
+  buffered.ranges[0].start = .8;
+  buffered.ranges[0].end = 5;
+
+  equal(streamController.getRemainingBuffer(), 4.2, "4.2 seconds left");
+
+  buffered.ranges[0].start = 1;
+
+  equal(streamController.getRemainingBuffer(), 0, "0 seconds left");
+
+  streamController._videoElement.currentTime = 1;
+  equal(streamController.getRemainingBuffer(), 4, "4 seconds left");
+
+  streamController._videoElement.currentTime = 2;
+  equal(streamController.getRemainingBuffer(), 3, "3 seconds left");
+
+  buffered.ranges[0].end = 10;
+  equal(streamController.getRemainingBuffer(), 8, "8 seconds left");
+
+  buffered.length = 2;
+  buffered.ranges.push({
+    start: 10.001,
+    end: 15
+  });
+
+  equal(streamController.getRemainingBuffer(), 13, "13 seconds left, after small gap");
 });

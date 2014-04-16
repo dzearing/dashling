@@ -123,8 +123,13 @@ Dashling.StreamController.prototype = {
     var remainingBuffer = 0;
 
     if (!_this.isDisposed) {
-      var currentTime = (_this._settings.startTime || Math.max(0.5, _this._videoElement.currentTime)) + (offsetFromCurrentTime || 0);
+      var currentTime = (_this._settings.startTime || _this._videoElement.currentTime) + (offsetFromCurrentTime || 0);
       var bufferRanges = _this._videoElement.buffered;
+
+      // Workaround: if the currentTime is 0 and the first range  start is less than 1, default currentTime to start time.
+      if (!currentTime && bufferRanges.length > 0 && bufferRanges.start(0) < 1) {
+        currentTime = bufferRanges.start(0);
+      }
 
       for (var i = 0; i < bufferRanges.length; i++) {
         if (currentTime >= bufferRanges.start(i) && currentTime <= bufferRanges.end(i)) {
@@ -352,13 +357,19 @@ Dashling.StreamController.prototype = {
     var _this = this;
     var timeUntilUnderrun = _this.getTimeUntilUnderrun();
     var allowedSeekAhead = 0.5;
+    var canPlay = false;
 
     this._lastCurrentTime = _this._videoElement.currentTime;
 
     if (_this._canPlay && timeUntilUnderrun < 0.1) {
-      // We are stalling!
-      _this._stalls++;
-      _this._setCanPlay(false);
+
+      // We may be stalling! Check in 200ms if we haven't moved. If we have, then go into a buffering state.
+      setTimeout(function() {
+        if (!_this.isDisposed && _this._videoElement.currentTime == _this._lastCurrentTime) {
+          _this._stalls++;
+          _this._setCanPlay(false);
+        }
+      }, 200);
     }
 
     if (!_this._canPlay) {
@@ -536,9 +547,10 @@ Dashling.StreamController.prototype = {
   },
 
   _setCanPlay: function(isAllowed) {
+    this._videoElement.playbackRate = isAllowed ? 1 : 0;
+
     if (this._canPlay !== isAllowed) {
       this._canPlay = isAllowed;
-      this._videoElement.playbackRate = isAllowed ? 1 : 0;
       this._onPauseStateChange();
     }
   },
@@ -617,6 +629,7 @@ Dashling.StreamController.prototype = {
 
   _onPauseStateChange: function() {
     this._adjustPlaybackMonitor(!this._videoElement.paused);
+    this._checkCanPlay();
     this.raiseEvent(Dashling.Event.sessionStateChange, this._canPlay ? (this._videoElement.paused ? DashlingSessionState.paused : DashlingSessionState.playing) : DashlingSessionState.buffering);
   },
 
