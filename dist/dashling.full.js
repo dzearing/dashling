@@ -674,7 +674,7 @@ Dashling.StreamController.prototype = {
       _this._videoElement.removeEventListener("play", _this._onPauseStateChange);
       _this._videoElement.removeEventListener("pause", _this._onPauseStateChange);
       _this._videoElement.removeEventListener("ended", _this._onVideoEnded);
-      _this.videoElement.removeEventListener("ratechange", _this._onVideoRateChange);
+      _this._videoElement.removeEventListener("ratechange", _this._onVideoRateChange);
 
       _this._videoElement = null;
     }
@@ -1009,6 +1009,8 @@ Dashling.StreamController.prototype = {
         this._setCanPlay(true);
       }
     }
+
+    this.raiseEvent(Dashling.Event.sessionStateChange, this._canPlay ? (this._videoElement.paused ? DashlingSessionState.paused : DashlingSessionState.playing) : DashlingSessionState.buffering);
   },
 
   _allStreamsAppended: function(streams, fragmentIndex) {
@@ -1179,6 +1181,7 @@ Dashling.StreamController.prototype = {
       this._canPlay = isAllowed;
       this._onVideoRateChange();
     }
+
   },
 
   _onVideoSeeking: function() {
@@ -1256,7 +1259,6 @@ Dashling.StreamController.prototype = {
   _onPauseStateChange: function() {
     this._adjustPlaybackMonitor(!this._videoElement.paused);
     this._checkCanPlay();
-    this.raiseEvent(Dashling.Event.sessionStateChange, this._canPlay ? (this._videoElement.paused ? DashlingSessionState.paused : DashlingSessionState.playing) : DashlingSessionState.buffering);
   },
 
   _onVideoEnded: function() {
