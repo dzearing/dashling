@@ -60,7 +60,7 @@ Dashling.StreamController.prototype = {
       _this._videoElement.removeEventListener("play", _this._onPauseStateChange);
       _this._videoElement.removeEventListener("pause", _this._onPauseStateChange);
       _this._videoElement.removeEventListener("ended", _this._onVideoEnded);
-      _this.videoElement.removeEventListener("ratechange", _this._onVideoRateChange);
+      _this._videoElement.removeEventListener("ratechange", _this._onVideoRateChange);
 
       _this._videoElement = null;
     }
