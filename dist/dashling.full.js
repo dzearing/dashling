@@ -615,7 +615,7 @@ _mix(Dashling.ManifestParser.prototype, EventingMixin);
 /// <summary></summary>
 
 // When we calculate how much buffer is remaining, we permit a small blank gap between segments.
-var c_permittedGapSecondsBetweenRanges = 0.03;
+var c_permittedGapSecondsBetweenRanges = 0.06;
 
 Dashling.StreamController = function(videoElement, mediaSource, settings) {
   var _this = this;
@@ -1439,13 +1439,12 @@ Dashling.Stream.prototype = {
 
                 if (_this.isMissing(fragmentIndex, _this._videoElement.currentTime)) {
                   _onAppendError(DashlingError.sourceBufferAppendMissing, "Buffer missing appended fragment");
+                } else {
+                  var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
+                  _this._appendLength += fragment.time.lengthSeconds;
+                  _addMetric(_this._bufferRate, _this._appendLength / timeSinceStart, 5);
+                  onComplete(fragment);
                 }
-
-                var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
-
-                _this._appendLength += fragment.time.lengthSeconds;
-                _addMetric(_this._bufferRate, _this._appendLength / timeSinceStart, 5);
-                onComplete(fragment);
               }
             }, 20);
           }
@@ -1487,7 +1486,7 @@ Dashling.Stream.prototype = {
       _this._isAppending = false;
 
       _log("Append exception: " + statusCode);
-      _this.raiseEvent(DashlingEvent.sessionStateChange, error, DashlingError.sourceBufferAppend, statusCode);
+      _this.raiseEvent(DashlingEvent.sessionStateChange, DashlingSessionState.error, error, statusCode);
     }
   },
 
@@ -1522,8 +1521,8 @@ Dashling.Stream.prototype = {
       var atStart = fragmentTime.startSeconds < 0.3;
       var atEnd = (fragmentTime.startSeconds + fragmentTime.lengthSeconds + 0.3) >= (this._manifest.mediaDuration);
 
-      var safeStartTime = Math.max(currentTime, fragmentTime.startSeconds + (atStart ? 0.5 : 0.05));
-      var safeEndTime = fragmentTime.startSeconds + fragmentTime.lengthSeconds - (atEnd ? 0.8 : 0.05);
+      var safeStartTime = Math.max(currentTime, fragmentTime.startSeconds + (atStart ? 0.5 : 0.07));
+      var safeEndTime = fragmentTime.startSeconds + fragmentTime.lengthSeconds - (atEnd ? 0.8 : 0.07);
 
       try {
         // validate that the buffered area in the video element still contains the fragment.
@@ -1750,7 +1749,6 @@ Dashling.Stream.prototype = {
 
 _mix(Dashling.Stream.prototype, EventingMixin);
 _mix(Dashling.Stream.prototype, ThrottleMixin);
-
 Dashling.RequestManager = function(shouldRecordStats, settings) {
   _mix(this, {
     _settings: settings,

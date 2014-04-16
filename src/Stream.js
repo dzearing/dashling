@@ -149,13 +149,12 @@ Dashling.Stream.prototype = {
 
                 if (_this.isMissing(fragmentIndex, _this._videoElement.currentTime)) {
                   _onAppendError(DashlingError.sourceBufferAppendMissing, "Buffer missing appended fragment");
+                } else {
+                  var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
+                  _this._appendLength += fragment.time.lengthSeconds;
+                  _addMetric(_this._bufferRate, _this._appendLength / timeSinceStart, 5);
+                  onComplete(fragment);
                 }
-
-                var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
-
-                _this._appendLength += fragment.time.lengthSeconds;
-                _addMetric(_this._bufferRate, _this._appendLength / timeSinceStart, 5);
-                onComplete(fragment);
               }
             }, 20);
           }
@@ -232,8 +231,8 @@ Dashling.Stream.prototype = {
       var atStart = fragmentTime.startSeconds < 0.3;
       var atEnd = (fragmentTime.startSeconds + fragmentTime.lengthSeconds + 0.3) >= (this._manifest.mediaDuration);
 
-      var safeStartTime = Math.max(currentTime, fragmentTime.startSeconds + (atStart ? 0.5 : 0.05));
-      var safeEndTime = fragmentTime.startSeconds + fragmentTime.lengthSeconds - (atEnd ? 0.8 : 0.05);
+      var safeStartTime = Math.max(currentTime, fragmentTime.startSeconds + (atStart ? 0.5 : 0.07));
+      var safeEndTime = fragmentTime.startSeconds + fragmentTime.lengthSeconds - (atEnd ? 0.8 : 0.07);
 
       try {
         // validate that the buffered area in the video element still contains the fragment.

@@ -1,7 +1,7 @@
 /// <summary></summary>
 
 // When we calculate how much buffer is remaining, we permit a small blank gap between segments.
-var c_permittedGapSecondsBetweenRanges = 0.03;
+var c_permittedGapSecondsBetweenRanges = 0.06;
 
 Dashling.StreamController = function(videoElement, mediaSource, settings) {
   var _this = this;
