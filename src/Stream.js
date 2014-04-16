@@ -197,7 +197,7 @@ Dashling.Stream.prototype = {
       _this._isAppending = false;
 
       _log("Append exception: " + statusCode);
-      _this.raiseEvent(DashlingEvent.sessionStateChange, error, DashlingError.sourceBufferAppend, statusCode);
+      _this.raiseEvent(DashlingEvent.sessionStateChange, DashlingSessionState.error, error, statusCode);
     }
   },
 
