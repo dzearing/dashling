@@ -1,5 +1,8 @@
 /// <summary></summary>
 
+// When we calculate how much buffer is remaining, we permit a small blank gap between segments.
+var c_permittedGapSecondsBetweenRanges = 0.03;
+
 Dashling.StreamController = function(videoElement, mediaSource, settings) {
   var _this = this;
 
@@ -10,6 +13,7 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
   _this._onVideoEnded = _bind(_this, _this._onVideoEnded);
   _this._appendNextFragment = _bind(_this, _this._appendNextFragment);
   _this._onThrottledSeek = _bind(_this, _this._onThrottledSeek);
+  _this._onVideoRateChange = _bind(_this, _this._onVideoRateChange);
 
   _this._mediaSource = mediaSource;
   _this._settings = settings;
@@ -56,6 +60,8 @@ Dashling.StreamController.prototype = {
       _this._videoElement.removeEventListener("play", _this._onPauseStateChange);
       _this._videoElement.removeEventListener("pause", _this._onPauseStateChange);
       _this._videoElement.removeEventListener("ended", _this._onVideoEnded);
+      _this.videoElement.removeEventListener("ratechange", _this._onVideoRateChange);
+
       _this._videoElement = null;
     }
 
@@ -126,14 +132,21 @@ Dashling.StreamController.prototype = {
       var currentTime = (_this._settings.startTime || _this._videoElement.currentTime) + (offsetFromCurrentTime || 0);
       var bufferRanges = _this._videoElement.buffered;
 
-      // Workaround: if the currentTime is 0 and the first range  start is less than 1, default currentTime to start time.
+      // Workaround: if the currentTime is 0 and the first range start is less than 1s, default currentTime to start time.
       if (!currentTime && bufferRanges.length > 0 && bufferRanges.start(0) < 1) {
         currentTime = bufferRanges.start(0);
       }
 
       for (var i = 0; i < bufferRanges.length; i++) {
         if (currentTime >= bufferRanges.start(i) && currentTime <= bufferRanges.end(i)) {
-          remainingBuffer = bufferRanges.end(i) - currentTime;
+          // We've found the range containing currentTime. Now find the buffered end, ignore small gaps in between ranges.
+          var end = bufferRanges.end(i);
+
+          while (++i < bufferRanges.length && (bufferRanges.start(i) - end) < c_permittedGapSecondsBetweenRanges) {
+            end = bufferRanges.end(i);
+          }
+
+          remainingBuffer = end - currentTime;
           break;
         }
       }
@@ -182,6 +195,7 @@ Dashling.StreamController.prototype = {
       videoElement.addEventListener("play", _this._onPauseStateChange);
       videoElement.addEventListener("pause", _this._onPauseStateChange);
       videoElement.addEventListener("ended", _this._onVideoEnded);
+      videoElement.addEventListener("ratechange", _this._onVideoRateChange);
     }
   },
 
@@ -547,11 +561,9 @@ Dashling.StreamController.prototype = {
   },
 
   _setCanPlay: function(isAllowed) {
-    this._videoElement.playbackRate = isAllowed ? 1 : 0;
-
     if (this._canPlay !== isAllowed) {
       this._canPlay = isAllowed;
-      this._onPauseStateChange();
+      this._onVideoRateChange();
     }
   },
 
@@ -635,8 +647,15 @@ Dashling.StreamController.prototype = {
 
   _onVideoEnded: function() {
     this.raiseEvent(DashlingEvent.sessionStateChange, DashlingSessionState.paused);
-  }
+  },
 
+  _onVideoRateChange: function() {
+    var expectedRate = (this._canPlay ? 1 : 0);
+
+    if (this._videoElement.playbackRate != expectedRate) {
+      this._videoElement.playbackRate = expectedRate;
+    }
+  }
 };
 
 _mix(Dashling.StreamController.prototype, EventingMixin);

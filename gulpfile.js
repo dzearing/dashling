@@ -79,8 +79,8 @@ gulp.task('covertest', ['scripts', 'test'], function() {
 
 // Rerun the task when a file changes
 gulp.task('watch', function() {
-  gulp.watch(paths.scripts, ['test']);
-  gulp.watch(paths.testFiles, ['test']);
+  gulp.watch(paths.scripts, ['scripts']);
+  gulp.watch(paths.testFiles, ['scripts']);
 });
 
 gulp.task('default', ['jshint', 'scripts', 'test'], function() {
