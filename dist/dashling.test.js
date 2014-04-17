@@ -509,12 +509,13 @@ Dashling.ManifestParser.prototype = {
 
     this._requestManager.load(request);
 
-    function _onSuccess() {
+    function _onSuccess(request) {
       if (_this._parseIndex == parseIndex) {
         var manifest;
 
         try {
           manifest = _this._parseManifest(request.data);
+          manifest.request = request;
         } catch (e) {
           onError(DashlingError.manifestParse, e);
         }
@@ -610,6 +611,7 @@ Dashling.ManifestParser.prototype = {
 };
 
 _mix(Dashling.ManifestParser.prototype, EventingMixin);
+
 /// <summary></summary>
 
 // When we calculate how much buffer is remaining, we permit a small blank gap between segments.
