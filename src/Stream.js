@@ -137,7 +137,7 @@ Dashling.Stream.prototype = {
               _log("Append started: " + _this.streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
               buffer.appendBuffer(request.data);
             } catch (e) {
-              _onAppendError(e);
+              _onAppendError(DashlingError.sourceBufferAppendException, e);
             }
           } else {
             // We need to give a small slice of time because the video's buffered region doesn't update immediately after
@@ -148,14 +148,13 @@ Dashling.Stream.prototype = {
                 _this._isAppending = false;
 
                 if (_this.isMissing(fragmentIndex, _this._videoElement.currentTime)) {
-                  _onAppendError("Buffer missing appended fragment");
+                  _onAppendError(DashlingError.sourceBufferAppendMissing, "Buffer missing appended fragment");
+                } else {
+                  var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
+                  _this._appendLength += fragment.time.lengthSeconds;
+                  _addMetric(_this._bufferRate, _this._appendLength / timeSinceStart, 5);
+                  onComplete(fragment);
                 }
-
-                var timeSinceStart = (new Date().getTime() - _this._startTime) / 1000;
-
-                _this._appendLength += fragment.time.lengthSeconds;
-                _addMetric(_this._bufferRate, _this._appendLength / timeSinceStart, 5);
-                onComplete(fragment);
               }
             }, 20);
           }
@@ -187,14 +186,17 @@ Dashling.Stream.prototype = {
       }
     }
 
-    function _onAppendError(e) {
-      var statusCode = (e ? e.toString() : "error") + " (quality=" + fragment.qualityId + (fragment.fragmentIndex !== undefined ? " index=" + fragment.fragmentIndex : "") + ")";
+    function _onAppendError(error, details) {
+
+      details = details || "";
+
+      var statusCode = "error=" + details + " (quality=" + fragment.qualityId + (fragment.fragmentIndex !== undefined ? " index=" + fragment.fragmentIndex : "") + ")";
 
       fragment.state = DashlingFragmentState.error;
       _this._isAppending = false;
 
       _log("Append exception: " + statusCode);
-      _this.raiseEvent(DashlingEvent.sessionStateChange, DashlingSessionState.error, DashlingError.append, statusCode);
+      _this.raiseEvent(DashlingEvent.sessionStateChange, DashlingSessionState.error, error, statusCode);
     }
   },
 
@@ -229,8 +231,8 @@ Dashling.Stream.prototype = {
       var atStart = fragmentTime.startSeconds < 0.3;
       var atEnd = (fragmentTime.startSeconds + fragmentTime.lengthSeconds + 0.3) >= (this._manifest.mediaDuration);
 
-      var safeStartTime = Math.max(currentTime, fragmentTime.startSeconds + (atStart ? 0.5 : 0.05));
-      var safeEndTime = fragmentTime.startSeconds + fragmentTime.lengthSeconds - (atEnd ? 0.8 : 0.05);
+      var safeStartTime = Math.max(currentTime, fragmentTime.startSeconds + (atStart ? 0.5 : 0.07));
+      var safeEndTime = fragmentTime.startSeconds + fragmentTime.lengthSeconds - (atEnd ? 0.8 : 0.07);
 
       try {
         // validate that the buffered area in the video element still contains the fragment.
@@ -385,7 +387,7 @@ Dashling.Stream.prototype = {
         this.raiseEvent(
           DashlingEvent.sessionStateChange,
           DashlingSessionState.error,
-          DashlingError.mediaSourceInit,
+          DashlingError.sourceBufferInit,
           "type=" + bufferType + " error=" + e);
       }
     }

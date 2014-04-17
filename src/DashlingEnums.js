@@ -4,13 +4,27 @@ var DashlingEvent = {
 };
 
 var DashlingError = {
+  // Occurs when the manifest fails to download.
   manifestDownload: "manifestDownload",
-  manifestParse: "manifestParse",
-  mediaSourceInit: "mediaSourceInit",
-  mediaSourceAppend: "mediaSourceAppend",
+
+  // Occurs when the initSegment fails to download.
   initSegmentDownload: "initSegmentDownload",
+
+  // Occurs when the mediaSegment fails to download.
   mediaSegmentDownload: "mediaSegmentDownload",
-  append: "append"
+
+  // Occurs when we can't parse the manifest.
+  manifestParse: "manifestParse",
+
+  // Occurs when we can't initialize a sourceBuffer from the mediaSource.
+  sourceBufferInit: "sourceBufferInit",
+
+  // Occurs when we try to append a segment but it doesn't seem to append.
+  sourceBufferAppendException: "sourceBufferAppendException",
+
+  // Occurs when we try to append a segment, and afterwards don't find it in the buffer.
+  sourceBufferAppendMissing: "sourceBufferAppendMissing"
+
 };
 
 var DashlingSessionState = {

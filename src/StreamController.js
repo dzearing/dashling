@@ -1,5 +1,11 @@
 /// <summary></summary>
 
+// When we calculate how much buffer is remaining, we permit a small blank gap between segments.
+var c_permittedGapSecondsBetweenRanges = 0.06;
+
+// When we try to calculate which fragment a "currentTime" value aligns on, we subtract this value from currentTime first.
+var c_seekTimeBufferSeconds = 0.5;
+
 Dashling.StreamController = function(videoElement, mediaSource, settings) {
   var _this = this;
 
@@ -10,6 +16,7 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
   _this._onVideoEnded = _bind(_this, _this._onVideoEnded);
   _this._appendNextFragment = _bind(_this, _this._appendNextFragment);
   _this._onThrottledSeek = _bind(_this, _this._onThrottledSeek);
+  _this._onVideoRateChange = _bind(_this, _this._onVideoRateChange);
 
   _this._mediaSource = mediaSource;
   _this._settings = settings;
@@ -24,8 +31,7 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
   if (_this._streams.length && settings && settings.startTime) {
     var stream = _this._streams[0];
     var firstFragmentDuration = stream.fragments[0].time.lengthSeconds;
-
-    this._appendIndex = Math.max(0, Math.min(stream.fragments.length - 1, (Math.floor((settings.startTime - 0.5) / firstFragmentDuration))));
+    this._appendIndex = Math.max(0, Math.min(stream.fragments.length - 1, (Math.floor((settings.startTime - c_seekTimeBufferSeconds) / firstFragmentDuration))));
   }
 };
 
@@ -56,6 +62,8 @@ Dashling.StreamController.prototype = {
       _this._videoElement.removeEventListener("play", _this._onPauseStateChange);
       _this._videoElement.removeEventListener("pause", _this._onPauseStateChange);
       _this._videoElement.removeEventListener("ended", _this._onVideoEnded);
+      _this._videoElement.removeEventListener("ratechange", _this._onVideoRateChange);
+
       _this._videoElement = null;
     }
 
@@ -91,27 +99,49 @@ Dashling.StreamController.prototype = {
   },
 
   getPlayingQuality: function(streamType) {
+    /// <summary>
+    /// Gets the current playing fragment's quality for the given stream type.
+    /// </summary>
+
     var qualityIndex = 0;
 
     if (!this.isDisposed) {
-      var currentTime = this._videoElement.currentTime;
-      var stream = streamType == "video" ? this._videoStream : streamType._audioStream;
+      for (var streamIndex = 0; streamIndex < this._streams.length; streamIndex++) {
+        var stream = this._streams[streamIndex];
 
-      if (stream) {
-        var fragmentIndex = Math.min(stream.fragments.length - 1, Math.floor(currentTime / stream.fragments[0].time.lengthSeconds));
+        if (stream.streamType == streamType) {
+          var currentTime = this._videoElement.currentTime;
+          var fragmentIndex = Math.min(stream.fragments.length - 1, Math.floor(currentTime / stream.fragments[0].time.lengthSeconds));
 
-        qualityIndex = stream.fragments[fragmentIndex].qualityIndex;
-        qualityIndex = qualityIndex >= 0 ? qualityIndex : stream.qualityIndex;
+          qualityIndex = stream.fragments[fragmentIndex].qualityIndex;
+          qualityIndex = qualityIndex >= 0 ? qualityIndex : stream.qualityIndex;
+          break;
+        }
       }
-    }
 
+    }
     return qualityIndex;
   },
 
   getBufferingQuality: function(streamType) {
-    var stream = streamType == "video" ? this._videoStream : this._audioStream;
+    /// <summary>
+    /// Gets the current default current quality for the given stream type.
+    /// </summary>
 
-    return stream ? stream.qualityIndex : 0;
+    var qualityIndex = 0;
+
+    if (!this.isDisposed) {
+      for (var streamIndex = 0; streamIndex < this._streams.length; streamIndex++) {
+        var stream = this._streams[streamIndex];
+
+        if (stream.streamType == streamType) {
+          qualityIndex = stream.qualityIndex;
+          break;
+        }
+      }
+    }
+
+    return qualityIndex;
   },
 
   getBufferRate: function() {
@@ -123,12 +153,24 @@ Dashling.StreamController.prototype = {
     var remainingBuffer = 0;
 
     if (!_this.isDisposed) {
-      var currentTime = (_this._settings.startTime || Math.max(0.5, _this._videoElement.currentTime)) + (offsetFromCurrentTime || 0);
+      var currentTime = (_this._settings.startTime || _this._videoElement.currentTime) + (offsetFromCurrentTime || 0);
       var bufferRanges = _this._videoElement.buffered;
+
+      // Workaround: if the currentTime is 0 and the first range start is less than 1s, default currentTime to start time.
+      if (!currentTime && bufferRanges.length > 0 && bufferRanges.start(0) < 1) {
+        currentTime = bufferRanges.start(0);
+      }
 
       for (var i = 0; i < bufferRanges.length; i++) {
         if (currentTime >= bufferRanges.start(i) && currentTime <= bufferRanges.end(i)) {
-          remainingBuffer = bufferRanges.end(i) - currentTime;
+          // We've found the range containing currentTime. Now find the buffered end, ignore small gaps in between ranges.
+          var end = bufferRanges.end(i);
+
+          while (++i < bufferRanges.length && (bufferRanges.start(i) - end) < c_permittedGapSecondsBetweenRanges) {
+            end = bufferRanges.end(i);
+          }
+
+          remainingBuffer = end - currentTime;
           break;
         }
       }
@@ -177,6 +219,7 @@ Dashling.StreamController.prototype = {
       videoElement.addEventListener("play", _this._onPauseStateChange);
       videoElement.addEventListener("pause", _this._onPauseStateChange);
       videoElement.addEventListener("ended", _this._onVideoEnded);
+      videoElement.addEventListener("ratechange", _this._onVideoRateChange);
     }
   },
 
@@ -352,13 +395,19 @@ Dashling.StreamController.prototype = {
     var _this = this;
     var timeUntilUnderrun = _this.getTimeUntilUnderrun();
     var allowedSeekAhead = 0.5;
+    var canPlay = false;
 
     this._lastCurrentTime = _this._videoElement.currentTime;
 
     if (_this._canPlay && timeUntilUnderrun < 0.1) {
-      // We are stalling!
-      _this._stalls++;
-      _this._setCanPlay(false);
+
+      // We may be stalling! Check in 200ms if we haven't moved. If we have, then go into a buffering state.
+      setTimeout(function() {
+        if (!_this.isDisposed && _this._videoElement.currentTime == _this._lastCurrentTime) {
+          _this._stalls++;
+          _this._setCanPlay(false);
+        }
+      }, 200);
     }
 
     if (!_this._canPlay) {
@@ -370,6 +419,8 @@ Dashling.StreamController.prototype = {
         this._setCanPlay(true);
       }
     }
+
+    this.raiseEvent(Dashling.Event.sessionStateChange, this._canPlay ? (this._videoElement.paused ? DashlingSessionState.paused : DashlingSessionState.playing) : DashlingSessionState.buffering);
   },
 
   _allStreamsAppended: function(streams, fragmentIndex) {
@@ -453,14 +504,17 @@ Dashling.StreamController.prototype = {
     };
 
     if (duration > 0) {
-      var currentTime = videoElement.currentTime;
+      var currentTime = _this._settings.startTime || videoElement.currentTime;
       var isAtEnd = (currentTime + 0.005) >= duration;
       var firstStream = _this._streams[0];
       var fragmentCount = firstStream.fragments.length;
       var fragmentLength = firstStream.fragments[0].time.lengthSeconds;
 
       if (!isAtEnd) {
-        range.start = Math.max(0, Math.min(fragmentCount - 1, Math.floor((currentTime - 0.005) / fragmentLength)));
+        if (currentTime > c_seekTimeBufferSeconds) {
+          currentTime -= c_seekTimeBufferSeconds;
+        }
+        range.start = Math.max(0, Math.min(fragmentCount - 1, Math.floor(currentTime / fragmentLength)));
         range.end = Math.max(0, Math.min(fragmentCount - 1, Math.ceil((currentTime + _this._settings.maxBufferSeconds) / fragmentLength)));
       }
     }
@@ -538,9 +592,9 @@ Dashling.StreamController.prototype = {
   _setCanPlay: function(isAllowed) {
     if (this._canPlay !== isAllowed) {
       this._canPlay = isAllowed;
-      this._videoElement.playbackRate = isAllowed ? 1 : 0;
-      this._onPauseStateChange();
+      this._onVideoRateChange();
     }
+
   },
 
   _onVideoSeeking: function() {
@@ -564,13 +618,12 @@ Dashling.StreamController.prototype = {
     if (!_this.isDisposed) {
       var currentTime = _this._videoElement.currentTime;
       var lastTimeBeforeSeek = this._lastTimeBeforeSeek;
-      var fragmentIndex = Math.floor(Math.max(0, currentTime - 0.5) / _this._streams[0].fragments[0].time.lengthSeconds);
+      var fragmentIndex = Math.floor(Math.max(0, currentTime - c_seekTimeBufferSeconds) / _this._streams[0].fragments[0].time.lengthSeconds);
       var streamIndex;
       var isBufferAcceptable =
         _this._videoElement.buffered.length == 1 &&
-        _this._videoElement.buffered.start(0) <= 0.5 &&
-        _this._videoElement.buffered.end(0) > currentTime &&
-        _this._videoElement.buffered.end(0) < _this._settings.maxBufferSeconds;
+        _this._videoElement.buffered.start(0) <= (Math.max(0, currentTime - 2)) &&
+        _this._videoElement.buffered.end(0) > currentTime;
 
       _log("Throttled seek: " + _this._videoElement.currentTime, _this._settings);
 
@@ -587,10 +640,11 @@ Dashling.StreamController.prototype = {
         for (streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
           _this._streams[streamIndex].abortAll();
         }
-      } else if (currentTime < lastTimeBeforeSeek && !isBufferAcceptable) {
-        _log("Clearing buffer due to reverse seek", _this._settings);
+      }
 
-        // Going backwards from last position, clear all buffer content to avoid chrome from removing our new buffer.
+      if (_this._settings.manifest.mediaDuration > _this._settings.maxBufferSeconds && !isBufferAcceptable) {
+        _log("Clearing buffer", _this._settings);
+
         for (streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
           _this._streams[streamIndex].clearBuffer();
         }
@@ -617,13 +671,20 @@ Dashling.StreamController.prototype = {
 
   _onPauseStateChange: function() {
     this._adjustPlaybackMonitor(!this._videoElement.paused);
-    this.raiseEvent(Dashling.Event.sessionStateChange, this._canPlay ? (this._videoElement.paused ? DashlingSessionState.paused : DashlingSessionState.playing) : DashlingSessionState.buffering);
+    this._checkCanPlay();
   },
 
   _onVideoEnded: function() {
     this.raiseEvent(DashlingEvent.sessionStateChange, DashlingSessionState.paused);
-  }
+  },
 
+  _onVideoRateChange: function() {
+    var expectedRate = (this._canPlay ? 1 : 0);
+
+    if (this._videoElement.playbackRate != expectedRate) {
+      this._videoElement.playbackRate = this._videoElement.defaultPlaybackRate = expectedRate;
+    }
+  }
 };
 
 _mix(Dashling.StreamController.prototype, EventingMixin);

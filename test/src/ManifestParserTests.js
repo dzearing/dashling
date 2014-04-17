@@ -230,7 +230,10 @@ test("ManifestParser.parse success", function() {
   ok(request, "Request was loaded");
 
   request.data = workingManifest;
-  request.onSuccess();
+  request.onSuccess(request);
+
+  // Ignore the request in the deepEqual.
+  delete manifest.request;
 
   deepEqual(manifest, workingManifestExpectedResult, "Success called with valid parse");
 
