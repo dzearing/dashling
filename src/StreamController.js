@@ -682,7 +682,7 @@ Dashling.StreamController.prototype = {
     var expectedRate = (this._canPlay ? 1 : 0);
 
     if (this._videoElement.playbackRate != expectedRate) {
-      this._videoElement.playbackRate = expectedRate;
+      this._videoElement.playbackRate = this._videoElement.defaultPlaybackRate = expectedRate;
     }
   }
 };
