@@ -617,6 +617,9 @@ _mix(Dashling.ManifestParser.prototype, EventingMixin);
 // When we calculate how much buffer is remaining, we permit a small blank gap between segments.
 var c_permittedGapSecondsBetweenRanges = 0.06;
 
+// When we try to calculate which fragment a "currentTime" value aligns on, we subtract this value from currentTime first.
+var c_seekTimeBufferSeconds = 0.5;
+
 Dashling.StreamController = function(videoElement, mediaSource, settings) {
   var _this = this;
 
@@ -642,8 +645,7 @@ Dashling.StreamController = function(videoElement, mediaSource, settings) {
   if (_this._streams.length && settings && settings.startTime) {
     var stream = _this._streams[0];
     var firstFragmentDuration = stream.fragments[0].time.lengthSeconds;
-
-    this._appendIndex = Math.max(0, Math.min(stream.fragments.length - 1, (Math.floor((settings.startTime - 0.5) / firstFragmentDuration))));
+    this._appendIndex = Math.max(0, Math.min(stream.fragments.length - 1, (Math.floor((settings.startTime - c_seekTimeBufferSeconds) / firstFragmentDuration))));
   }
 };
 
@@ -1094,14 +1096,17 @@ Dashling.StreamController.prototype = {
     };
 
     if (duration > 0) {
-      var currentTime = videoElement.currentTime;
+      var currentTime = _this._settings.startTime || videoElement.currentTime;
       var isAtEnd = (currentTime + 0.005) >= duration;
       var firstStream = _this._streams[0];
       var fragmentCount = firstStream.fragments.length;
       var fragmentLength = firstStream.fragments[0].time.lengthSeconds;
 
       if (!isAtEnd) {
-        range.start = Math.max(0, Math.min(fragmentCount - 1, Math.floor((currentTime - 0.005) / fragmentLength)));
+        if (currentTime > c_seekTimeBufferSeconds) {
+          currentTime -= c_seekTimeBufferSeconds;
+        }
+        range.start = Math.max(0, Math.min(fragmentCount - 1, Math.floor(currentTime / fragmentLength)));
         range.end = Math.max(0, Math.min(fragmentCount - 1, Math.ceil((currentTime + _this._settings.maxBufferSeconds) / fragmentLength)));
       }
     }
@@ -1205,13 +1210,12 @@ Dashling.StreamController.prototype = {
     if (!_this.isDisposed) {
       var currentTime = _this._videoElement.currentTime;
       var lastTimeBeforeSeek = this._lastTimeBeforeSeek;
-      var fragmentIndex = Math.floor(Math.max(0, currentTime - 0.5) / _this._streams[0].fragments[0].time.lengthSeconds);
+      var fragmentIndex = Math.floor(Math.max(0, currentTime - c_seekTimeBufferSeconds) / _this._streams[0].fragments[0].time.lengthSeconds);
       var streamIndex;
       var isBufferAcceptable =
         _this._videoElement.buffered.length == 1 &&
-        _this._videoElement.buffered.start(0) <= 0.5 &&
-        _this._videoElement.buffered.end(0) > currentTime &&
-        _this._videoElement.buffered.end(0) < _this._settings.maxBufferSeconds;
+        _this._videoElement.buffered.start(0) <= (Math.max(0, currentTime - 2)) &&
+        _this._videoElement.buffered.end(0) > currentTime;
 
       _log("Throttled seek: " + _this._videoElement.currentTime, _this._settings);
 
@@ -1228,10 +1232,11 @@ Dashling.StreamController.prototype = {
         for (streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
           _this._streams[streamIndex].abortAll();
         }
-      } else if (currentTime < lastTimeBeforeSeek && !isBufferAcceptable) {
-        _log("Clearing buffer due to reverse seek", _this._settings);
+      }
 
-        // Going backwards from last position, clear all buffer content to avoid chrome from removing our new buffer.
+      if (_this._settings.manifest.mediaDuration > _this._settings.maxBufferSeconds && !isBufferAcceptable) {
+        _log("Clearing buffer", _this._settings);
+
         for (streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
           _this._streams[streamIndex].clearBuffer();
         }
@@ -1288,6 +1293,7 @@ function _getBuffered(videoElement) {
 
   return ranges;
 }
+
 var c_bandwidthStorageKey = "Dashling.Stream.bytesPerSecond";
 
 Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {

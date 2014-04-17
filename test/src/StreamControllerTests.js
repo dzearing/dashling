@@ -15,6 +15,7 @@ test("StreamController._getCurrentFragmentRange", function() {
     },
     _settings: {
       maxBufferSeconds: 0,
+      startTime: 0,
       manifest: {
         mediaDuration: 5
       }
@@ -69,6 +70,15 @@ test("StreamController._getCurrentFragmentRange", function() {
     end: 2
   }, "Moving the currentTime to almost end returns last fragment");
 
+  streamController._videoElement.currentTime = 0;
+  streamController._settings.startTime = 2.5;
+
+  deepEqual(streamController._getCurrentFragmentRange(), {
+    start: 1,
+    end: 2
+  }, "Setting a specific startTime override results in different download set");
+
+  streamController._settings.startTime = 0;
   streamController._videoElement.currentTime = streamController._settings.manifest.mediaDuration;
 
   deepEqual(streamController._getCurrentFragmentRange(), {
