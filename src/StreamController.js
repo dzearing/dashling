@@ -99,27 +99,45 @@ Dashling.StreamController.prototype = {
   },
 
   getPlayingQuality: function(streamType) {
+    /// <summary>
+    /// Gets the current playing fragment's quality for the given stream type.
+    /// </summary>
+
     var qualityIndex = 0;
 
     if (!this.isDisposed) {
-      var currentTime = this._videoElement.currentTime;
-      var stream = streamType == "video" ? this._videoStream : streamType._audioStream;
+      for (var streamIndex = 0; streamIndex < this._streams.length; streamIndex++) {
+        var stream = this._streams[streamIndex];
 
-      if (stream) {
-        var fragmentIndex = Math.min(stream.fragments.length - 1, Math.floor(currentTime / stream.fragments[0].time.lengthSeconds));
+        if (stream.streamType == streamType) {
+          var currentTime = this._videoElement.currentTime;
+          var fragmentIndex = Math.min(stream.fragments.length - 1, Math.floor(currentTime / stream.fragments[0].time.lengthSeconds));
 
-        qualityIndex = stream.fragments[fragmentIndex].qualityIndex;
-        qualityIndex = qualityIndex >= 0 ? qualityIndex : stream.qualityIndex;
+          qualityIndex = stream.fragments[fragmentIndex].qualityIndex;
+          qualityIndex = qualityIndex >= 0 ? qualityIndex : stream.qualityIndex;
+          break;
+        }
       }
-    }
 
+    }
     return qualityIndex;
   },
 
   getBufferingQuality: function(streamType) {
-    var stream = streamType == "video" ? this._videoStream : this._audioStream;
+    var qualityIndex = 0;
 
-    return stream ? stream.qualityIndex : 0;
+    if (!this.isDisposed) {
+      for (var streamIndex = 0; streamIndex < this._streams.length; streamIndex++) {
+        var stream = this._streams[streamIndex];
+
+        if (stream.streamType == streamType) {
+          qualityIndex = stream.qualityIndex;
+          break;
+        }
+      }
+    }
+
+    return qualityIndex;
   },
 
   getBufferRate: function() {

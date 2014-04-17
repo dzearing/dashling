@@ -305,3 +305,47 @@ test("StreamController.getRemainingBuffer", function() {
 
   equal(streamController.getRemainingBuffer(), 13, "13 seconds left, after small gap");
 });
+
+test("StreamController.getPlayingQuality and getBufferingQuality", function() {
+  var streamController = new Dashling.StreamController();
+
+  _mix(streamController, {
+    _videoElement: {
+      currentTime: 0
+    },
+    _streams: [{
+      streamType: "foo",
+      qualityIndex: 1,
+      fragments: [{
+        qualityIndex: 3,
+        time: {
+          lengthSeconds: 2
+        }
+      }, {
+        qualityIndex: -1
+      }]
+    }, {
+      streamType: "bar",
+      qualityIndex: 2,
+      fragments: [{
+        qualityIndex: 4,
+        time: {
+          lengthSeconds: 2
+        }
+      }, {
+        qualityIndex: -1
+      }]
+    }]
+  });
+
+  equal(streamController.getPlayingQuality("foo"), 3);
+  equal(streamController.getPlayingQuality("bar"), 4);
+
+  equal(streamController.getBufferingQuality("foo"), 1);
+  equal(streamController.getBufferingQuality("bar"), 2);
+
+  streamController._videoElement.currentTime = 2;
+
+  equal(streamController.getPlayingQuality("foo"), 1);
+  equal(streamController.getPlayingQuality("bar"), 2);
+});

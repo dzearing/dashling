@@ -51,7 +51,9 @@ gulp.task('jshint', function() {
 
 gulp.task('scripts', ['clean', 'jshint', 'testscripts'], function(cb) {
   return gulp.src(paths.wrappedScripts)
-    .pipe(concat('dashling.full.js'))
+    .pipe(concat('dashling.full.js', {
+      newLine: '\r\n'
+    }))
     .pipe(gulp.dest('dist'))
     .pipe(uglify())
     .pipe(rename('dashling.min.js'))
