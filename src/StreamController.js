@@ -124,6 +124,10 @@ Dashling.StreamController.prototype = {
   },
 
   getBufferingQuality: function(streamType) {
+    /// <summary>
+    /// Gets the current default current quality for the given stream type.
+    /// </summary>
+
     var qualityIndex = 0;
 
     if (!this.isDisposed) {
