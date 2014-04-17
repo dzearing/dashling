@@ -8,7 +8,6 @@ var coveralls = require('gulp-coveralls');
 var jshint = require('gulp-jshint');
 var stylish = require('jshint-stylish');
 
-// These are my source files.
 var paths = {
     scripts: inDirectory('src/', [
         'Utilities.js',
