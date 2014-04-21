@@ -418,6 +418,40 @@ Dashling.prototype = {
 };
 
 _mix(Dashling.prototype, EventingMixin);
+Dashling.BandwidthMonitor = function(defaultBitsPerSecond, movingAverageSize) {
+  _mix(this, {
+    _defaultBitsPerSecond: defaultBitsPerSecond,
+    _movingAverageSize: movingAverageSize,
+    _bpsSamples: [],
+    _estimateMultiplier: 1
+  });
+};
+
+Dashling.BandwidthMonitor.prototype = {
+
+  getEstimatedTime: function(fileSize) {
+    var bitSize = fileSize * 8;
+    var bitRate = this._bpsSamples.average || this._defaultBitsPerSecond;
+
+    return (1000 * this._estimateMultiplier * bitSize) / bitRate;
+  },
+
+  getVariance: function() {
+
+  },
+
+  getBitsPerSecond: function() {
+    return this._bpsSamples.average || this._defaultBitsPerSecond;
+  },
+
+  getEstimateMultiplier: function() {
+    return this._estimateMultiplier;
+  },
+
+  report: function(byteLength, estimatedTime, actualTime) {
+
+  }
+};
 Dashling.Settings = {
   // The manifest object to use, if you want to skip the serial call to fetch the xml.
   manifest: null,
@@ -1005,38 +1039,6 @@ Dashling.StreamController.prototype = {
     }
   },
 
-  _checkCanPlay: function() {
-    var _this = this;
-    var timeUntilUnderrun = _this.getTimeUntilUnderrun();
-    var allowedSeekAhead = 0.5;
-    var canPlay = false;
-
-    this._lastCurrentTime = _this._videoElement.currentTime;
-
-    if (_this._canPlay && timeUntilUnderrun < 0.1) {
-
-      // We may be stalling! Check in 200ms if we haven't moved. If we have, then go into a buffering state.
-      setTimeout(function() {
-        if (!_this.isDisposed && _this._videoElement.currentTime == _this._lastCurrentTime) {
-          _this._stalls++;
-          _this._setCanPlay(false);
-        }
-      }, 200);
-    }
-
-    if (!_this._canPlay) {
-      if (timeUntilUnderrun > _this._settings.safeBufferSeconds) {
-        this._setCanPlay(true);
-      } else if (_this.getTimeUntilUnderrun(allowedSeekAhead) > _this._settings.safeBufferSeconds) {
-        // Wiggle ahead the current time.
-        _this._videoElement.currentTime = Math.min(_this._videoElement.currentTime + allowedSeekAhead, _this._videoElement.duration);
-        this._setCanPlay(true);
-      }
-    }
-
-    this.raiseEvent(Dashling.Event.sessionStateChange, this._canPlay ? (this._videoElement.paused ? DashlingSessionState.paused : DashlingSessionState.playing) : DashlingSessionState.buffering);
-  },
-
   _allStreamsAppended: function(streams, fragmentIndex) {
     var allStreamsAppended = false;
 
@@ -1203,12 +1205,45 @@ Dashling.StreamController.prototype = {
     return indexes;
   },
 
+  _checkCanPlay: function() {
+    var _this = this;
+    var timeUntilUnderrun = _this.getTimeUntilUnderrun();
+    var allowedSeekAhead = 0.5;
+    var canPlay = this._canPlay;
+
+    this._lastCurrentTime = _this._videoElement.currentTime;
+
+    if (_this._canPlay && timeUntilUnderrun < 0.1) {
+
+      // We may be stalling! Check in 200ms if we haven't moved. If we have, then go into a buffering state.
+      setTimeout(function() {
+        if (!_this.isDisposed && _this._videoElement.currentTime == _this._lastCurrentTime) {
+          _this._stalls++;
+          _this._setCanPlay(false);
+        }
+      }, 200);
+    }
+
+    if (!_this._canPlay) {
+      if (timeUntilUnderrun > _this._settings.safeBufferSeconds) {
+        canPlay = true;
+      } else if (_this.getTimeUntilUnderrun(allowedSeekAhead) > _this._settings.safeBufferSeconds) {
+        // Wiggle ahead the current time.
+        _this._videoElement.currentTime = Math.min(_this._videoElement.currentTime + allowedSeekAhead, _this._videoElement.duration);
+        canPlay = true;
+      }
+    }
+
+    this._setCanPlay(canPlay);
+  },
+
   _setCanPlay: function(isAllowed) {
     if (this._canPlay !== isAllowed) {
       this._canPlay = isAllowed;
       this._onVideoRateChange();
     }
 
+    this.raiseEvent(Dashling.Event.sessionStateChange, this._canPlay ? (this._videoElement.paused ? DashlingSessionState.paused : DashlingSessionState.playing) : DashlingSessionState.buffering);
   },
 
   _onVideoSeeking: function() {
@@ -1315,7 +1350,6 @@ function _getBuffered(videoElement) {
 
   return ranges;
 }
-
 var c_bandwidthStorageKey = "Dashling.Stream.bytesPerSecond";
 
 Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {

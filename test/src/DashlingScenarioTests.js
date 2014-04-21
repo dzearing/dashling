@@ -2,6 +2,7 @@ if (window.MediaSource) {
   asyncTest("Dashling loads and plays a video successfully", function() {
     var videoElement = document.createElement("video");
 
+
     document.body.appendChild(videoElement);
 
     var dashling = new Dashling();

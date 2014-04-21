@@ -15,6 +15,7 @@ var paths = {
     'EventingMixin.js',
     'DashlingEnums.js',
     'Dashling.js',
+    'BandwidthMonitor.js',
     'Settings.js',
     'ManifestParser.js',
     'StreamController.js',
@@ -37,7 +38,7 @@ function inDirectory(dir, files) {
 }
 
 gulp.task('clean', function() {
-  gulp.src(['coverage', 'dist'])
+  return gulp.src(['coverage', 'dist'])
     .pipe(clean());
 });
 
@@ -75,14 +76,13 @@ gulp.task('test', ['clean', 'scripts'], function(cb) {
 });
 
 gulp.task('covertest', ['scripts', 'test'], function() {
-  gulp.src('coverage/**/lcov.info')
+  return gulp.src('coverage/**/lcov.info')
     .pipe(coveralls());
 });
 
 // Rerun the task when a file changes
 gulp.task('watch', function() {
-  gulp.watch(paths.scripts, ['scripts']);
-  gulp.watch(paths.testFiles, ['scripts']);
+  return gulp.watch(paths.scripts.concat(paths.testFiles), ['scripts']);
 });
 
 gulp.task('default', ['jshint', 'scripts', 'test'], function() {
