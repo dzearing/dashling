@@ -1017,11 +1017,17 @@ Dashling.StreamController.prototype = {
 
     this._lastCurrentTime = _this._videoElement.currentTime;
 
-    if (_this._canPlay && timeUntilUnderrun < 0.1) {
+    if (_this._canPlay && timeUntilUnderrun < 0.1 && !_this._timeAtStall) {
+
+      _this._timeAtStall = this._lastCurrentTime;
 
       // We may be stalling! Check in 200ms if we haven't moved. If we have, then go into a buffering state.
       setTimeout(function() {
-        if (!_this.isDisposed && _this._videoElement.currentTime == _this._lastCurrentTime) {
+        var timeAtStall = _this._timeAtStall;
+
+        _this._timeAtStall = 0;
+
+        if (!_this.isDisposed && _this._videoElement.currentTime == timeAtStall) {
           _this._stalls++;
           _this._setCanPlay(false);
         }
