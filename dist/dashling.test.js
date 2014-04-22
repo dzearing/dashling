@@ -858,6 +858,8 @@ Dashling.StreamController.prototype = {
       stream = _this._streams[i];
       stream.addEventListener(DashlingEvent.download, _forwardDownloadEvent);
       stream.addEventListener(DashlingEvent.sessionStateChange, _forwardSessionStateChange);
+
+      stream.initialize();
     }
 
     function _forwardDownloadEvent(ev) {
@@ -1324,19 +1326,20 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
 
   _mix(_this, {
     fragments: [],
+    streamType: streamType,
     qualityIndex: Math.max(0, Math.min(streamInfo.qualities.length - 1, settings.targetQuality[streamType])),
     _startTime: new Date().getTime(),
     _appendLength: 0,
     _initializedQualityIndex: -1,
     _initRequestManager: new Dashling.RequestManager(false, settings),
     _requestManager: new Dashling.RequestManager(streamType == "video", settings),
-    streamType: streamType,
     _mediaSource: mediaSource,
     _videoElement: videoElement,
     _settings: settings,
     _manifest: settings.manifest,
     _streamInfo: streamInfo,
     _buffer: null,
+    _hasInitializedBuffer: false,
     _bufferRate: [],
     _initSegments: []
   });
@@ -1365,6 +1368,23 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
 };
 
 Dashling.Stream.prototype = {
+  initialize: function() {
+    var bufferType = this._streamInfo.mimeType + ";codecs=" + this._streamInfo.codecs;
+
+    if (!this._buffer) {
+      try {
+        _log("Creating " + bufferType + " buffer", this._settings);
+        this._buffer = this._mediaSource.addSourceBuffer(bufferType);
+      } catch (e) {
+        this.raiseEvent(
+          DashlingEvent.sessionStateChange,
+          DashlingSessionState.error,
+          DashlingError.sourceBufferInit,
+          "type=" + bufferType + " error=" + e);
+      }
+    }
+  },
+
   dispose: function() {
     if (this._requestManager) {
       this._requestManager.dispose();
@@ -1422,8 +1442,9 @@ Dashling.Stream.prototype = {
       fragment.state = DashlingFragmentState.appending;
 
       // On first time initialization, add the top quality init segment.
-      if (!buffer) {
-        buffer = _this._getSourceBuffer();
+      if (!this._hasInitializedBuffer) {
+        this._hasInitializedBuffer = true;
+
         if (maxQualityIndex > fragment.qualityIndex) {
           fragmentsToAppend.push(_this._initSegments[maxQualityIndex]);
         }
@@ -1695,24 +1716,6 @@ Dashling.Stream.prototype = {
     return totalBytes / averageBytesPerSecond;
   },
 
-  _getSourceBuffer: function() {
-    var bufferType = this._streamInfo.mimeType + ";codecs=" + this._streamInfo.codecs;
-
-    if (!this._buffer) {
-      try {
-        this._buffer = this._mediaSource.addSourceBuffer(bufferType);
-      } catch (e) {
-        this.raiseEvent(
-          DashlingEvent.sessionStateChange,
-          DashlingSessionState.error,
-          DashlingError.sourceBufferInit,
-          "type=" + bufferType + " error=" + e);
-      }
-    }
-
-    return this._buffer;
-  },
-
   _loadInitSegment: function(qualityIndex, onFragmentAvailable) {
     var _this = this;
     var maxQualityIndex = this._streamInfo.qualities.length - 1;
@@ -1777,6 +1780,7 @@ Dashling.Stream.prototype = {
 
 _mix(Dashling.Stream.prototype, EventingMixin);
 _mix(Dashling.Stream.prototype, ThrottleMixin);
+
 Dashling.RequestManager = function(shouldRecordStats, settings) {
   _mix(this, {
     _settings: settings,

@@ -244,6 +244,8 @@ Dashling.StreamController.prototype = {
       stream = _this._streams[i];
       stream.addEventListener(DashlingEvent.download, _forwardDownloadEvent);
       stream.addEventListener(DashlingEvent.sessionStateChange, _forwardSessionStateChange);
+
+      stream.initialize();
     }
 
     function _forwardDownloadEvent(ev) {
