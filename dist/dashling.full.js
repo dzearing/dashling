@@ -457,7 +457,7 @@ Dashling.Settings = {
 
   // Max number of fragments each stream can be ahead of the other stream by.
   maxSegmentLeadCount: {
-    audio: 3,
+    audio: 1,
     video: 5
   },
 
@@ -479,6 +479,7 @@ Dashling.Settings = {
   // Optional override for manifest baseurl.
   baseUrlOverride: null
 };
+
 Dashling.ManifestParser = function(settings) {
   var _this = this;
 
