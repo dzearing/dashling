@@ -27,6 +27,7 @@ var paths = {
 
 paths.wrappedScripts = ['src/Start.js'].concat(paths.scripts, ['src/End.js']);
 
+// Comment!
 function inDirectory(dir, files) {
   var newSet = [];
 
@@ -41,7 +42,6 @@ gulp.task('clean', function() {
   return gulp.src(['coverage', 'dist'])
     .pipe(clean());
 });
-
 
 gulp.task('jshint', function() {
   return gulp.src(paths.scripts)
