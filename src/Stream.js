@@ -139,7 +139,6 @@ Dashling.Stream.prototype = {
       _appendNextEntry();
     }
 
-
     function _appendNextEntry() {
       if (!_this.isDisposed) {
 
@@ -175,7 +174,7 @@ Dashling.Stream.prototype = {
                   onComplete(fragment);
                 }
               }
-            }, 20);
+            }, 30);
           }
         }
       }
@@ -256,7 +255,7 @@ Dashling.Stream.prototype = {
       try {
         // validate that the buffered area in the video element still contains the fragment.
         for (var bufferedIndex = 0; bufferedIndex < bufferRanges.length; bufferedIndex++) {
-          if ((bufferRanges.start(bufferedIndex) <= safeStartTime) && (bufferRanges.end(bufferedIndex) > safeEndTime)) {
+          if ((bufferRanges.start(bufferedIndex) <= safeStartTime) && (bufferRanges.end(bufferedIndex) >= safeEndTime)) {
             isBuffered = true;
             break;
           }

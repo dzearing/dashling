@@ -665,12 +665,17 @@ Dashling.StreamController.prototype = {
 
   _onVideoError: function() {
     var videoErrors = this._videoElement.error;
-    var error = videoErrors.code;
+    var error = "VideoElementUnexpected";
+    var i;
 
-    for (var i in videoErrors) {
-      if (videoErrors[i] == error && i != "code") {
-        error = i;
-        break;
+    if (videoErrors) {
+      error = videoErrors.code;
+
+      for (i in videoErrors) {
+        if (videoErrors[i] == error && i != "code") {
+          error = i;
+          break;
+        }
       }
     }
 

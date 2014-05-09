@@ -345,8 +345,10 @@ Dashling.prototype = {
       _this._setState(DashlingSessionState.error, Dashling.Error.mediaSourceInit);
     }
 
-    mediaSource.addEventListener("sourceopen", _onOpened, false);
-    videoElement.src = window.URL.createObjectURL(mediaSource);
+    if (mediaSource) {
+      mediaSource.addEventListener("sourceopen", _onOpened, false);
+      videoElement.src = window.URL.createObjectURL(mediaSource);
+    }
 
     function _onOpened() {
       mediaSource.removeEventListener("sourceopen", _onOpened);
@@ -416,6 +418,7 @@ Dashling.prototype = {
 };
 
 _mix(Dashling.prototype, EventingMixin);
+
 Dashling.Settings = {
   // The manifest object to use, if you want to skip the serial call to fetch the xml.
   manifest: null,
@@ -1280,12 +1283,17 @@ Dashling.StreamController.prototype = {
 
   _onVideoError: function() {
     var videoErrors = this._videoElement.error;
-    var error = videoErrors.code;
+    var error = "VideoElementUnexpected";
+    var i;
 
-    for (var i in videoErrors) {
-      if (videoErrors[i] == error && i != "code") {
-        error = i;
-        break;
+    if (videoErrors) {
+      error = videoErrors.code;
+
+      for (i in videoErrors) {
+        if (videoErrors[i] == error && i != "code") {
+          error = i;
+          break;
+        }
       }
     }
 
@@ -1583,7 +1591,7 @@ Dashling.Stream.prototype = {
       try {
         // validate that the buffered area in the video element still contains the fragment.
         for (var bufferedIndex = 0; bufferedIndex < bufferRanges.length; bufferedIndex++) {
-          if ((bufferRanges.start(bufferedIndex) <= safeStartTime) && (bufferRanges.end(bufferedIndex) > safeEndTime)) {
+          if ((bufferRanges.start(bufferedIndex) <= safeStartTime) && (bufferRanges.end(bufferedIndex) >= safeEndTime)) {
             isBuffered = true;
             break;
           }

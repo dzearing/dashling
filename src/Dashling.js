@@ -149,8 +149,10 @@ Dashling.prototype = {
       _this._setState(DashlingSessionState.error, Dashling.Error.mediaSourceInit);
     }
 
-    mediaSource.addEventListener("sourceopen", _onOpened, false);
-    videoElement.src = window.URL.createObjectURL(mediaSource);
+    if (mediaSource) {
+      mediaSource.addEventListener("sourceopen", _onOpened, false);
+      videoElement.src = window.URL.createObjectURL(mediaSource);
+    }
 
     function _onOpened() {
       mediaSource.removeEventListener("sourceopen", _onOpened);
