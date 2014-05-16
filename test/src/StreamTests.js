@@ -61,9 +61,9 @@ test("Stream.isBuffered", function() {
   equal(stream.isBuffered(0, 0), false, "first fragment is not considered buffered if gap is greater than .5");
 
   bufferRanges.buffered.ranges[0].s = 0;
-  bufferRanges.buffered.ranges[0].e = 4.93;
-  equal(stream.isBuffered(0, 0), true, "first fragment is considered buffered if end is >= .07 seconds to the end");
+  bufferRanges.buffered.ranges[0].e = 4.85;
+  equal(stream.isBuffered(0, 0), true, "first fragment is considered buffered if end is >= .15 seconds to the end");
 
-  bufferRanges.buffered.ranges[0].e = 4.92;
-  equal(stream.isBuffered(0, 0), false, "first fragment is not considered buffered if end is < .07 seconds to the end");
+  bufferRanges.buffered.ranges[0].e = 4.84;
+  equal(stream.isBuffered(0, 0), false, "first fragment is not considered buffered if end is < .15 seconds to the end");
 });

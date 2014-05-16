@@ -10,6 +10,7 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
     qualityIndex: Math.max(0, Math.min(streamInfo.qualities.length - 1, settings.targetQuality[streamType])),
     _startTime: new Date().getTime(),
     _appendLength: 0,
+    _appendTimeoutId: 0,
     _initializedQualityIndex: -1,
     _initRequestManager: new Dashling.RequestManager(false, settings),
     _requestManager: new Dashling.RequestManager(streamType == "video", settings),
@@ -22,6 +23,7 @@ Dashling.Stream = function(streamType, mediaSource, videoElement, settings) {
     _hasInitializedBuffer: false,
     _bufferRate: [],
     _initSegments: []
+
   });
 
   var fragmentCount = streamInfo.timeline.length;
@@ -85,6 +87,10 @@ Dashling.Stream.prototype = {
   },
 
   clearBuffer: function() {
+    // Any pending async appends should be cleared/canceled before clearing the buffer.
+    clearTimeout(this._appendTimeoutId);
+    this.abortAll();
+
     try {
       this._buffer.remove(0, this._videoElement.duration);
     } catch (e) {}
@@ -92,7 +98,7 @@ Dashling.Stream.prototype = {
     for (var fragmentIndex = 0; fragmentIndex < this.fragments.length; fragmentIndex++) {
       var fragment = this.fragments[fragmentIndex];
 
-      if (fragment.state == DashlingFragmentState.appended) {
+      if (fragment.state !== DashlingFragmentState.downloaded) {
         fragment.state = DashlingFragmentState.idle;
         fragment.activeRequest = null;
       }
@@ -144,7 +150,7 @@ Dashling.Stream.prototype = {
 
         // Gaurd against buffer clearing and appending too soon afterwards.
         if (_this._buffer.updating) {
-          setTimeout(_appendNextEntry, 10);
+          _this._appendTimeoutId = setTimeout(_appendNextEntry, 10);
         } else {
           var request = fragmentsToAppend[0];
 
@@ -160,7 +166,7 @@ Dashling.Stream.prototype = {
           } else {
             // We need to give a small slice of time because the video's buffered region doesn't update immediately after
             // append is complete.
-            setTimeout(function() {
+            _this._appendTimeoutId = setTimeout(function() {
               if (!_this.isDisposed) {
                 fragment.state = DashlingFragmentState.appended;
                 _this._isAppending = false;
@@ -249,8 +255,8 @@ Dashling.Stream.prototype = {
       var atStart = fragmentTime.startSeconds < 0.3;
       var atEnd = (fragmentTime.startSeconds + fragmentTime.lengthSeconds + 0.3) >= (this._manifest.mediaDuration);
 
-      var safeStartTime = Math.max(currentTime, fragmentTime.startSeconds + (atStart ? 0.5 : 0.07));
-      var safeEndTime = fragmentTime.startSeconds + fragmentTime.lengthSeconds - (atEnd ? 0.8 : 0.07);
+      var safeStartTime = Math.max(currentTime, fragmentTime.startSeconds + (atStart ? 0.5 : 0.7));
+      var safeEndTime = fragmentTime.startSeconds + fragmentTime.lengthSeconds - (atEnd ? 0.8 : 0.15);
 
       try {
         // validate that the buffered area in the video element still contains the fragment.
