@@ -11,7 +11,7 @@ var _defaultSettings = {
           lengthSeconds: 5
         }, {
           startSeconds: 5,
-          lengthSeconds: 10
+          lengthSeconds: 5
         }],
         qualities: ["quality1", "quality2"]
       }
@@ -53,11 +53,10 @@ test("Stream.isBuffered", function() {
   equal(stream.isBuffered(0, 0), true, "first fragment is buffered");
   equal(stream.isBuffered(1, 0), false, "second fragment is not buffered");
 
-  // Adjust the start to be missing up to .5 s.
-  bufferRanges.buffered.ranges[0].s = .5;
+  bufferRanges.buffered.ranges[0].s = .8;
   equal(stream.isBuffered(0, 0), true, "first fragment is still considered buffered with .5 start");
 
-  bufferRanges.buffered.ranges[0].s = .51;
+  bufferRanges.buffered.ranges[0].s = .81;
   equal(stream.isBuffered(0, 0), false, "first fragment is not considered buffered if gap is greater than .5");
 
   bufferRanges.buffered.ranges[0].s = 0;
@@ -66,4 +65,18 @@ test("Stream.isBuffered", function() {
 
   bufferRanges.buffered.ranges[0].e = 4.84;
   equal(stream.isBuffered(0, 0), false, "first fragment is not considered buffered if end is < .15 seconds to the end");
+
+  bufferRanges.buffered.ranges[0].s = 5.15;
+  bufferRanges.buffered.ranges[0].e = 10;
+  equal(stream.isBuffered(1, 5), true, "second fragment is considered buffered if start is <= .15 seconds to the start");
+
+  bufferRanges.buffered.ranges[0].s = 5.16;
+  equal(stream.isBuffered(1, 5), false, "second fragment is not considered buffered if start is > .15 seconds to the start");
+
+  bufferRanges.buffered.ranges[0].s = 5.15;
+  bufferRanges.buffered.ranges[0].e = 9.2;
+  equal(stream.isBuffered(1, 5), true, "second fragment is considered buffered if end is >= .15 seconds to the end");
+
+  bufferRanges.buffered.ranges[0].e = 9.19;
+  equal(stream.isBuffered(1, 5), false, "second fragment is not considered buffered if end is < .15 seconds to the end");
 });

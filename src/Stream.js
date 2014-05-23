@@ -87,20 +87,22 @@ Dashling.Stream.prototype = {
   },
 
   clearBuffer: function() {
+    var _this = this;
+
     // Any pending async appends should be cleared/canceled before clearing the buffer.
-    clearTimeout(this._appendTimeoutId);
+    clearTimeout(_this._appendTimeoutId);
+    this._isAppending = false;
     this.abortAll();
 
     try {
-      this._buffer.remove(0, this._videoElement.duration);
+      _this._buffer.remove(0, _this._videoElement.duration);
     } catch (e) {}
 
-    for (var fragmentIndex = 0; fragmentIndex < this.fragments.length; fragmentIndex++) {
-      var fragment = this.fragments[fragmentIndex];
+    for (var fragmentIndex = 0; fragmentIndex < _this.fragments.length; fragmentIndex++) {
+      var fragment = _this.fragments[fragmentIndex];
 
       if (fragment.state !== DashlingFragmentState.downloaded) {
         fragment.state = DashlingFragmentState.idle;
-        fragment.activeRequest = null;
       }
     }
   },
@@ -255,7 +257,7 @@ Dashling.Stream.prototype = {
       var atStart = fragmentTime.startSeconds < 0.3;
       var atEnd = (fragmentTime.startSeconds + fragmentTime.lengthSeconds + 0.3) >= (this._manifest.mediaDuration);
 
-      var safeStartTime = Math.max(currentTime, fragmentTime.startSeconds + (atStart ? 0.5 : 0.7));
+      var safeStartTime = Math.max(currentTime, fragmentTime.startSeconds + (atStart ? 0.8 : 0.15));
       var safeEndTime = fragmentTime.startSeconds + fragmentTime.lengthSeconds - (atEnd ? 0.8 : 0.15);
 
       try {

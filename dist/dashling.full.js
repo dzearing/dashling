@@ -1424,20 +1424,22 @@ Dashling.Stream.prototype = {
   },
 
   clearBuffer: function() {
+    var _this = this;
+
     // Any pending async appends should be cleared/canceled before clearing the buffer.
-    clearTimeout(this._appendTimeoutId);
+    clearTimeout(_this._appendTimeoutId);
+    this._isAppending = false;
     this.abortAll();
 
     try {
-      this._buffer.remove(0, this._videoElement.duration);
+      _this._buffer.remove(0, _this._videoElement.duration);
     } catch (e) {}
 
-    for (var fragmentIndex = 0; fragmentIndex < this.fragments.length; fragmentIndex++) {
-      var fragment = this.fragments[fragmentIndex];
+    for (var fragmentIndex = 0; fragmentIndex < _this.fragments.length; fragmentIndex++) {
+      var fragment = _this.fragments[fragmentIndex];
 
       if (fragment.state !== DashlingFragmentState.downloaded) {
         fragment.state = DashlingFragmentState.idle;
-        fragment.activeRequest = null;
       }
     }
   },
@@ -1592,7 +1594,7 @@ Dashling.Stream.prototype = {
       var atStart = fragmentTime.startSeconds < 0.3;
       var atEnd = (fragmentTime.startSeconds + fragmentTime.lengthSeconds + 0.3) >= (this._manifest.mediaDuration);
 
-      var safeStartTime = Math.max(currentTime, fragmentTime.startSeconds + (atStart ? 0.5 : 0.7));
+      var safeStartTime = Math.max(currentTime, fragmentTime.startSeconds + (atStart ? 0.8 : 0.15));
       var safeEndTime = fragmentTime.startSeconds + fragmentTime.lengthSeconds - (atEnd ? 0.8 : 0.15);
 
       try {
@@ -1807,6 +1809,7 @@ Dashling.RequestManager = function(shouldRecordStats, settings) {
   _mix(this, {
     _settings: settings,
     _activeRequests: {},
+    _retryTimeoutIds: {},
     _waitTimes: [],
     _receiveTimes: [],
     _bytesPerSeconds: [],
@@ -1838,6 +1841,11 @@ Dashling.RequestManager.prototype = {
   },
 
   abortAll: function() {
+
+    for (var timeoutId in this._retryTimeoutIds) {
+      clearTimeout(timeoutId);
+    }
+
     for (var requestIndex in this._activeRequests) {
       var xhr = this._activeRequests[requestIndex];
 
@@ -1846,6 +1854,7 @@ Dashling.RequestManager.prototype = {
       xhr.abort();
     }
 
+    this._retryTimeoutIds = {};
     this._activeRequests = {};
   },
 
@@ -1854,16 +1863,19 @@ Dashling.RequestManager.prototype = {
     var maxRetries = this._maxRetries;
     var retryIndex = -1;
     var delaysBetweenRetries = this._delaysBetweenRetries;
+    var requestIndex = _this._totalRequests + 1;
 
     request.retryCount = 0;
     _startRequest();
 
     function _startRequest() {
+      delete _this._retryTimeoutIds[requestIndex];
+
       var xhr = new _this._xhrType();
-      var requestIndex = ++_this._totalRequests;
 
       _this._activeRequests[requestIndex] = xhr;
       _this._activeRequestCount++;
+      _this._totalRequests++;
 
       xhr.url = request.url;
       xhr.open("GET", request.url, true);
@@ -1942,7 +1954,7 @@ Dashling.RequestManager.prototype = {
         if (_this._isRetriable(xhr) && ++retryIndex < maxRetries) {
 
           request.retryCount++;
-          setTimeout(_startRequest, delaysBetweenRetries[Math.min(delaysBetweenRetries.length - 1, retryIndex)]);
+          _this._retryTimeoutIds[requestIndex] = setTimeout(_startRequest, delaysBetweenRetries[Math.min(delaysBetweenRetries.length - 1, retryIndex)]);
         } else {
           request.state = DashlingFragmentState.error;
           request.hasError = true;
@@ -2001,4 +2013,5 @@ Dashling.RequestManager.prototype = {
 };
 
 _mix(Dashling.RequestManager.prototype, EventingMixin);
+
 })();

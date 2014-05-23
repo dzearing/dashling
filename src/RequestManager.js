@@ -2,6 +2,7 @@ Dashling.RequestManager = function(shouldRecordStats, settings) {
   _mix(this, {
     _settings: settings,
     _activeRequests: {},
+    _retryTimeoutIds: {},
     _waitTimes: [],
     _receiveTimes: [],
     _bytesPerSeconds: [],
@@ -33,6 +34,11 @@ Dashling.RequestManager.prototype = {
   },
 
   abortAll: function() {
+
+    for (var timeoutId in this._retryTimeoutIds) {
+      clearTimeout(timeoutId);
+    }
+
     for (var requestIndex in this._activeRequests) {
       var xhr = this._activeRequests[requestIndex];
 
@@ -41,6 +47,7 @@ Dashling.RequestManager.prototype = {
       xhr.abort();
     }
 
+    this._retryTimeoutIds = {};
     this._activeRequests = {};
   },
 
@@ -49,16 +56,19 @@ Dashling.RequestManager.prototype = {
     var maxRetries = this._maxRetries;
     var retryIndex = -1;
     var delaysBetweenRetries = this._delaysBetweenRetries;
+    var requestIndex = _this._totalRequests + 1;
 
     request.retryCount = 0;
     _startRequest();
 
     function _startRequest() {
+      delete _this._retryTimeoutIds[requestIndex];
+
       var xhr = new _this._xhrType();
-      var requestIndex = ++_this._totalRequests;
 
       _this._activeRequests[requestIndex] = xhr;
       _this._activeRequestCount++;
+      _this._totalRequests++;
 
       xhr.url = request.url;
       xhr.open("GET", request.url, true);
@@ -137,7 +147,7 @@ Dashling.RequestManager.prototype = {
         if (_this._isRetriable(xhr) && ++retryIndex < maxRetries) {
 
           request.retryCount++;
-          setTimeout(_startRequest, delaysBetweenRetries[Math.min(delaysBetweenRetries.length - 1, retryIndex)]);
+          _this._retryTimeoutIds[requestIndex] = setTimeout(_startRequest, delaysBetweenRetries[Math.min(delaysBetweenRetries.length - 1, retryIndex)]);
         } else {
           request.state = DashlingFragmentState.error;
           request.hasError = true;
