@@ -458,7 +458,7 @@ Dashling.Stream.prototype = {
   },
 
   _getUrl: function(fragmentIndex, fragment) {
-    var urlPart = this._streamInfo.fragUrlFormat.replace("$RepresentationID$", fragment.qualityId).replace("$Time$", fragment.time.start);
+    var urlPart = this._streamInfo.fragUrlFormat.replace("$RepresentationID$", fragment.qualityId).replace("$Time$", fragment.time.start).replace("$Number$", fragment.time.serverSegmentIndex);
 
     return this._manifest.baseUrl + urlPart;
   }
