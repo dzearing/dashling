@@ -1,3 +1,5 @@
+(function() {
+
 function _mix(dest, source) {
   for (var i in source) {
     if (source.hasOwnProperty(i)) {
@@ -2046,3 +2048,5 @@ Dashling.RequestManager.prototype = {
 };
 
 _mix(Dashling.RequestManager.prototype, EventingMixin);
+
+})();
