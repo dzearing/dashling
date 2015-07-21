@@ -35,7 +35,7 @@ Dashling.ManifestParser.prototype = {
         var manifest;
 
         try {
-          manifest = _this._parseManifest(request.data);
+          manifest = _this._parseManifest(request.data, url);
           manifest.request = request;
         } catch (e) {
           onError(DashlingError.manifestParse, e);
@@ -54,13 +54,17 @@ Dashling.ManifestParser.prototype = {
     }
   },
 
-  _parseManifest: function(manifestText) {
+  _parseManifest: function(manifestText, manifestUrl) {
     var manifest = {};
     var parser = new DOMParser();
     var xmlDoc = parser.parseFromString(manifestText, "text/xml");
     var i;
 
     manifest.baseUrl = this._settings.baseUrlOverride || _getXmlNodeValue(xmlDoc, "BaseURL", "");
+    if (manifestUrl && !manifest.baseUrl) {
+      // fallback to the parent directory of the manifest URL per DASH spec
+      manifest.baseUrl = manifestUrl.substring(0, manifestUrl.lastIndexOf('/')+1);
+    }
     manifest.mediaDuration = _fromISOToSeconds(xmlDoc.documentElement.getAttribute("mediaPresentationDuration"));
     manifest.streams = {};
 
@@ -72,13 +76,15 @@ Dashling.ManifestParser.prototype = {
 
       if (adaptationElement) {
         var contentType = adaptationElement.getAttribute("contentType");
+		    if (!contentType) {
+		      contentType = adaptationElement.getAttribute("mimeType").split("/")[0];
+		    }
         var representationElements = adaptationElement.querySelectorAll("Representation");
         var segmentTemplateElement = adaptationElement.querySelector("SegmentTemplate");
-        var timelineElements = adaptationElement.querySelectorAll("S");
         var stream = manifest.streams[contentType] = {
           streamType: contentType,
           mimeType: adaptationElement.getAttribute("mimeType"),
-          codecs: adaptationElement.getAttribute("codecs"),
+          codecs: adaptationElement.getAttribute("codecs") || adaptationElement.querySelector("[codecs]").getAttribute("codecs"),
           initUrlFormat: segmentTemplateElement.getAttribute("initialization"),
           fragUrlFormat: segmentTemplateElement.getAttribute("media"),
           qualities: [],
@@ -86,10 +92,8 @@ Dashling.ManifestParser.prototype = {
         };
 
         var timeScale = segmentTemplateElement.getAttribute("timescale");
-
-        if (!timelineElements || !timelineElements.length) {
-          throw "Missing timeline";
-        }
+        var maxSegmentDurationInTimeScale = segmentTemplateElement.getAttribute("duration");
+        var maxSegmentDuration = maxSegmentDurationInTimeScale / timeScale;
 
         for (var repIndex = 0; repIndex < representationElements.length; repIndex++) {
           var repElement = representationElements[repIndex];
@@ -105,24 +109,55 @@ Dashling.ManifestParser.prototype = {
 
           stream.qualities.push(quality);
         }
-
-        var startTime = 0;
-
-        for (var timelineIndex = 0; timelineIndex < timelineElements.length; timelineIndex++) {
-          var timelineElement = timelineElements[timelineIndex];
-          var repeatCount = Number(timelineElement.getAttribute("r")) || 0;
-          var duration = Number(timelineElement.getAttribute("d"));
-
-          for (i = 0; i <= repeatCount; i++) {
-            stream.timeline.push({
-              start: startTime,
-              startSeconds: startTime / timeScale,
-              length: duration,
-              lengthSeconds: duration / timeScale
-            });
-
-            startTime += duration;
+        
+        // lowest bandwidth stream should be at index 0
+        stream.qualities.sort(function(a,b) {
+          return a.bandwidth - b.bandwidth;
+        });
+        
+        var firstSegmentIndex = 1;
+        if (segmentTemplateElement.hasAttribute("startNumber")) {
+          firstSegmentIndex = parseInt(segmentTemplateElement.getAttribute("startNumber"));
+        }
+        
+        var length;
+         
+        var timelineElements = adaptationElement.querySelectorAll("S");
+        if (timelineElements.length) {
+          // timeline-based manifest 
+          var startTime = 0;
+          for (var timelineIndex = 0; timelineIndex < timelineElements.length; timelineIndex++) {
+            var timelineElement = timelineElements[timelineIndex];
+            var repeatCount = Number(timelineElement.getAttribute("r")) || 0;
+            length = Number(timelineElement.getAttribute("d"));
+            for (i = 0; i <= repeatCount; i++) {
+              stream.timeline.push({
+                'length': length,
+                'lengthSeconds': length / timeScale,
+                'start': startTime,
+                'startSeconds': startTime / timeScale
+              });
+              startTime += length;
+            }
           }
+          
+        } else {
+          // index-based manifest
+          var totalSegmentCount = Math.ceil(manifest.mediaDuration / maxSegmentDuration);
+
+          for (var segmentIndex = 0; segmentIndex < totalSegmentCount; segmentIndex++) {
+            var serverSegmentIndex = segmentIndex + firstSegmentIndex;
+            var startSeconds = segmentIndex * maxSegmentDuration;
+            length = Math.min( maxSegmentDuration, manifest.mediaDuration - startSeconds);
+            stream.timeline.push({
+              'serverSegmentIndex': serverSegmentIndex,
+              'length': length * timeScale,
+              'lengthSeconds': length,
+              'start': startSeconds * timeScale,
+              'startSeconds': startSeconds
+            });
+          }
+          
         }
       }
     }
