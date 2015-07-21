@@ -109,8 +109,11 @@ Dashling.ManifestParser.prototype = {
 
           stream.qualities.push(quality);
         }
-
         
+        // lowest bandwidth stream should be at index 0
+        stream.qualities.sort(function(a,b) {
+          return a.bandwidth - b.bandwidth;
+        });
         
         var firstSegmentIndex = 1;
         if (segmentTemplateElement.hasAttribute("startNumber")) {
