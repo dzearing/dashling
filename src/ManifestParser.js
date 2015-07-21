@@ -76,9 +76,9 @@ Dashling.ManifestParser.prototype = {
 
       if (adaptationElement) {
         var contentType = adaptationElement.getAttribute("contentType");
-		if (!contentType) {
-		  contentType = adaptationElement.getAttribute("mimeType").split("/")[0];
-		}
+		    if (!contentType) {
+		      contentType = adaptationElement.getAttribute("mimeType").split("/")[0];
+		    }
         var representationElements = adaptationElement.querySelectorAll("Representation");
         var segmentTemplateElement = adaptationElement.querySelector("SegmentTemplate");
         var stream = manifest.streams[contentType] = {
@@ -117,24 +117,23 @@ Dashling.ManifestParser.prototype = {
           firstSegmentIndex = parseInt(segmentTemplateElement.getAttribute("startNumber"));
         }
         
-        var startSeconds, length;
+        var length;
          
         var timelineElements = adaptationElement.querySelectorAll("S");
         if (timelineElements.length) {
           // timeline-based manifest 
+          var startTime = 0;
           for (var timelineIndex = 0; timelineIndex < timelineElements.length; timelineIndex++) {
             var timelineElement = timelineElements[timelineIndex];
             var repeatCount = Number(timelineElement.getAttribute("r")) || 0;
             length = Number(timelineElement.getAttribute("d"));
-            var startTime = 0;
             for (i = 0; i <= repeatCount; i++) {
-              startSeconds = startTime / timeScale;
               stream.timeline.push({
-                'serverSegmentIndex': Math.floor(manifest.mediaDuration / startSeconds),
-                'start': startTime,
-                'startSeconds': startSeconds,
                 'length': length,
-                'lengthSeconds': length / timeScale });
+                'lengthSeconds': length / timeScale,
+                'start': startTime,
+                'startSeconds': startTime / timeScale
+              });
               startTime += length;
             }
           }
@@ -145,14 +144,14 @@ Dashling.ManifestParser.prototype = {
 
           for (var segmentIndex = 0; segmentIndex < totalSegmentCount; segmentIndex++) {
             var serverSegmentIndex = segmentIndex + firstSegmentIndex;
-            startSeconds = segmentIndex * maxSegmentDuration;
+            var startSeconds = segmentIndex * maxSegmentDuration;
             length = Math.min( maxSegmentDuration, manifest.mediaDuration - startSeconds);
             stream.timeline.push({
               'serverSegmentIndex': serverSegmentIndex,
-              'start': startSeconds * timeScale,
-              'startSeconds': startSeconds,
               'length': length * timeScale,
-              'lengthSeconds': length
+              'lengthSeconds': length,
+              'start': startSeconds * timeScale,
+              'startSeconds': startSeconds
             });
           }
           
