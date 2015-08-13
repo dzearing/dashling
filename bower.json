@@ -3,15 +3,21 @@
   "version": "1.0.0",
   "homepage": "https://github.com/dzearing/dashling",
   "description": "Dashling DASH video MSE playback helper",
+  "authors": [
+    "David Zearing <dzearing@hotmail.com>"
+  ],
   "moduleType": [
     "amd",
     "node"
   ],
+  "main": [
+    "dist/dashling.full.js"
+  ],
   "keywords": [
     "dash",
-    "Dashling",
-    "JavaScript",
-    "TypeScript"
+    "dashling",
+    "video",
+    "mse"
   ],
   "license": "MIT",
   "ignore": [
