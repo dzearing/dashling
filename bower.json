@@ -1,0 +1,26 @@
+{
+  "name": "dashling",
+  "version": "1.0.0",
+  "homepage": "https://github.com/dzearing/dashling",
+  "description": "Dashling DASH video MSE playback helper",
+  "moduleType": [
+    "amd",
+    "node"
+  ],
+  "keywords": [
+    "dash",
+    "Dashling",
+    "JavaScript",
+    "TypeScript"
+  ],
+  "license": "MIT",
+  "ignore": [
+      "**/.*",
+      "bower_components",
+      "definitions",
+      "node_modules",
+      "examples",
+      "src",
+      "test"
+  ]
+}
