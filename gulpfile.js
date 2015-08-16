@@ -7,6 +7,7 @@ var karma = require('gulp-karma');
 var coveralls = require('gulp-coveralls');
 var jshint = require('gulp-jshint');
 var stylish = require('jshint-stylish');
+var ts = require('gulp-typescript');
 
 var paths = {
     scripts: inDirectory('src/', [
@@ -42,12 +43,22 @@ gulp.task('clean', function() {
         .pipe(clean());
 });
 
-
 gulp.task('jshint', function() {
     return gulp.src(paths.scripts)
         .pipe(jshint())
         .pipe(jshint.reporter(stylish))
         .pipe(jshint.reporter('fail'));
+});
+
+gulp.task('typescript', ['clean'], function(cb) {
+    var tsResult = gulp.src([ 'src/*.ts' ])
+        .pipe(ts({
+            module: 'amd',
+            declarationFiles: true,
+            out: 'dashling.full.js'
+        }));
+
+    return tsResult.js.pipe(gulp.dest('dist/amd'));
 });
 
 gulp.task('scripts', ['clean', 'jshint', 'testscripts'], function(cb) {
@@ -86,6 +97,7 @@ gulp.task('watch', function() {
     gulp.watch(paths.testFiles, ['scripts']);
 });
 
-gulp.task('default', ['jshint', 'scripts', 'test'], function() {
+// gulp.task('default', ['jshint', 'scripts', 'test'], function() {
+gulp.task('default', ['typescript'], function() {
 
 });

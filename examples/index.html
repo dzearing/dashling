@@ -11,7 +11,7 @@
     <link rel="stylesheet" type="text/css" href="DashMonitor.css"></link>
     <script type="text/javascript" src="DashMonitor.js"></script>
     <script type="text/javascript" src="VideoDebug.js"></script>
-
+    <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/require.js/2.1.20/require.js"></script>
     <script>
         var monitor,
             dashling = new Dashling(),
@@ -38,6 +38,9 @@
         }
 
         function loadDashling() {
+            var dashling = require(['dashling'], function(dashling) {
+
+            });
             var qualitySelect = document.querySelector("#audioQualitySelect");
             var audioQuality = Number(qualitySelect.options[qualitySelect.selectedIndex].value);
 
