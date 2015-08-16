@@ -51,11 +51,11 @@ gulp.task('jshint', function() {
 });
 
 gulp.task('typescript', ['clean'], function(cb) {
-    var tsResult = gulp.src([ 'src/*.ts' ])
+    var tsResult = gulp.src('src/*.ts')
         .pipe(ts({
             module: 'amd',
-            declarationFiles: true,
-            out: 'dashling.full.js'
+            declaration: true,
+            target: 'ES5'
         }));
 
     return tsResult.js.pipe(gulp.dest('dist/amd'));

@@ -6,18 +6,21 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta charset="utf-8"/>
 
-    <script type="text/javascript" src="../dist/dashling.full.js"></script>
-
     <link rel="stylesheet" type="text/css" href="DashMonitor.css"></link>
     <script type="text/javascript" src="DashMonitor.js"></script>
     <script type="text/javascript" src="VideoDebug.js"></script>
     <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/require.js/2.1.20/require.js"></script>
     <script>
         var monitor,
-            dashling = new Dashling(),
+            dashling,
             logVideoEvents;
 
         function initPage() {
+          require(['../dist/amd/Dashling'], function(DashlingModule) {
+            var Dashling = DashlingModule.default;
+
+            dashling = new Dashling();
+
             VideoDebug.observe();
             _updateLogging();
 
@@ -28,19 +31,18 @@
             document.querySelector("#logDashling").addEventListener("change", _updateLogging);
             document.querySelector("#logVideo").addEventListener("change", _updateLogging);
 
-            dashling.addEventListener(Dashling.Event.download, function(ev) {
+            dashling.addEventListener(dashling.Event.download, function(ev) {
                 console.log("Event download received: " + ev.url + " " + ev.timeAtLastByte + "ms [" + ev.timeAtFirstByte + "ms / " + (ev.timeAtLastByte  - ev.timeAtFirstByte)+ "ms]");
             });
 
-            dashling.addEventListener(Dashling.Event.sessionStateChange, function(state, errorType, errorMessage) {
-              console.log("Event sessionStateChange received: state=" + _findInEnum(state, Dashling.SessionState) + (errorType ? (" error=" + errorType) : "") + (errorMessage ? (" errorMessage=" + errorMessage) : ""));
+            dashling.addEventListener(dashling.Event.sessionStateChange, function(ev) {
+              console.log("Event sessionStateChange received: state=" + _findInEnum(ev.state, dashling.SessionState) + (ev.errorType ? (" error=" + ev.errorType) : "") + (ev.errorMessage ? (" errorMessage=" + ev.errorMessage) : ""));
             });
+
+          });
         }
 
         function loadDashling() {
-            var dashling = require(['dashling'], function(dashling) {
-
-            });
             var qualitySelect = document.querySelector("#audioQualitySelect");
             var audioQuality = Number(qualitySelect.options[qualitySelect.selectedIndex].value);
 

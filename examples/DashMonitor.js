@@ -60,7 +60,7 @@ window.DashMonitor.prototype = {
     }
 
     if (_this._dashling) {
-      _this._dashling.removeEventListener(Dashling.Event.sessionStateChange, _this._onSessionChanged);
+      _this._dashling.removeEventListener(_this._dashling.Event.sessionStateChange, _this._onSessionChanged);
       _this._dashling = null;
     }
   },
@@ -79,7 +79,7 @@ window.DashMonitor.prototype = {
 
     if (dashling) {
       _this._dashling = dashling;
-      dashling.addEventListener(Dashling.Event.sessionStateChange, _this._onSessionChanged);
+      dashling.addEventListener(dashling.Event.sessionStateChange, _this._onSessionChanged);
       _this._onSessionChanged();
     }
   },
@@ -89,11 +89,11 @@ window.DashMonitor.prototype = {
     var dashling = _this._dashling;
     var state = dashling.state;
 
-    if (state == Dashling.SessionState.error || state == Dashling.SessionState.idle) {
+    if (state == dashling.SessionState.error || state == dashling.SessionState.idle) {
       clearInterval(_this._interval);
       _this._interval = 0;
       _this.setDataContext(_this._getStats(dashling));
-    } else if (dashling.state > Dashling.SessionState.idle && !_this._interval) {
+    } else if (dashling.state > dashling.SessionState.idle && !_this._interval) {
       _this._interval = setInterval(function() {
         if (_this.isVisible) {
           _this.setDataContext(_this._getStats(dashling));
@@ -198,7 +198,7 @@ window.DashMonitor.prototype = {
   },
 
   _update: function(dataContext) {
-    var isStarted = dataContext.state !== undefined && dataContext.state != Dashling.SessionState.idle;
+    var isStarted = dataContext.state !== undefined && dataContext.state != this._dashling.SessionState.idle;
 
     if (this.isActive) {
       var subElements = this.subElements;
@@ -328,7 +328,7 @@ window.DashMonitor.prototype = {
 
     context.metrics.push({
       title: "State",
-      value: _findInEnum(player.state, Dashling.SessionState)
+      value: _findInEnum(player.state, this._dashling.SessionState)
     });
 
     context.metrics.push({
@@ -437,9 +437,9 @@ window.DashMonitor.prototype = {
               };
             }
 
-            var state = _findInEnum(fragment.state, Dashling.FragmentState);
+            var state = _findInEnum(fragment.state, this._dashling.RequestState);
 
-            if (fragment.state == Dashling.FragmentState.downloading && fragment.activeRequest.timeAtFirstByte == -1) {
+            if (fragment.state == this._dashling.RequestState.downloading && fragment.activeRequest.timeAtFirstByte == -1) {
               state = "waiting";
             }
 

@@ -17,7 +17,7 @@ interface IEventRecord {
  */
 export default class EventGroup {
     private static _uniqueId = 0;
-    private _parent;
+    private _parent: any;
     private _eventRecords: IEventRecord[];
     private _id = EventGroup._uniqueId++;
 
@@ -38,7 +38,7 @@ export default class EventGroup {
         eventArgs?: string,
         bubbleEvent?: boolean
         ) {
-        var retVal;
+        var retVal: any;
 
         if (EventGroup._isElement(target)) {
             if (document.createEvent) {
@@ -93,7 +93,7 @@ export default class EventGroup {
     }
 
     private static _isElement(target: HTMLElement) {
-        return !!target && (target instanceof HTMLElement || target.addEventListener);
+        return !!target && (target instanceof HTMLElement || (target.dispatchEvent && target.addEventListener));
     }
 
     public dispose() {

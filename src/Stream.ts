@@ -267,6 +267,10 @@ export default class Stream {
     return this.bufferRate.average || 0;
   }
 
+  public getActiveRequestCount() {
+    return this._requestManager.getActiveRequestCount();
+  }
+
   public getRequestStaggerTime(): number {
     // TODO Remove 1.4 magic ratio
     return Math.round(this._estimateDownloadSeconds(this.qualityIndex) * 1400);

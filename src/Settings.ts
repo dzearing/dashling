@@ -15,7 +15,7 @@ export default class Settings {
   public isRBREnabled = false;
 
   // The quality to use if we have ABR disabled, or if default bandwidth is not available.
-  public targetQuality = {
+  public targetQuality: { [key: string]: number } = {
     audio: 2,
     video: 2
   };

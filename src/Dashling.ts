@@ -1,6 +1,6 @@
 import Settings from './Settings';
 import StreamController from './StreamController';
-import { DashlingEvent, DashlingSessionState, DashlingError } from './DashlingEnums';
+import { DashlingEvent, DashlingSessionState, DashlingRequestState, DashlingError } from './DashlingEnums';
 import Manifest from './Manifest';
 import ManifestParser from './ManifestParser';
 import EventGroup from './EventGroup';
@@ -9,16 +9,19 @@ import IStateChangeEventArgs from './IStateChangeEventArgs';
 let _sessionCount = 0;
 
 export default class Dashling {
-  public static SessionStateChangeEvent = 'sessionstatechange';
+  /** Exported enums for simplifying access externally. */
+  public Event = DashlingEvent;
+  public SessionState = DashlingSessionState;
+  public RequestState = DashlingRequestState;
 
   public state: DashlingSessionState;
   public lastError: string;
   public startTime: number;
   public isDisposed: boolean;
   public timeAtFirstCanPlay: number;
+  public settings: Settings;
 
   private _events: EventGroup;
-  private _settings: Settings;
   private _streamController: StreamController;
   private _parser: ManifestParser;
   private _sessionIndex: number;
@@ -28,7 +31,7 @@ export default class Dashling {
   constructor(settings: Settings) {
     this.isDisposed = false;
     this._events = new EventGroup(this);
-    this._settings = settings || new Settings();
+    this.settings = settings || new Settings();
     this.reset();
   }
 
@@ -39,6 +42,15 @@ export default class Dashling {
       this._events.dispose();
       this.reset();
     }
+  }
+
+  /** Add/remove eventlistener stubs for backwards compatibility. */
+  public addEventListener(eventName: string, callback: (...args: any[]) => any) {
+    this._events.on(this, eventName, callback);
+  }
+
+  public removeEventListener(eventName: string, callback: (...args: any[]) => any) {
+    this._events.off(this, eventName, callback);
   }
 
   /** Loads a given video. */
@@ -72,7 +84,7 @@ export default class Dashling {
     }
 
     if (this._videoElement) {
-      this._settings.manifest = null;
+      this.settings.manifest = null;
 
       try {
         this._videoElement.pause();
@@ -94,15 +106,15 @@ export default class Dashling {
   }
 
   public getPlayingQuality(streamType: string): number {
-    return this._streamController ? this._streamController.getPlayingQuality(streamType) : this._settings.targetQuality[streamType];
+    return this._streamController ? this._streamController.getPlayingQuality(streamType) : this.settings.targetQuality[streamType];
   }
 
   public getBufferingQuality(streamType: string): number {
-    return this._streamController ? this._streamController.getBufferingQuality(streamType) : this._settings.targetQuality[streamType];
+    return this._streamController ? this._streamController.getBufferingQuality(streamType) : this.settings.targetQuality[streamType];
   }
 
   public getMaxQuality(streamType: string): number {
-    let stream = this._settings.manifest ? this._settings.manifest.streams[streamType] : null;
+    let stream = this.settings.manifest ? this.settings.manifest.streams[streamType] : null;
 
     return stream ? stream.qualities.length - 1 : 0;
   }
@@ -121,22 +133,25 @@ export default class Dashling {
         this.timeAtFirstCanPlay = new Date().getTime() - this.startTime;
       }
 
-      this._events.raise(Dashling.SessionStateChangeEvent, {
-        state: state,
-        errorType: errorType,
-        errorMessage: errorMessage
-      });
+      this._events.raise(
+        DashlingEvent.sessionStateChange,
+        {
+          state: state,
+          errorType: errorType,
+          errorMessage: errorMessage
+        });
     }
   }
 
   private _initializeMediaSource(videoElement: HTMLVideoElement) {
-    let sessionIndex = this._sessionIndex;
-    let mediaSource;
+    let _this = this;
+    let sessionIndex = _this._sessionIndex;
+    let mediaSource: MediaSource;
 
     try {
       mediaSource = new MediaSource();
     } catch (e) {
-      this._setState(DashlingSessionState.error, DashlingError.mediaSourceInit);
+      _this._setState(DashlingSessionState.error, DashlingError.mediaSourceInit);
     }
 
     if (mediaSource) {
@@ -147,9 +162,9 @@ export default class Dashling {
     function _onOpened() {
       mediaSource.removeEventListener("sourceopen", _onOpened);
 
-      if (this._sessionIndex === sessionIndex) {
-        this._mediaSource = mediaSource;
-        this._tryStart();
+      if (_this._sessionIndex === sessionIndex) {
+        _this._mediaSource = mediaSource;
+        _this._tryStart();
       }
     }
   }
@@ -159,7 +174,7 @@ export default class Dashling {
 
     let onParserSuccess = (manifest: Manifest) => {
       if (this._sessionIndex === sessionIndex && this.state !== DashlingSessionState.error) {
-        this._settings.manifest = manifest;
+        this.settings.manifest = manifest;
         this._tryStart();
       }
     };
@@ -170,10 +185,10 @@ export default class Dashling {
       }
     };
 
-    if (this._settings.manifest) {
-      onParserSuccess(this._settings.manifest);
+    if (this.settings.manifest) {
+      onParserSuccess(this.settings.manifest);
     } else {
-      let parser = this._parser = new ManifestParser(this._settings);
+      let parser = this._parser = new ManifestParser(this.settings);
 
       parser.parse(url, onParserSuccess, onParserError);
     }
@@ -183,15 +198,15 @@ export default class Dashling {
     if (
       this.state !== DashlingSessionState.error &&
       this._mediaSource &&
-      this._settings.manifest
+      this.settings.manifest
     ) {
 
-      this._mediaSource.duration = this._settings.manifest.mediaDuration;
+      this._mediaSource.duration = this.settings.manifest.mediaDuration;
 
       this._streamController = new StreamController(
         this._videoElement,
         this._mediaSource,
-        this._settings);
+        this.settings);
 
       // TODO forward download events from steamcontroller out?
 

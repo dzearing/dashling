@@ -234,7 +234,7 @@ export default class StreamController {
     }
   }
 
-  private _initializeStreams(videoElement, mediaSource, settings) {
+  private _initializeStreams(videoElement: HTMLVideoElement, mediaSource: MediaSource, settings: Settings) {
     // Initializes streams based on manifest content.
 
     let _this = this;
@@ -243,10 +243,10 @@ export default class StreamController {
     _this._streams = [];
 
     if (manifestStreams) {
-      if (manifestStreams.audio) {
+      if (manifestStreams['audio']) {
         _this._streams.push(new Stream("audio", mediaSource, videoElement, settings));
       }
-      if (manifestStreams.video) {
+      if (manifestStreams['video']) {
         _this._streams.push(new Stream("video", mediaSource, videoElement, settings));
       }
     }
@@ -258,11 +258,11 @@ export default class StreamController {
       stream.initialize();
     }
 
-    function _forwardDownloadEvent(ev) {
+    function _forwardDownloadEvent(ev: any) {
       _this._events.raise(DashlingEvent.download, ev);
     }
 
-    function _forwardSessionStateChange(args) {
+    function _forwardSessionStateChange(args: any) {
       _this._events.raise(DashlingEvent.sessionStateChange, args);
     }
   }
@@ -287,7 +287,9 @@ export default class StreamController {
           let timeSincePreviousFragment = previousRequest ? new Date().getTime() - previousRequest.startTime : 0;
 
           if (!previousRequest || timeSincePreviousFragment >= minDelay) {
-            stream.load(fragmentIndex, this._appendNextFragment);
+            stream.load(fragmentIndex, function() {
+              _this._appendNextFragment();
+            });
           } else {
             _enqueueNextLoad(streamIndex, minDelay - timeSincePreviousFragment);
             break;
@@ -304,10 +306,10 @@ export default class StreamController {
     function _enqueueNextLoad(index: number, delay: number) {
       if (!_this._isDisposed) {
         if (_this._requestTimerIds[index]) {
-          clearTimeout(_this._requestTimerIds[index]);
+          _this._async.clearTimeout(_this._requestTimerIds[index]);
         }
 
-        _this._requestTimerIds[index] = setTimeout(function() {
+        _this._requestTimerIds[index] = _this._async.setTimeout(function() {
           _this._requestTimerIds[index] = 0;
           _this._loadNextFragment();
         }, delay);
@@ -318,8 +320,8 @@ export default class StreamController {
   private _appendNextFragment() {
     let _this = this;
     let streams = this._streams;
-    let stream;
-    let streamIndex;
+    let stream: Stream;
+    let streamIndex: number;
 
     if (!_this._isDisposed) {
       let currentTime = _this._settings.startTime || _this._videoElement.currentTime;
@@ -344,7 +346,10 @@ export default class StreamController {
             for (streamIndex = 0; streamIndex < streams.length; streamIndex++) {
               stream = streams[streamIndex];
 
-              stream.append(_this._appendIndex, _this._appendNextFragment);
+              stream.append(_this._appendIndex, function() {
+                _this._appendNextFragment();
+              });
+              
               allStreamsAppended = allStreamsAppended && stream.fragments[_this._appendIndex].state === DashlingRequestState.appended;
             }
           }
@@ -443,11 +448,11 @@ export default class StreamController {
     });
   }
 
-  private _allStreamsAppended(streams, fragmentIndex) {
+  private _allStreamsAppended(streams: Stream[], fragmentIndex: number) {
     let allStreamsAppended = false;
 
-    for (let streamIndex = 0; streamIndex < streams.length; streamIndex++) {
-      allStreamsAppended = allStreamsAppended && streams[streamIndex].fragments[fragmentIndex] == DashlingRequestState.appended;
+    for (let stream of streams) {
+      allStreamsAppended = allStreamsAppended && stream.fragments[fragmentIndex] == DashlingRequestState.appended;
     }
 
     return allStreamsAppended;
@@ -481,7 +486,7 @@ export default class StreamController {
     let _this = this;
     let currentRange = _this._getCurrentFragmentRange();
     let candidates = {
-      downloads: [],
+      downloads: <any[]>[],
       isAtMax: false
     };
     let totalCandidates = 0;
@@ -498,7 +503,7 @@ export default class StreamController {
           let stream = _this._streams[i];
 
           candidates.downloads.push(_this._getDownloadableIndexes(stream, currentRange));
-          totalCandidates += candidates[candidates.downloads.length - 1].length;
+          totalCandidates += candidates.downloads[candidates.downloads.length - 1].length;
         }
       }
     }
@@ -624,7 +629,7 @@ export default class StreamController {
     this._setCanPlay(false);
     this._settings.startTime = 0;
 
-    this._seekingTimerId = setTimeout(this._onThrottledSeek, 300);
+    this._seekingTimerId = this._async.setTimeout(this._onThrottledSeek, 300);
   }
 
   private _onThrottledSeek() {
@@ -634,7 +639,7 @@ export default class StreamController {
       let currentTime = _this._videoElement.currentTime;
       let lastTimeBeforeSeek = this._lastTimeBeforeSeek;
       let fragmentIndex = Math.floor(Math.max(0, currentTime - SEEK_TIME_BUFFER_SECONDS) / _this._streams[0].fragments[0].time.lengthSeconds);
-      let streamIndex;
+      let streamIndex: number;
       let isBufferAcceptable =
         _this._videoElement.buffered.length == 1 &&
         _this._videoElement.buffered.start(0) <= (Math.max(0, currentTime - 2)) &&
