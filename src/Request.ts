@@ -29,6 +29,7 @@ export default class Request {
   public timeToLastByte: number;
   public bytesPerMillisecond: number;
 
+  private _isDisposed: boolean;
   private _events: EventGroup;
   private _options: IRequestOptions;
   private _settings: Settings;
@@ -63,19 +64,21 @@ export default class Request {
   }
 
   dispose() {
-    if (this._xhr) {
-      this.state = DashlingRequestState.aborted;
-      this._isAborted = true;
-      this._xhr.abort();
-      this._xhr = null;
-    }
+    if (!this._isDisposed) {
+      this._isDisposed = true;
 
-    if (this._retryTimeoutId) {
-      clearTimeout(this._retryTimeoutId);
-      this._retryTimeoutId = null;
-    }
+      if (this._xhr) {
+        this.state = DashlingRequestState.aborted;
+        this._isAborted = true;
+        this._xhr.abort();
+        this._xhr = null;
+      }
 
-    if (this._events) {
+      if (this._retryTimeoutId) {
+        clearTimeout(this._retryTimeoutId);
+        this._retryTimeoutId = null;
+      }
+
       this._events.dispose();
       this._events = null;
     }
@@ -98,24 +101,28 @@ export default class Request {
 
     // When readystate updates, update timeToFirstByte.
     xhr.onreadystatechange = () => {
-      if (xhr.readyState > 0 && this.timeToFirstByte < 0) {
+      if (!this._isDisposed && xhr.readyState > 0 && this.timeToFirstByte < 0) {
         this.timeToFirstByte = (new Date().getTime() - startTime);
       }
     }
 
     // When progress is reported, push an event to progress events.
     xhr.onprogress = (ev: ProgressEvent) => {
-      this.progressEvents.push({
-        timeFromStart: new Date().getTime() - startTime,
-        bytesLoaded: ev.lengthComputable ? ev.loaded : -1
-      });
+      if (!this._isDisposed) {
+        this.progressEvents.push({
+          timeFromStart: new Date().getTime() - startTime,
+          bytesLoaded: ev.lengthComputable ? ev.loaded : -1
+        });
 
-      this._postProgress();
+        this._postProgress();
+      }
     };
 
     // When the request has ended, parse the response and determine what to do next.
     xhr.onloadend = () => {
-      this._processResult();
+      if (!this._isDisposed) {
+        this._processResult();
+      }
     };
 
     this.state = DashlingRequestState.downloading;
@@ -129,6 +136,10 @@ export default class Request {
 
     this._xhr = null;
     this.timeToLastByte = new Date().getTime() - this._startTime;
+
+    if (this.state !== DashlingRequestState.downloading) {
+      this._events.raise(Request.CompleteEvent, this);
+    }
 
     if (xhr.status >= 200 && xhr.status <= 299) {
       this.bytesLoaded = isArrayBuffer ? xhr.response.byteLength : xhr.responseText ? xhr.responseText.length : 0;
@@ -157,11 +168,8 @@ export default class Request {
         this._options.onSuccess(this);
       }
     } else {
+      // This can cause an error state event which will dispose this object.
       this._processError(xhr);
-    }
-
-    if (this.state !== DashlingRequestState.downloading) {
-      this._events.raise(Request.CompleteEvent);
     }
   }
 
@@ -173,7 +181,9 @@ export default class Request {
     if (isRetriable) {
       let timeToWait = delaysBetweenRetries[this._requestAttempt - 1] || delaysBetweenRetries[delaysBetweenRetries.length - 1];
 
-      this._retryTimeoutId = setTimeout(() => { this.start(); }, timeToWait);
+      this._retryTimeoutId = setTimeout(() => {
+         this.start();
+      }, timeToWait);
     } else {
       this.state = DashlingRequestState.error;
       this.statusCode = this._isAborted ? 'aborted' : isTimedOut ? 'timeout' : String(xhr.status);
