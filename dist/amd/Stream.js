@@ -2,30 +2,31 @@ define(["require", "exports", './RequestManager', './Request', './EventGroup', '
     var BANDWIDTH_LOCAL_STORAGE_KEY = 'Dashling.Stream.bytesPerSecond';
     var Stream = (function () {
         function Stream(streamType, mediaSource, videoElement, settings) {
+            var _this = this;
             var streamInfo = settings.manifest.streams[streamType];
             var fragmentCount = streamInfo.timeline.length;
-            this._events = new EventGroup_1.default(this);
-            this._async = new Async_1.default(this);
-            this.fragments = [];
-            this.streamType = streamType;
-            this.qualityIndex = Math.max(0, Math.min(streamInfo.qualities.length - 1, settings.targetQuality[streamType]));
-            this.bufferRate = new MetricSet_1.default(5);
-            this._startTime = new Date().getTime();
-            this._appendLength = 0;
-            this._appendTimeoutId = 0;
-            this._initializedQualityIndex = -1;
-            this._initRequestManager = new RequestManager_1.default(settings);
-            this._requestManager = new RequestManager_1.default(settings);
-            this._mediaSource = mediaSource;
-            this._videoElement = videoElement;
-            this._settings = settings;
-            this._manifest = settings.manifest;
-            this._streamInfo = streamInfo;
-            this._buffer = null;
-            this._hasInitializedBuffer = false;
-            this._initSegments = [];
+            _this._events = new EventGroup_1.default(_this);
+            _this._async = new Async_1.default(_this);
+            _this.fragments = [];
+            _this.streamType = streamType;
+            _this.qualityIndex = Math.max(0, Math.min(streamInfo.qualities.length - 1, settings.targetQuality[streamType]));
+            _this.bufferRate = new MetricSet_1.default(5);
+            _this._startTime = new Date().getTime();
+            _this._appendLength = 0;
+            _this._appendTimeoutId = 0;
+            _this._initializedQualityIndex = -1;
+            _this._initRequestManager = new RequestManager_1.default(settings);
+            _this._requestManager = new RequestManager_1.default(settings);
+            _this._mediaSource = mediaSource;
+            _this._videoElement = videoElement;
+            _this._settings = settings;
+            _this._manifest = settings.manifest;
+            _this._streamInfo = streamInfo;
+            _this._buffer = null;
+            _this._hasInitializedBuffer = false;
+            _this._initSegments = [];
             for (var i = 0; i < fragmentCount; i++) {
-                this.fragments.push({
+                _this.fragments.push({
                     state: DashlingEnums_1.DashlingRequestState.idle,
                     qualityIndex: -1,
                     qualityId: '',
@@ -36,9 +37,11 @@ define(["require", "exports", './RequestManager', './Request', './EventGroup', '
                     requests: []
                 });
             }
-            // TODO: Unsure why we need to forwrd these events
-            // this._events.on(this._requestManager, RequestManager.DownloadEvent, _forwardDownloadEvent);
-            // this._events.on(this._initRequestManager, RequestManager.DownloadEvent, _forwardDownloadEvent);
+            var _forwardDownloadEvent = function (request) {
+                _this._events.raise(DashlingEnums_1.DashlingEvent.download, request);
+            };
+            _this._events.on(_this._requestManager, DashlingEnums_1.DashlingEvent.download, _forwardDownloadEvent);
+            _this._events.on(_this._initRequestManager, DashlingEnums_1.DashlingEvent.download, _forwardDownloadEvent);
         }
         Stream.prototype.dispose = function () {
             if (!this._isDisposed) {
@@ -174,16 +177,16 @@ define(["require", "exports", './RequestManager', './Request', './EventGroup', '
                     _appendNextEntry();
                 }
             }
-            function _onAppendError(error, details) {
-                details = details || "";
-                var statusCode = "error=" + details + " (quality=" + fragment.qualityId + (fragment.fragmentIndex !== undefined ? " index=" + fragment.fragmentIndex : "") + ")";
+            function _onAppendError(errorType, errorMessage) {
+                errorMessage = errorMessage || "";
+                var statusCode = "error=" + errorMessage + " (quality=" + fragment.qualityId + (fragment.fragmentIndex !== undefined ? " index=" + fragment.fragmentIndex : "") + ")";
                 fragment.state = DashlingEnums_1.DashlingRequestState.error;
                 _this._isAppending = false;
                 Utilities_1.default.log("Append exception: " + statusCode);
                 _this._events.raise(DashlingEnums_1.DashlingEvent.sessionStateChange, {
                     state: DashlingEnums_1.DashlingSessionState.error,
-                    errorType: error,
-                    errorCode: statusCode
+                    errorType: errorType,
+                    errorMessage: statusCode
                 });
             }
         };
@@ -261,10 +264,10 @@ define(["require", "exports", './RequestManager', './Request', './EventGroup', '
             function _onSuccess(request) {
                 if (!_this._isDisposed) {
                     fragment.state = DashlingEnums_1.DashlingRequestState.downloaded;
-                    var timeDownloading = Math.round(request.timeAtLastByte - (request.timeAtEstimatedFirstByte || request.timeAtFirstByte));
+                    var timeDownloading = Math.round(request.timeAtLastByte - request.timeAtFirstByte);
                     var timeWaiting = request.timeAtLastByte - timeDownloading;
                     Utilities_1.default.log("Download complete: " + request.qualityId + " " + request.requestType + " index: " + request.fragmentIndex + " waiting: " + timeWaiting + "ms receiving: " + timeDownloading, _this._settings);
-                    onFragmentAvailable(fragment);
+                    onFragmentAvailable();
                 }
             }
             function _onError(request) {
@@ -275,7 +278,7 @@ define(["require", "exports", './RequestManager', './Request', './EventGroup', '
                         _this._events.raise(DashlingEnums_1.DashlingEvent.sessionStateChange, {
                             state: DashlingEnums_1.DashlingSessionState.error,
                             errorType: DashlingEnums_1.DashlingError.mediaSegmentDownload,
-                            errorCode: request.statusCode
+                            errorMessage: request.statusCode
                         });
                     }
                     else {

@@ -28,7 +28,7 @@ export default class Dashling {
   private _videoElement: HTMLVideoElement;
   private _mediaSource: MediaSource;
 
-  constructor(settings: Settings) {
+  constructor(settings?: Settings) {
     this.isDisposed = false;
     this._events = new EventGroup(this);
     this.settings = settings || new Settings();

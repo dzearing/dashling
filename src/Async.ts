@@ -19,7 +19,7 @@ export default class Async {
   }
 
   public setTimeout(func: () => any, delay: number): number {
-    let timeoutId;
+    let timeoutId: number;
 
     timeoutId = setTimeout(() => {
       delete this._timeoutIds[timeoutId];

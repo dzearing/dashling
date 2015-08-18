@@ -2,7 +2,7 @@ import Settings from './Settings';
 import RequestManager from './RequestManager';
 import Request from './Request';
 import EventGroup from './EventGroup';
-import { DashlingError } from './DashlingEnums';
+import { DashlingEvent, DashlingError } from './DashlingEnums';
 import Manifest from './Manifest';
 
 export default class ManifestParser {
@@ -19,7 +19,7 @@ export default class ManifestParser {
     this._settings = settings;
     this._requestManager = new RequestManager(settings);
 
-    this._events.on(this._requestManager, RequestManager.DownloadEvent, () => {
+    this._events.on(this._requestManager, DashlingEvent.download, () => {
       this._events.raise(ManifestParser.DownloadEvent);
     });
   }

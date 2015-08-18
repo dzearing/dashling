@@ -511,21 +511,10 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
             }
         };
         StreamController.prototype._onVideoError = function () {
-            var videoError = this._videoElement.error;
-            var errorMessage = "VideoElementUnexpected";
-            if (videoError) {
-                errorMessage = String(videoError.code);
-                for (var propertyName in videoError) {
-                    if (videoError[propertyName] === videoError.code && propertyName !== "code") {
-                        errorMessage = propertyName;
-                        break;
-                    }
-                }
-            }
             this._events.raise(DashlingEnums_1.DashlingEvent.sessionStateChange, {
                 state: DashlingEnums_1.DashlingSessionState.error,
                 errorType: DashlingEnums_1.DashlingError.videoElementError,
-                errorMessage: errorMessage
+                errorMessage: Utilities_1.default.getVideoError(this._videoElement)
             });
         };
         StreamController.prototype._onPauseStateChange = function () {

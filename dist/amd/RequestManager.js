@@ -42,9 +42,13 @@ define(["require", "exports", './MetricSet', './Request', './DashlingEnums', './
                 _this._activeRequestCount--;
                 _this._events.off(request);
                 // Trace wait/receive times, but don't track for errors and cache hits.
-                if (request.state === DashlingEnums_1.DashlingRequestState.downloaded && request.timeToLastByte > _this._settings.requestCacheThreshold) {
-                    _this.waitTimes.addMetric(request.timeToFirstByte);
-                    _this.receiveTimes.addMetric(request.timeToLastByte);
+                if (request.state === DashlingEnums_1.DashlingRequestState.downloaded) {
+                    var isFromCache = request.timeAtLastByte > _this._settings.requestCacheThreshold;
+                    if (!isFromCache) {
+                        _this.waitTimes.addMetric(request.timeAtFirstByte);
+                        _this.receiveTimes.addMetric(request.timeAtLastByte);
+                    }
+                    _this._events.raise(DashlingEnums_1.DashlingEvent.download, request);
                 }
             });
             // Start request.
@@ -60,7 +64,6 @@ define(["require", "exports", './MetricSet', './Request', './DashlingEnums', './
         RequestManager.prototype.getAverageBytesPerSecond = function () {
             return this.bytesPerSeconds.average || 0;
         };
-        RequestManager.DownloadEvent = 'download';
         return RequestManager;
     })();
     exports.default = RequestManager;

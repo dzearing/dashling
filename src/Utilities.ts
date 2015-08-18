@@ -1,5 +1,12 @@
 import Settings from './Settings';
 
+enum VideoErrorCode {
+  MEDIA_ERR_ABORTED = 1,
+  MEDIA_ERR_NETWORK = 2,
+  MEDIA_ERR_DECODE = 3,
+  MEDIA_ERR_SRC_NOT_SUPPORTED = 4
+}
+
 export default class Utilities {
 
   public static bind(obj: any, func: () => any): () => any {
@@ -59,4 +66,11 @@ export default class Utilities {
     return seconds;
   }
 
+  public static getVideoError(videoElement: HTMLVideoElement): string {
+    var videoError = videoElement.error;
+
+    return videoError ? (VideoErrorCode[videoError.code] || String(videoError.code)) : null;
+  }
+
 }
+

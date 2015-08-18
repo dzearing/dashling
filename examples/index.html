@@ -10,14 +10,16 @@
     <script type="text/javascript" src="DashMonitor.js"></script>
     <script type="text/javascript" src="VideoDebug.js"></script>
     <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/require.js/2.1.20/require.js"></script>
+
     <script>
         var monitor,
+            Dashling,
             dashling,
             logVideoEvents;
 
         function initPage() {
-          require(['../dist/amd/Dashling'], function(DashlingModule) {
-            var Dashling = DashlingModule.default;
+          var Dashling = require(['../dist/amd/Dashling'], function(DashlingModule) {
+            Dashling = DashlingModule.default;
 
             dashling = new Dashling();
 
@@ -38,7 +40,6 @@
             dashling.addEventListener(dashling.Event.sessionStateChange, function(ev) {
               console.log("Event sessionStateChange received: state=" + _findInEnum(ev.state, dashling.SessionState) + (ev.errorType ? (" error=" + ev.errorType) : "") + (ev.errorMessage ? (" errorMessage=" + ev.errorMessage) : ""));
             });
-
           });
         }
 

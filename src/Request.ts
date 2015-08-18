@@ -11,9 +11,13 @@ export interface IRequestOptions {
   url: string;
   onSuccess: (request: Request) => void;
   onError: (request: Request) => void;
+  isArrayBuffer?: boolean;
 
   requestType?: string;
-  isArrayBuffer?: boolean;
+  fragmentIndex?: number;
+  qualityIndex?: number;
+  qualityId?: number;
+  clearDataAfterAppend?: boolean;
 }
 
 export default class Request {
@@ -21,13 +25,23 @@ export default class Request {
   public static CompleteEvent = 'complete';
 
   public state: DashlingRequestState;
+  public isAborted: boolean;
   public data: any;
   public statusCode: string;
   public bytesLoaded: number;
   public progressEvents: IProgressEntry[];
-  public timeToFirstByte: number;
-  public timeToLastByte: number;
+  public startTime: number;
+  public timeAtFirstByte: number;
+  public timeAtLastByte: number;
   public bytesPerMillisecond: number;
+
+  // Metadata needed by Stream
+  public requestType: string;
+  public fragmentIndex: number;
+  public qualityIndex: number;
+  public qualityId: number;
+  public clearDataAfterAppend: boolean;
+  public timeAtAppended: number;
 
   private _isDisposed: boolean;
   private _events: EventGroup;
@@ -36,13 +50,11 @@ export default class Request {
 
   private _onSuccess: (request: Request) => void;
   private _onError: () => void;
-  private _isAborted: boolean;
   private _requestAttempt: number;
   private _retryTimeoutId: number;
 
   private _xhrType: new () => XMLHttpRequest;
   private _xhr: XMLHttpRequest;
-  private _startTime: number;
 
   constructor(options: IRequestOptions, settings: Settings) {
     this._options = options;
@@ -50,26 +62,33 @@ export default class Request {
 
     this.state = DashlingRequestState.idle;
     this.data = null;
-    this.timeToFirstByte = -1;
-    this.timeToLastByte = -1;
+    this.timeAtFirstByte = -1;
+    this.timeAtLastByte = -1;
     this.statusCode = '';
     this.progressEvents = [];
     this.bytesLoaded = 0;
     this.bytesPerMillisecond = 0;
 
+    // Copy Stream metadata for stream.
+    this.requestType = options.requestType;
+    this.fragmentIndex = options.fragmentIndex;
+    this.qualityIndex = options.qualityIndex;
+    this.qualityId = options.qualityId;
+    this.clearDataAfterAppend = options.clearDataAfterAppend;
+
     this._events = new EventGroup(this);
-    this._isAborted = false;
+    this.isAborted = false;
     this._requestAttempt = 0;
     this._xhrType = XMLHttpRequest;
   }
 
-  dispose() {
+  public dispose() {
     if (!this._isDisposed) {
       this._isDisposed = true;
 
       if (this._xhr) {
         this.state = DashlingRequestState.aborted;
-        this._isAborted = true;
+        this.isAborted = true;
         this._xhr.abort();
         this._xhr = null;
       }
@@ -87,7 +106,7 @@ export default class Request {
   public start() {
     let { url, isArrayBuffer } = this._options;
     let xhr = this._xhr = new this._xhrType();
-    let startTime = this._startTime = new Date().getTime();
+    let startTime = this.startTime = new Date().getTime();
 
     this._requestAttempt++;
 
@@ -99,10 +118,10 @@ export default class Request {
 
     xhr.timeout = this._settings.requestTimeout;
 
-    // When readystate updates, update timeToFirstByte.
+    // When readystate updates, update timeAtFirstByte.
     xhr.onreadystatechange = () => {
-      if (!this._isDisposed && xhr.readyState > 0 && this.timeToFirstByte < 0) {
-        this.timeToFirstByte = (new Date().getTime() - startTime);
+      if (!this._isDisposed && xhr.readyState > 0 && this.timeAtFirstByte < 0) {
+        this.timeAtFirstByte = (new Date().getTime() - startTime);
       }
     }
 
@@ -133,13 +152,11 @@ export default class Request {
     let xhr = this._xhr;
     let progressEvents = this.progressEvents;
     let isArrayBuffer = this._options.isArrayBuffer;
+    let isComplete = false;
 
     this._xhr = null;
-    this.timeToLastByte = new Date().getTime() - this._startTime;
+    this.timeAtLastByte = new Date().getTime() - this.startTime;
 
-    if (this.state !== DashlingRequestState.downloading) {
-      this._events.raise(Request.CompleteEvent, this);
-    }
 
     if (xhr.status >= 200 && xhr.status <= 299) {
       this.bytesLoaded = isArrayBuffer ? xhr.response.byteLength : xhr.responseText ? xhr.responseText.length : 0;
@@ -157,12 +174,14 @@ export default class Request {
         let bytesLoaded = lastEvent.bytesLoaded - firstEvent.bytesLoaded;
 
         this.bytesPerMillisecond = bytesLoaded / timeDifference;
-        this.timeToFirstByte = this.timeToLastByte - (this.bytesLoaded / this.bytesPerMillisecond);
+        this.timeAtFirstByte = this.timeAtLastByte - (this.bytesLoaded / this.bytesPerMillisecond);
       }
 
       this.data = isArrayBuffer ? new Uint8Array(xhr.response) : xhr.responseText;
       this.statusCode = String(xhr.status);
       this.state = DashlingRequestState.downloaded;
+
+      this._events.raise(Request.CompleteEvent, this);
 
       if (this._options.onSuccess) {
         this._options.onSuccess(this);
@@ -174,8 +193,8 @@ export default class Request {
   }
 
   private _processError(xhr: XMLHttpRequest) {
-    let isTimedOut = (xhr.status === 0 && this.timeToLastByte >= this._settings.requestTimeout);
-    let isRetriable = !this._isAborted && xhr.status !== 404 && this._requestAttempt < this._settings.maxRetries;
+    let isTimedOut = (xhr.status === 0 && this.timeAtLastByte >= this._settings.requestTimeout);
+    let isRetriable = !this.isAborted && xhr.status !== 404 && this._requestAttempt < this._settings.maxRetries;
     let delaysBetweenRetries = this._settings.delaysBetweenRetries;
 
     if (isRetriable) {
@@ -186,8 +205,10 @@ export default class Request {
       }, timeToWait);
     } else {
       this.state = DashlingRequestState.error;
-      this.statusCode = this._isAborted ? 'aborted' : isTimedOut ? 'timeout' : String(xhr.status);
+      this.statusCode = this.isAborted ? 'aborted' : isTimedOut ? 'timeout' : String(xhr.status);
       //this.hasError = true;
+
+      this._events.raise(Request.CompleteEvent, this);
 
       if (this._options.onError) {
         this._options.onError(this);

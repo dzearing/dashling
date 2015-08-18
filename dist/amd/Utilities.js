@@ -1,11 +1,11 @@
-(function (deps, factory) {
-    if (typeof module === 'object' && typeof module.exports === 'object') {
-        var v = factory(require, exports); if (v !== undefined) module.exports = v;
-    }
-    else if (typeof define === 'function' && define.amd) {
-        define(deps, factory);
-    }
-})(["require", "exports"], function (require, exports) {
+define(["require", "exports"], function (require, exports) {
+    var VideoErrorCode;
+    (function (VideoErrorCode) {
+        VideoErrorCode[VideoErrorCode["MEDIA_ERR_ABORTED"] = 1] = "MEDIA_ERR_ABORTED";
+        VideoErrorCode[VideoErrorCode["MEDIA_ERR_NETWORK"] = 2] = "MEDIA_ERR_NETWORK";
+        VideoErrorCode[VideoErrorCode["MEDIA_ERR_DECODE"] = 3] = "MEDIA_ERR_DECODE";
+        VideoErrorCode[VideoErrorCode["MEDIA_ERR_SRC_NOT_SUPPORTED"] = 4] = "MEDIA_ERR_SRC_NOT_SUPPORTED";
+    })(VideoErrorCode || (VideoErrorCode = {}));
     var Utilities = (function () {
         function Utilities() {
         }
@@ -52,6 +52,10 @@
                 seconds += Number(tempString.substring(0, tempIndex));
             }
             return seconds;
+        };
+        Utilities.getVideoError = function (videoElement) {
+            var videoError = videoElement.error;
+            return videoError ? (VideoErrorCode[videoError.code] || String(videoError.code)) : null;
         };
         return Utilities;
     })();

@@ -41,34 +41,35 @@ export default class Stream {
   private _isAppending: boolean;
 
   constructor(streamType: string, mediaSource: MediaSource, videoElement: HTMLVideoElement, settings: Settings) {
+    let _this = this;
     let streamInfo = settings.manifest.streams[streamType];
     let fragmentCount = streamInfo.timeline.length;
 
-    this._events = new EventGroup(this);
-    this._async = new Async(this);
+    _this._events = new EventGroup(_this);
+    _this._async = new Async(_this);
 
-    this.fragments = [];
-    this.streamType = streamType;
-    this.qualityIndex = Math.max(0, Math.min(streamInfo.qualities.length - 1, settings.targetQuality[streamType]));
-    this.bufferRate = new MetricSet(5);
+    _this.fragments = [];
+    _this.streamType = streamType;
+    _this.qualityIndex = Math.max(0, Math.min(streamInfo.qualities.length - 1, settings.targetQuality[streamType]));
+    _this.bufferRate = new MetricSet(5);
 
-    this._startTime = new Date().getTime();
-    this._appendLength = 0;
-    this._appendTimeoutId = 0;
-    this._initializedQualityIndex = -1;
-    this._initRequestManager = new RequestManager(settings);
-    this._requestManager = new RequestManager(settings);
-    this._mediaSource = mediaSource;
-    this._videoElement = videoElement;
-    this._settings = settings;
-    this._manifest = settings.manifest;
-    this._streamInfo = streamInfo;
-    this._buffer = null;
-    this._hasInitializedBuffer = false;
-    this._initSegments = [];
+    _this._startTime = new Date().getTime();
+    _this._appendLength = 0;
+    _this._appendTimeoutId = 0;
+    _this._initializedQualityIndex = -1;
+    _this._initRequestManager = new RequestManager(settings);
+    _this._requestManager = new RequestManager(settings);
+    _this._mediaSource = mediaSource;
+    _this._videoElement = videoElement;
+    _this._settings = settings;
+    _this._manifest = settings.manifest;
+    _this._streamInfo = streamInfo;
+    _this._buffer = null;
+    _this._hasInitializedBuffer = false;
+    _this._initSegments = [];
 
     for (let i = 0; i < fragmentCount; i++) {
-      this.fragments.push({
+      _this.fragments.push({
         state: DashlingRequestState.idle,
         qualityIndex: -1,
         qualityId: '',
@@ -80,9 +81,12 @@ export default class Stream {
       });
     }
 
-    // TODO: Unsure why we need to forwrd these events
-    // this._events.on(this._requestManager, RequestManager.DownloadEvent, _forwardDownloadEvent);
-    // this._events.on(this._initRequestManager, RequestManager.DownloadEvent, _forwardDownloadEvent);
+    let _forwardDownloadEvent = function(request: Request) {
+      _this._events.raise(DashlingEvent.download, request);
+    };
+
+    _this._events.on(_this._requestManager, DashlingEvent.download, _forwardDownloadEvent);
+    _this._events.on(_this._initRequestManager, DashlingEvent.download, _forwardDownloadEvent);
   }
 
   public dispose() {
@@ -152,7 +156,7 @@ export default class Stream {
     let _this = this;
     let fragment = _this.fragments[fragmentIndex];
     let maxQualityIndex = _this._streamInfo.qualities.length - 1;
-    let fragmentsToAppend = [];
+    let fragmentsToAppend: Request[] = [];
     let buffer = _this._buffer;
 
     if (!_this._isAppending && fragment && fragment.state === DashlingRequestState.downloaded) {
@@ -243,11 +247,11 @@ export default class Stream {
       }
     }
 
-    function _onAppendError(error, details) {
+    function _onAppendError(errorType: string, errorMessage: string) {
 
-      details = details || "";
+      errorMessage = errorMessage || "";
 
-      let statusCode = "error=" + details + " (quality=" + fragment.qualityId + (fragment.fragmentIndex !== undefined ? " index=" + fragment.fragmentIndex : "") + ")";
+      let statusCode = "error=" + errorMessage + " (quality=" + fragment.qualityId + (fragment.fragmentIndex !== undefined ? " index=" + fragment.fragmentIndex : "") + ")";
 
       fragment.state = DashlingRequestState.error;
       _this._isAppending = false;
@@ -257,8 +261,8 @@ export default class Stream {
         DashlingEvent.sessionStateChange,
         {
           state: DashlingSessionState.error,
-          errorType: error,
-          errorCode: statusCode
+          errorType: errorType,
+          errorMessage: statusCode
         });
     }
   }
@@ -319,7 +323,7 @@ export default class Stream {
     return (this.fragments[fragmentIndex].state <= DashlingRequestState.idle);
   }
 
-  public load(fragmentIndex: number, onFragmentAvailable) {
+  public load(fragmentIndex: number, onFragmentAvailable: () => void) {
     let _this = this;
     let fragment = this.fragments[fragmentIndex];
     let request: Request;
@@ -352,20 +356,20 @@ export default class Stream {
       _this._requestManager.start(request);
     }
 
-    function _onSuccess(request) {
+    function _onSuccess(request: Request) {
       if (!_this._isDisposed) {
         fragment.state = DashlingRequestState.downloaded;
 
-        var timeDownloading = Math.round(request.timeAtLastByte - (request.timeAtEstimatedFirstByte || request.timeAtFirstByte));
+        var timeDownloading = Math.round(request.timeAtLastByte - request.timeAtFirstByte);
         var timeWaiting = request.timeAtLastByte - timeDownloading;
 
         Utilities.log("Download complete: " + request.qualityId + " " + request.requestType + " index: " + request.fragmentIndex + " waiting: " + timeWaiting + "ms receiving: " + timeDownloading, _this._settings);
 
-        onFragmentAvailable(fragment);
+        onFragmentAvailable();
       }
     }
 
-    function _onError(request) {
+    function _onError(request: Request) {
       if (!_this._isDisposed) {
         if (!request.isAborted) {
           fragment.state = DashlingRequestState.error;
@@ -376,7 +380,7 @@ export default class Stream {
             {
               state: DashlingSessionState.error,
               errorType: DashlingError.mediaSegmentDownload,
-              errorCode: request.statusCode
+              errorMessage: request.statusCode
             });
         } else {
           fragment.state = DashlingRequestState.idle;

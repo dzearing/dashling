@@ -21,6 +21,7 @@
     "test": "gulp covertest"
   },
   "devDependencies": {
+    "browserify": "^11.0.1",
     "gulp": "^3.5.5",
     "gulp-clean": "^0.2.4",
     "gulp-concat": "^2.1.7",
@@ -35,7 +36,10 @@
     "karma-coverage": "^0.2.1",
     "karma-phantomjs-launcher": "0.1.2",
     "karma-qunit": "^0.1.1",
+    "merge2": "^0.3.6",
     "phantomjs": "^1.9.7-3",
-    "qunitjs": "~1.14.0"
+    "qunitjs": "~1.14.0",
+    "vinyl-buffer": "^1.0.0",
+    "vinyl-source-stream": "^1.1.0"
   }
 }

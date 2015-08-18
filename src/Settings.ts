@@ -33,13 +33,13 @@ export default class Settings {
   public maxBufferSeconds = 119.5;
 
   // Max number of simultaneous requests per stream.
- public maxConcurrentRequests = {
+ public maxConcurrentRequests: { [key: string]: number } = {
     audio: 4,
     video: 6
   };
 
   // Max number of fragments each stream can be ahead of the other stream by.
-  public maxSegmentLeadCount = {
+  public maxSegmentLeadCount: { [key: string]: number } = {
     audio: 1,
     video: 5
   };
@@ -60,6 +60,6 @@ export default class Settings {
   public requestCacheThreshold = 80;
 
   // Optional override for manifest baseurl.
-  public baseUrlOverride = null;
+  public baseUrlOverride: string = null;
 
 }

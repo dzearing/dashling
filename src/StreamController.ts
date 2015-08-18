@@ -10,6 +10,7 @@ import {
   DashlingRequestState,
   DashlingSessionState
 } from './DashlingEnums';
+import IRange from './IRange';
 
 // When we calculate how much buffer is remaining, we permit a small blank gap between segments.
 const PERMITTED_GAP_SECONDS_BETWEEN_RANGES = 0.06;
@@ -349,7 +350,7 @@ export default class StreamController {
               stream.append(_this._appendIndex, function() {
                 _this._appendNextFragment();
               });
-              
+
               allStreamsAppended = allStreamsAppended && stream.fragments[_this._appendIndex].state === DashlingRequestState.appended;
             }
           }
@@ -520,11 +521,11 @@ export default class StreamController {
    * video end, or time+maxBufferSeconds if it's sooner, and returns as an
    * object: { start: 0, stop: 0 }
    */
-  private _getCurrentFragmentRange() {
+  private _getCurrentFragmentRange() : IRange {
     let _this = this;
     let videoElement = _this._videoElement;
     let duration = _this._settings.manifest.mediaDuration;
-    let range = {
+    let range: IRange = {
       start: -1,
       end: -1
     };
@@ -549,7 +550,7 @@ export default class StreamController {
   }
 
   /** Assess quality level for ABR and check for missing fragments. */
-  private _ensureStreamsUpdated(range) {
+  private _ensureStreamsUpdated(range: IRange) {
     let _this = this;
 
     let currentTime = _this._videoElement.currentTime;
@@ -571,7 +572,7 @@ export default class StreamController {
   }
 
   /** Gets the first missing fragment index in all streams. */
-  private _getMissingFragmentIndex(range): number {
+  private _getMissingFragmentIndex(range: IRange): number {
     let _this = this;
 
     for (let fragmentIndex = range.start; fragmentIndex <= range.end; fragmentIndex++) {
@@ -591,11 +592,11 @@ export default class StreamController {
    * Builds up an array of indexes of download candidates for the stream, taking into consideration
    * the range given, the lead count defined in settings, and the max concurrency for the stream.
    */
-  private _getDownloadableIndexes(stream, range): number[] {
+  private _getDownloadableIndexes(stream: Stream, range: IRange): number[] {
 
 
     let _this = this;
-    let indexes = [];
+    let indexes: number[] = [];
 
     // Limit the range based on settings for the stream.
     let endIndex = Math.min(range.end, range.start + _this._settings.maxSegmentLeadCount[stream.streamType]);
@@ -610,7 +611,7 @@ export default class StreamController {
     return indexes;
   }
 
-  private _setCanPlay(isAllowed) {
+  private _setCanPlay(isAllowed: boolean) {
     if (this._canPlay !== isAllowed) {
       this._canPlay = isAllowed;
       this._onVideoRateChange();
@@ -676,24 +677,10 @@ export default class StreamController {
   }
 
   private _onVideoError() {
-    let videoError = this._videoElement.error;
-    let errorMessage = "VideoElementUnexpected";
-
-    if (videoError) {
-      errorMessage = String(videoError.code);
-
-      for (let propertyName in videoError) {
-        if (videoError[propertyName] === videoError.code && propertyName !== "code") {
-          errorMessage = propertyName;
-          break;
-        }
-      }
-    }
-
     this._events.raise(DashlingEvent.sessionStateChange, {
       state: DashlingSessionState.error,
       errorType: DashlingError.videoElementError,
-      errorMessage: errorMessage
+      errorMessage: Utilities.getVideoError(this._videoElement)
     });
   }
 

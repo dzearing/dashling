@@ -8,6 +8,10 @@ var coveralls = require('gulp-coveralls');
 var jshint = require('gulp-jshint');
 var stylish = require('jshint-stylish');
 var ts = require('gulp-typescript');
+var merge = require('merge2');
+var browserify = require('browserify');
+var source = require('vinyl-source-stream');
+var buffer = require('vinyl-buffer');
 
 var paths = {
     scripts: inDirectory('src/', [
@@ -58,7 +62,24 @@ gulp.task('typescript', ['clean'], function(cb) {
             target: 'ES5'
         }));
 
-    return tsResult.js.pipe(gulp.dest('dist/amd'));
+    return merge([
+      tsResult.dts.pipe(gulp.dest('dist/amd')),
+      tsResult.js.pipe(gulp.dest('dist/amd'))
+    ]);
+});
+
+gulp.task('browserify', ['typescript'], function() {
+  var b = browserify({
+    entries: './dist/amd/Dashling.js',
+    debug: true
+  });
+
+  b.require('./dist/amd/Dashling.js', { expose: 'Dashling'});
+
+  return b.bundle()
+    .pipe(source('dashling.js'))
+    .pipe(buffer())
+    .pipe(gulp.dest('./dist/'));
 });
 
 gulp.task('scripts', ['clean', 'jshint', 'testscripts'], function(cb) {

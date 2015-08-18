@@ -6,7 +6,7 @@ define(["require", "exports", './RequestManager', './Request', './EventGroup', '
             this._parseIndex = 0;
             this._settings = settings;
             this._requestManager = new RequestManager_1.default(settings);
-            this._events.on(this._requestManager, RequestManager_1.default.DownloadEvent, function () {
+            this._events.on(this._requestManager, DashlingEnums_1.DashlingEvent.download, function () {
                 _this._events.raise(ManifestParser.DownloadEvent);
             });
         }

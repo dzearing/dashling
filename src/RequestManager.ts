@@ -2,7 +2,7 @@ import Settings from './Settings';
 import Utilities from './Utilities';
 import MetricSet from './MetricSet';
 import Request, { IRequestOptions } from './Request';
-import { DashlingRequestState } from './DashlingEnums';
+import { DashlingEvent, DashlingRequestState } from './DashlingEnums';
 import EventGroup from './EventGroup';
 
 let _requestIndex = 0;
@@ -13,8 +13,6 @@ let _requestIndex = 0;
  *  3. Exposes a dispose which will abort all pending requests.
  */
 export default class RequestManager {
-  public static DownloadEvent = 'download';
-
   public waitTimes: MetricSet;
   public receiveTimes: MetricSet;
   public bytesPerSeconds: MetricSet;
@@ -69,9 +67,15 @@ export default class RequestManager {
       this._events.off(request);
 
       // Trace wait/receive times, but don't track for errors and cache hits.
-      if (request.state === DashlingRequestState.downloaded && request.timeToLastByte > this._settings.requestCacheThreshold) {
-        this.waitTimes.addMetric(request.timeToFirstByte);
-        this.receiveTimes.addMetric(request.timeToLastByte);
+      if (request.state === DashlingRequestState.downloaded) {
+        let isFromCache = request.timeAtLastByte > this._settings.requestCacheThreshold;
+
+        if (!isFromCache) {
+          this.waitTimes.addMetric(request.timeAtFirstByte);
+          this.receiveTimes.addMetric(request.timeAtLastByte);
+        }
+
+        this._events.raise(DashlingEvent.download, request);
       }
     });
 
