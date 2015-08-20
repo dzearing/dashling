@@ -1,4 +1,5 @@
 import Settings from './Settings';
+import StreamController from './StreamController';
 import { DashlingSessionState, DashlingRequestState } from './DashlingEnums';
 export default class Dashling {
     /** Exported enums for simplifying access externally. */
@@ -14,11 +15,11 @@ export default class Dashling {
     isDisposed: boolean;
     timeAtFirstCanPlay: number;
     settings: Settings;
+    streamController: StreamController;
+    videoElement: HTMLVideoElement;
     private _events;
-    private _streamController;
     private _parser;
     private _sessionIndex;
-    private _videoElement;
     private _mediaSource;
     constructor(settings?: Settings);
     /** Disposes dashling. */

@@ -20,6 +20,7 @@ export default class Stream {
   public streamType: string;
   public qualityIndex: number;
   public bufferRate: MetricSet;
+  public requestManager: RequestManager;
 
   private _isDisposed: boolean;
   private _events: EventGroup;
@@ -29,7 +30,6 @@ export default class Stream {
   private _appendTimeoutId: number;
   private _initializedQualityIndex: number;
   private _initRequestManager: RequestManager;
-  private _requestManager: RequestManager;
   private _mediaSource: MediaSource;
   private _videoElement: HTMLVideoElement;
   private _settings: Settings;
@@ -58,7 +58,7 @@ export default class Stream {
     _this._appendTimeoutId = 0;
     _this._initializedQualityIndex = -1;
     _this._initRequestManager = new RequestManager(settings);
-    _this._requestManager = new RequestManager(settings);
+    _this.requestManager = new RequestManager(settings);
     _this._mediaSource = mediaSource;
     _this._videoElement = videoElement;
     _this._settings = settings;
@@ -85,7 +85,7 @@ export default class Stream {
       _this._events.raise(DashlingEvent.download, request);
     };
 
-    _this._events.on(_this._requestManager, DashlingEvent.download, _forwardDownloadEvent);
+    _this._events.on(_this.requestManager, DashlingEvent.download, _forwardDownloadEvent);
     _this._events.on(_this._initRequestManager, DashlingEvent.download, _forwardDownloadEvent);
   }
 
@@ -95,7 +95,7 @@ export default class Stream {
 
       this._events.dispose();
       this._async.dispose();
-      this._requestManager.dispose();
+      this.requestManager.dispose();
       this._initRequestManager.dispose();
     }
   }
@@ -122,7 +122,7 @@ export default class Stream {
 
   public abortAll() {
     this._initRequestManager.abortAll();
-    this._requestManager.abortAll();
+    this.requestManager.abortAll();
   }
 
   public clearBuffer() {
@@ -272,7 +272,7 @@ export default class Stream {
   }
 
   public getActiveRequestCount() {
-    return this._requestManager.getActiveRequestCount();
+    return this.requestManager.getActiveRequestCount();
   }
 
   public getRequestStaggerTime(): number {
@@ -353,7 +353,7 @@ export default class Stream {
 
       Utilities.log("Download started: " + fragment.qualityId + " " + requestType + " " + "index=" + fragmentIndex + " time=" + (new Date().getTime() - _this._startTime) + "ms stagger=" + _this.getRequestStaggerTime() + "ms", _this._settings);
 
-      _this._requestManager.start(request);
+      _this.requestManager.start(request);
     }
 
     function _onSuccess(request: Request) {
@@ -395,7 +395,7 @@ export default class Stream {
   public assessQuality() {
     var _this = this;
     var settings = _this._settings;
-    var bytesPerSecond = _this._requestManager.getAverageBytesPerSecond();
+    var bytesPerSecond = _this.requestManager.getAverageBytesPerSecond();
     var maxQuality = _this._streamInfo.qualities.length - 1;
 
     if (!bytesPerSecond) {
@@ -439,7 +439,7 @@ export default class Stream {
     let segmentLength = _this._streamInfo.timeline[fragmentIndex || 0].lengthSeconds;
     let bandwidth = quality.bandwidth / 8;
     let totalBytes = bandwidth * segmentLength;
-    let bytesPerSecond = _this._requestManager.getAverageBytesPerSecond();
+    let bytesPerSecond = _this.requestManager.getAverageBytesPerSecond();
 
     if (!bytesPerSecond) {
       bytesPerSecond = parseFloat(localStorage.getItem(BANDWIDTH_LOCAL_STORAGE_KEY));

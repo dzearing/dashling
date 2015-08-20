@@ -15,7 +15,7 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
             this._bufferRate = new MetricSet_1.default(3);
             this._appendedSeconds = 0;
             this._requestTimerIds = [0, 0];
-            this._streams = [];
+            this.streams = [];
             this._appendIndex = 0;
             this._nextStreamIndex = 0;
             this._appendIndex = 0;
@@ -25,7 +25,7 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
             this._maxSegmentsAhead = 2;
             this._nextRequestTimerId = 0;
             this._seekingTimerId = 0;
-            this._stalls = 0;
+            this.stalls = 0;
             this._lastCurrentTime = 0;
             this._lastTimeBeforeSeek = 0;
             this._startTime = 0;
@@ -36,8 +36,8 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
             this._intializeVideoElement();
             this._initializeStreams(videoElement, mediaSource, settings);
             // If we have streams and a start time defined in settings, try to initialize the appendIndex correctly.
-            if (this._streams.length && settings && settings.startTime) {
-                var stream = this._streams[0];
+            if (this.streams.length && settings && settings.startTime) {
+                var stream = this.streams[0];
                 var firstFragmentDuration = stream.fragments[0].time.lengthSeconds;
                 this._appendIndex = Math.max(0, Math.min(stream.fragments.length - 1, (Math.floor((settings.startTime - SEEK_TIME_BUFFER_SECONDS) / firstFragmentDuration))));
             }
@@ -49,8 +49,8 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
                 _this._adjustPlaybackMonitor(false);
                 _this._events.dispose();
                 _this._async.dispose();
-                for (var i = 0; _this._streams && i < _this._streams.length; i++) {
-                    _this._streams[i].dispose();
+                for (var i = 0; _this.streams && i < _this.streams.length; i++) {
+                    _this.streams[i].dispose();
                 }
                 _this._videoElement = null;
                 _this._mediaSource = null;
@@ -66,8 +66,8 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
         StreamController.prototype.getPlayingQuality = function (streamType) {
             var qualityIndex = 0;
             if (!this._isDisposed) {
-                for (var streamIndex = 0; streamIndex < this._streams.length; streamIndex++) {
-                    var stream = this._streams[streamIndex];
+                for (var streamIndex = 0; streamIndex < this.streams.length; streamIndex++) {
+                    var stream = this.streams[streamIndex];
                     if (stream.streamType == streamType) {
                         var currentTime = this._videoElement.currentTime;
                         var fragmentIndex = Math.min(stream.fragments.length - 1, Math.floor(currentTime / stream.fragments[0].time.lengthSeconds));
@@ -83,7 +83,7 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
         StreamController.prototype.getBufferingQuality = function (streamType) {
             var qualityIndex = 0;
             if (!this._isDisposed) {
-                for (var _i = 0, _a = this._streams; _i < _a.length; _i++) {
+                for (var _i = 0, _a = this.streams; _i < _a.length; _i++) {
                     var stream = _a[_i];
                     if (stream.streamType == streamType) {
                         qualityIndex = stream.qualityIndex;
@@ -159,16 +159,16 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
             // Initializes streams based on manifest content.
             var _this = this;
             var manifestStreams = (settings && settings.manifest && settings.manifest.streams) ? settings.manifest.streams : null;
-            _this._streams = [];
+            _this.streams = [];
             if (manifestStreams) {
                 if (manifestStreams['audio']) {
-                    _this._streams.push(new Stream_1.default("audio", mediaSource, videoElement, settings));
+                    _this.streams.push(new Stream_1.default("audio", mediaSource, videoElement, settings));
                 }
                 if (manifestStreams['video']) {
-                    _this._streams.push(new Stream_1.default("video", mediaSource, videoElement, settings));
+                    _this.streams.push(new Stream_1.default("video", mediaSource, videoElement, settings));
                 }
             }
-            for (var _i = 0, _a = _this._streams; _i < _a.length; _i++) {
+            for (var _i = 0, _a = _this.streams; _i < _a.length; _i++) {
                 var stream = _a[_i];
                 _this._events.on(stream, DashlingEnums_1.DashlingEvent.download, _forwardDownloadEvent);
                 _this._events.on(stream, DashlingEnums_1.DashlingEvent.sessionStateChange, _forwardSessionStateChange);
@@ -187,7 +187,7 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
                 var candidates = _this._getDownloadCandidates();
                 for (var streamIndex = 0; streamIndex < candidates.downloads.length; streamIndex++) {
                     var streamDownloads = candidates.downloads[streamIndex];
-                    var stream = _this._streams[streamIndex];
+                    var stream = _this.streams[streamIndex];
                     for (var downloadIndex = 0; downloadIndex < streamDownloads.length; downloadIndex++) {
                         var fragmentIndex = streamDownloads[downloadIndex];
                         var fragment = stream.fragments[fragmentIndex];
@@ -225,7 +225,7 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
         };
         StreamController.prototype._appendNextFragment = function () {
             var _this = this;
-            var streams = this._streams;
+            var streams = this.streams;
             var stream;
             var streamIndex;
             if (!_this._isDisposed) {
@@ -254,7 +254,7 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
                         // If the append index, and assess playback
                         if (allStreamsAppended) {
                             // Update buffer rate.
-                            var fragment = _this._streams[0].fragments[_this._appendIndex];
+                            var fragment = _this.streams[0].fragments[_this._appendIndex];
                             if (!fragment.activeRequest._hasUpdatedBufferRate) {
                                 fragment.activeRequest._hasUpdatedBufferRate = true;
                                 _this._appendedSeconds += fragment.time.lengthSeconds;
@@ -309,7 +309,7 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
                     var timeAtStall = _this._timeAtStall;
                     _this._timeAtStall = 0;
                     if (!_this._isDisposed && _this._videoElement.currentTime == timeAtStall) {
-                        _this._stalls++;
+                        _this.stalls++;
                         _this._setCanPlay(false);
                     }
                 }, 200);
@@ -373,8 +373,8 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
                 var firstMissingIndex = _this._getMissingFragmentIndex(currentRange);
                 if (firstMissingIndex >= 0) {
                     currentRange.start = Math.max(currentRange.start, firstMissingIndex);
-                    for (var i = 0; i < _this._streams.length; i++) {
-                        var stream = _this._streams[i];
+                    for (var i = 0; i < _this.streams.length; i++) {
+                        var stream = _this.streams[i];
                         candidates.downloads.push(_this._getDownloadableIndexes(stream, currentRange));
                         totalCandidates += candidates.downloads[candidates.downloads.length - 1].length;
                     }
@@ -382,7 +382,7 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
             }
             // Return a flag indicating when we're unable to return candidates because we have max buffer.
             // That way we know that we need to try to evaluate candidates again soon.
-            candidates.isAtMax = !totalCandidates && currentRange.end >= 0 && (currentRange.end < (_this._streams[0].fragments.length - 1));
+            candidates.isAtMax = !totalCandidates && currentRange.end >= 0 && (currentRange.end < (_this.streams[0].fragments.length - 1));
             return candidates;
         };
         /**
@@ -401,7 +401,7 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
             if (duration > 0) {
                 var currentTime = _this._settings.startTime || videoElement.currentTime;
                 var isAtEnd = (currentTime + 0.005) >= duration;
-                var firstStream = _this._streams[0];
+                var firstStream = _this.streams[0];
                 var fragmentCount = firstStream.fragments.length;
                 var fragmentLength = firstStream.fragments[0].time.lengthSeconds;
                 if (!isAtEnd) {
@@ -418,8 +418,8 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
         StreamController.prototype._ensureStreamsUpdated = function (range) {
             var _this = this;
             var currentTime = _this._videoElement.currentTime;
-            for (var streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
-                var stream = _this._streams[streamIndex];
+            for (var streamIndex = 0; streamIndex < _this.streams.length; streamIndex++) {
+                var stream = _this.streams[streamIndex];
                 stream.assessQuality();
                 for (var fragmentIndex = range.start; fragmentIndex <= range.end; fragmentIndex++) {
                     if (stream.isMissing(fragmentIndex, currentTime)) {
@@ -434,8 +434,8 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
         StreamController.prototype._getMissingFragmentIndex = function (range) {
             var _this = this;
             for (var fragmentIndex = range.start; fragmentIndex <= range.end; fragmentIndex++) {
-                for (var streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
-                    var fragment = _this._streams[streamIndex].fragments[fragmentIndex];
+                for (var streamIndex = 0; streamIndex < _this.streams.length; streamIndex++) {
+                    var fragment = _this.streams[streamIndex].fragments[fragmentIndex];
                     if (fragment.state <= DashlingEnums_1.DashlingRequestState.idle) {
                         return fragmentIndex;
                     }
@@ -482,7 +482,7 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
             if (!_this._isDisposed) {
                 var currentTime = _this._videoElement.currentTime;
                 var lastTimeBeforeSeek = this._lastTimeBeforeSeek;
-                var fragmentIndex = Math.floor(Math.max(0, currentTime - SEEK_TIME_BUFFER_SECONDS) / _this._streams[0].fragments[0].time.lengthSeconds);
+                var fragmentIndex = Math.floor(Math.max(0, currentTime - SEEK_TIME_BUFFER_SECONDS) / _this.streams[0].fragments[0].time.lengthSeconds);
                 var streamIndex;
                 var isBufferAcceptable = _this._videoElement.buffered.length == 1 &&
                     _this._videoElement.buffered.start(0) <= (Math.max(0, currentTime - 2)) &&
@@ -496,14 +496,14 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
                 // If seeking ahead of the append index, abort all.
                 if (_this._appendIndex < fragmentIndex) {
                     // Abortttttt
-                    for (streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
-                        _this._streams[streamIndex].abortAll();
+                    for (streamIndex = 0; streamIndex < _this.streams.length; streamIndex++) {
+                        _this.streams[streamIndex].abortAll();
                     }
                 }
                 if (_this._settings.manifest.mediaDuration > _this._settings.maxBufferSeconds && !isBufferAcceptable) {
                     Utilities_1.default.log("Clearing buffer", _this._settings);
-                    for (streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
-                        _this._streams[streamIndex].clearBuffer();
+                    for (streamIndex = 0; streamIndex < _this.streams.length; streamIndex++) {
+                        _this.streams[streamIndex].clearBuffer();
                     }
                 }
                 _this._appendIndex = fragmentIndex;

@@ -1,4 +1,7 @@
+import Stream from './Stream';
 export default class StreamController {
+    streams: Stream[];
+    stalls: number;
     private _isDisposed;
     private _events;
     private _async;
@@ -7,7 +10,6 @@ export default class StreamController {
     private _bufferRate;
     private _appendedSeconds;
     private _requestTimerIds;
-    private _streams;
     private _appendIndex;
     private _nextStreamIndex;
     private _audioDownloadIndex;
@@ -16,7 +18,6 @@ export default class StreamController {
     private _maxSegmentsAhead;
     private _nextRequestTimerId;
     private _seekingTimerId;
-    private _stalls;
     private _lastCurrentTime;
     private _lastTimeBeforeSeek;
     private _startTime;

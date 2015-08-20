@@ -32,7 +32,7 @@ define(["require", "exports", './Settings', './StreamController', './DashlingEnu
             this._sessionIndex = ++_sessionCount;
             this.startTime = new Date().getTime();
             this._setState(DashlingEnums_1.DashlingSessionState.initializing);
-            this._videoElement = videoElement;
+            this.videoElement = videoElement;
             this._initializeMediaSource(videoElement);
             this._initializeManifest(url);
         };
@@ -41,36 +41,36 @@ define(["require", "exports", './Settings', './StreamController', './DashlingEnu
             this.timeAtFirstCanPlay = null;
             this.startTime = null;
             this.lastError = null;
-            if (this._streamController) {
-                this._streamController.dispose();
-                this._streamController = null;
+            if (this.streamController) {
+                this.streamController.dispose();
+                this.streamController = null;
             }
             if (this._parser) {
                 this._parser.dispose();
                 this._parser = null;
             }
-            if (this._videoElement) {
+            if (this.videoElement) {
                 this.settings.manifest = null;
                 try {
-                    this._videoElement.pause();
+                    this.videoElement.pause();
                 }
                 catch (e) { }
-                this._videoElement = null;
+                this.videoElement = null;
             }
             this._mediaSource = null;
             this._setState(DashlingEnums_1.DashlingSessionState.idle);
         };
         Dashling.prototype.getRemainingBuffer = function () {
-            return this._streamController ? this._streamController.getRemainingBuffer() : 0;
+            return this.streamController ? this.streamController.getRemainingBuffer() : 0;
         };
         Dashling.prototype.getBufferRate = function () {
-            return this._streamController ? this._streamController.getBufferRate() : 0;
+            return this.streamController ? this.streamController.getBufferRate() : 0;
         };
         Dashling.prototype.getPlayingQuality = function (streamType) {
-            return this._streamController ? this._streamController.getPlayingQuality(streamType) : this.settings.targetQuality[streamType];
+            return this.streamController ? this.streamController.getPlayingQuality(streamType) : this.settings.targetQuality[streamType];
         };
         Dashling.prototype.getBufferingQuality = function (streamType) {
-            return this._streamController ? this._streamController.getBufferingQuality(streamType) : this.settings.targetQuality[streamType];
+            return this.streamController ? this.streamController.getBufferingQuality(streamType) : this.settings.targetQuality[streamType];
         };
         Dashling.prototype.getMaxQuality = function (streamType) {
             var stream = this.settings.manifest ? this.settings.manifest.streams[streamType] : null;
@@ -81,8 +81,8 @@ define(["require", "exports", './Settings', './StreamController', './DashlingEnu
                 this.state = state;
                 this.lastError = errorType ? (errorType + " " + (errorMessage ? "(" + errorMessage + ")" : "")) : null;
                 // Stop stream controller immediately.
-                if (state === DashlingEnums_1.DashlingSessionState.error && this._streamController) {
-                    this._streamController.dispose();
+                if (state === DashlingEnums_1.DashlingSessionState.error && this.streamController) {
+                    this.streamController.dispose();
                 }
                 if (!this.timeAtFirstCanPlay && (state == DashlingEnums_1.DashlingSessionState.playing || state == DashlingEnums_1.DashlingSessionState.paused)) {
                     this.timeAtFirstCanPlay = new Date().getTime() - this.startTime;
@@ -144,12 +144,12 @@ define(["require", "exports", './Settings', './StreamController', './DashlingEnu
                 this._mediaSource &&
                 this.settings.manifest) {
                 this._mediaSource.duration = this.settings.manifest.mediaDuration;
-                this._streamController = new StreamController_1.default(this._videoElement, this._mediaSource, this.settings);
+                this.streamController = new StreamController_1.default(this.videoElement, this._mediaSource, this.settings);
                 // TODO forward download events from steamcontroller out?
-                this._events.on(this._streamController, DashlingEnums_1.DashlingEvent.sessionStateChange, function (ev) {
+                this._events.on(this.streamController, DashlingEnums_1.DashlingEvent.sessionStateChange, function (ev) {
                     _this._setState(ev.state, ev.errorType, ev.errorMessage);
                 });
-                this._streamController.start();
+                this.streamController.start();
             }
         };
         return Dashling;

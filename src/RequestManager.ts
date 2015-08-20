@@ -84,15 +84,15 @@ export default class RequestManager {
   }
 
   // TODO: don't need these if MetricSets are being publicly exposed.
-  public getAverageWait() {
+  public getAverageWait(): number {
     return this.waitTimes.average || 0;
   }
 
-  public getAverageReceive() {
+  public getAverageReceive(): number {
     return this.receiveTimes.average || 0;
   }
 
-  public getAverageBytesPerSecond() {
+  public getAverageBytesPerSecond(): number {
     return this.bytesPerSeconds.average || 0;
   }
 }

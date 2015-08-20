@@ -20,12 +20,12 @@ export default class Dashling {
   public isDisposed: boolean;
   public timeAtFirstCanPlay: number;
   public settings: Settings;
+  public streamController: StreamController;
+  public videoElement: HTMLVideoElement;
 
   private _events: EventGroup;
-  private _streamController: StreamController;
   private _parser: ManifestParser;
   private _sessionIndex: number;
-  private _videoElement: HTMLVideoElement;
   private _mediaSource: MediaSource;
 
   constructor(settings?: Settings) {
@@ -61,7 +61,7 @@ export default class Dashling {
 
     this.startTime = new Date().getTime();
     this._setState(DashlingSessionState.initializing);
-    this._videoElement = videoElement;
+    this.videoElement = videoElement;
 
     this._initializeMediaSource(videoElement);
     this._initializeManifest(url);
@@ -73,9 +73,9 @@ export default class Dashling {
     this.startTime = null;
     this.lastError = null;
 
-    if (this._streamController) {
-      this._streamController.dispose();
-      this._streamController = null;
+    if (this.streamController) {
+      this.streamController.dispose();
+      this.streamController = null;
     }
 
     if (this._parser) {
@@ -83,14 +83,14 @@ export default class Dashling {
       this._parser = null;
     }
 
-    if (this._videoElement) {
+    if (this.videoElement) {
       this.settings.manifest = null;
 
       try {
-        this._videoElement.pause();
+        this.videoElement.pause();
       } catch (e) {}
 
-      this._videoElement = null;
+      this.videoElement = null;
     }
 
     this._mediaSource = null;
@@ -98,19 +98,19 @@ export default class Dashling {
   }
 
   public getRemainingBuffer() {
-    return this._streamController ? this._streamController.getRemainingBuffer() : 0;
+    return this.streamController ? this.streamController.getRemainingBuffer() : 0;
   }
 
   public getBufferRate() {
-    return this._streamController ? this._streamController.getBufferRate() : 0;
+    return this.streamController ? this.streamController.getBufferRate() : 0;
   }
 
   public getPlayingQuality(streamType: string): number {
-    return this._streamController ? this._streamController.getPlayingQuality(streamType) : this.settings.targetQuality[streamType];
+    return this.streamController ? this.streamController.getPlayingQuality(streamType) : this.settings.targetQuality[streamType];
   }
 
   public getBufferingQuality(streamType: string): number {
-    return this._streamController ? this._streamController.getBufferingQuality(streamType) : this.settings.targetQuality[streamType];
+    return this.streamController ? this.streamController.getBufferingQuality(streamType) : this.settings.targetQuality[streamType];
   }
 
   public getMaxQuality(streamType: string): number {
@@ -125,8 +125,8 @@ export default class Dashling {
       this.lastError = errorType ? (errorType + " " + (errorMessage ? "(" + errorMessage + ")" : "")) : null;
 
       // Stop stream controller immediately.
-      if (state === DashlingSessionState.error && this._streamController) {
-        this._streamController.dispose();
+      if (state === DashlingSessionState.error && this.streamController) {
+        this.streamController.dispose();
       }
 
       if (!this.timeAtFirstCanPlay && (state == DashlingSessionState.playing || state == DashlingSessionState.paused)) {
@@ -203,18 +203,18 @@ export default class Dashling {
 
       this._mediaSource.duration = this.settings.manifest.mediaDuration;
 
-      this._streamController = new StreamController(
-        this._videoElement,
+      this.streamController = new StreamController(
+        this.videoElement,
         this._mediaSource,
         this.settings);
 
       // TODO forward download events from steamcontroller out?
 
-      this._events.on(this._streamController, DashlingEvent.sessionStateChange, (ev: IStateChangeEventArgs) => {
+      this._events.on(this.streamController, DashlingEvent.sessionStateChange, (ev: IStateChangeEventArgs) => {
         this._setState(ev.state, ev.errorType, ev.errorMessage);
       });
 
-      this._streamController.start();
+      this.streamController.start();
     }
   }
 

@@ -23,6 +23,9 @@ const MEDIASOURCE_READYSTATE_OPEN = 1;
 const MEDIASOURCE_READYSTATE_ENDED = 2;
 
 export default class StreamController {
+  public streams: Stream[];
+  public stalls: number;
+
   private _isDisposed: boolean;
   private _events: EventGroup;
   private _async: Async;
@@ -31,7 +34,6 @@ export default class StreamController {
   private _bufferRate: MetricSet;
   private _appendedSeconds: number;
   private _requestTimerIds: number[];
-  private _streams: Stream[];
   private _appendIndex: number;
   private _nextStreamIndex: number;
   private _audioDownloadIndex: number;
@@ -40,7 +42,6 @@ export default class StreamController {
   private _maxSegmentsAhead: number;
   private _nextRequestTimerId: number;
   private _seekingTimerId: number;
-  private _stalls: number;
   private _lastCurrentTime: number;
   private _lastTimeBeforeSeek: number;
   private _startTime: number;
@@ -57,7 +58,7 @@ export default class StreamController {
     this._bufferRate = new MetricSet(3);
     this._appendedSeconds = 0;
     this._requestTimerIds = [0, 0];
-    this._streams = [];
+    this.streams = [];
     this._appendIndex = 0;
     this._nextStreamIndex = 0;
     this._appendIndex = 0;
@@ -67,7 +68,7 @@ export default class StreamController {
     this._maxSegmentsAhead = 2;
     this._nextRequestTimerId = 0;
     this._seekingTimerId = 0;
-    this._stalls = 0;
+    this.stalls = 0;
     this._lastCurrentTime = 0;
     this._lastTimeBeforeSeek = 0;
     this._startTime = 0;
@@ -80,8 +81,8 @@ export default class StreamController {
     this._initializeStreams(videoElement, mediaSource, settings);
 
     // If we have streams and a start time defined in settings, try to initialize the appendIndex correctly.
-    if (this._streams.length && settings && settings.startTime) {
-      let stream = this._streams[0];
+    if (this.streams.length && settings && settings.startTime) {
+      let stream = this.streams[0];
       let firstFragmentDuration = stream.fragments[0].time.lengthSeconds;
 
       this._appendIndex = Math.max(0, Math.min(stream.fragments.length - 1, (Math.floor((settings.startTime - SEEK_TIME_BUFFER_SECONDS) / firstFragmentDuration))));
@@ -97,8 +98,8 @@ export default class StreamController {
       _this._events.dispose();
       _this._async.dispose();
 
-      for (let i = 0; _this._streams && i < _this._streams.length; i++) {
-        _this._streams[i].dispose();
+      for (let i = 0; _this.streams && i < _this.streams.length; i++) {
+        _this.streams[i].dispose();
       }
 
       _this._videoElement = null;
@@ -118,8 +119,8 @@ export default class StreamController {
     let qualityIndex = 0;
 
     if (!this._isDisposed) {
-      for (let streamIndex = 0; streamIndex < this._streams.length; streamIndex++) {
-        let stream = this._streams[streamIndex];
+      for (let streamIndex = 0; streamIndex < this.streams.length; streamIndex++) {
+        let stream = this.streams[streamIndex];
 
         if (stream.streamType == streamType) {
           let currentTime = this._videoElement.currentTime;
@@ -140,7 +141,7 @@ export default class StreamController {
     let qualityIndex = 0;
 
     if (!this._isDisposed) {
-      for (let stream of this._streams) {
+      for (let stream of this.streams) {
         if (stream.streamType == streamType) {
           qualityIndex = stream.qualityIndex;
           break;
@@ -241,18 +242,18 @@ export default class StreamController {
     let _this = this;
     let manifestStreams = (settings && settings.manifest && settings.manifest.streams) ? settings.manifest.streams : null;
 
-    _this._streams = [];
+    _this.streams = [];
 
     if (manifestStreams) {
       if (manifestStreams['audio']) {
-        _this._streams.push(new Stream("audio", mediaSource, videoElement, settings));
+        _this.streams.push(new Stream("audio", mediaSource, videoElement, settings));
       }
       if (manifestStreams['video']) {
-        _this._streams.push(new Stream("video", mediaSource, videoElement, settings));
+        _this.streams.push(new Stream("video", mediaSource, videoElement, settings));
       }
     }
 
-    for (let stream of _this._streams) {
+    for (let stream of _this.streams) {
       _this._events.on(stream, DashlingEvent.download, _forwardDownloadEvent);
       _this._events.on(stream, DashlingEvent.sessionStateChange, _forwardSessionStateChange);
 
@@ -276,7 +277,7 @@ export default class StreamController {
 
       for (let streamIndex = 0; streamIndex < candidates.downloads.length; streamIndex++) {
         let streamDownloads = candidates.downloads[streamIndex];
-        let stream = _this._streams[streamIndex];
+        let stream = _this.streams[streamIndex];
 
         for (let downloadIndex = 0; downloadIndex < streamDownloads.length; downloadIndex++) {
           let fragmentIndex = streamDownloads[downloadIndex];
@@ -320,7 +321,7 @@ export default class StreamController {
 
   private _appendNextFragment() {
     let _this = this;
-    let streams = this._streams;
+    let streams = this.streams;
     let stream: Stream;
     let streamIndex: number;
 
@@ -358,7 +359,7 @@ export default class StreamController {
           // If the append index, and assess playback
           if (allStreamsAppended) {
             // Update buffer rate.
-            let fragment = _this._streams[0].fragments[_this._appendIndex];
+            let fragment = _this.streams[0].fragments[_this._appendIndex];
 
             if (!fragment.activeRequest._hasUpdatedBufferRate) {
               fragment.activeRequest._hasUpdatedBufferRate = true;
@@ -428,7 +429,7 @@ export default class StreamController {
         _this._timeAtStall = 0;
 
         if (!_this._isDisposed && _this._videoElement.currentTime == timeAtStall) {
-          _this._stalls++;
+          _this.stalls++;
           _this._setCanPlay(false);
         }
       }, 200);
@@ -500,8 +501,8 @@ export default class StreamController {
       if (firstMissingIndex >= 0) {
         currentRange.start = Math.max(currentRange.start, firstMissingIndex);
 
-        for (let i = 0; i < _this._streams.length; i++) {
-          let stream = _this._streams[i];
+        for (let i = 0; i < _this.streams.length; i++) {
+          let stream = _this.streams[i];
 
           candidates.downloads.push(_this._getDownloadableIndexes(stream, currentRange));
           totalCandidates += candidates.downloads[candidates.downloads.length - 1].length;
@@ -511,7 +512,7 @@ export default class StreamController {
 
     // Return a flag indicating when we're unable to return candidates because we have max buffer.
     // That way we know that we need to try to evaluate candidates again soon.
-    candidates.isAtMax = !totalCandidates && currentRange.end >= 0 && (currentRange.end < (_this._streams[0].fragments.length - 1));
+    candidates.isAtMax = !totalCandidates && currentRange.end >= 0 && (currentRange.end < (_this.streams[0].fragments.length - 1));
 
     return candidates;
   }
@@ -533,7 +534,7 @@ export default class StreamController {
     if (duration > 0) {
       let currentTime = _this._settings.startTime || videoElement.currentTime;
       let isAtEnd = (currentTime + 0.005) >= duration;
-      let firstStream = _this._streams[0];
+      let firstStream = _this.streams[0];
       let fragmentCount = firstStream.fragments.length;
       let fragmentLength = firstStream.fragments[0].time.lengthSeconds;
 
@@ -555,8 +556,8 @@ export default class StreamController {
 
     let currentTime = _this._videoElement.currentTime;
 
-    for (let streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
-      let stream = _this._streams[streamIndex];
+    for (let streamIndex = 0; streamIndex < _this.streams.length; streamIndex++) {
+      let stream = _this.streams[streamIndex];
 
       stream.assessQuality();
 
@@ -576,8 +577,8 @@ export default class StreamController {
     let _this = this;
 
     for (let fragmentIndex = range.start; fragmentIndex <= range.end; fragmentIndex++) {
-      for (let streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
-        let fragment = _this._streams[streamIndex].fragments[fragmentIndex];
+      for (let streamIndex = 0; streamIndex < _this.streams.length; streamIndex++) {
+        let fragment = _this.streams[streamIndex].fragments[fragmentIndex];
 
         if (fragment.state <= DashlingRequestState.idle) {
           return fragmentIndex;
@@ -639,7 +640,7 @@ export default class StreamController {
     if (!_this._isDisposed) {
       let currentTime = _this._videoElement.currentTime;
       let lastTimeBeforeSeek = this._lastTimeBeforeSeek;
-      let fragmentIndex = Math.floor(Math.max(0, currentTime - SEEK_TIME_BUFFER_SECONDS) / _this._streams[0].fragments[0].time.lengthSeconds);
+      let fragmentIndex = Math.floor(Math.max(0, currentTime - SEEK_TIME_BUFFER_SECONDS) / _this.streams[0].fragments[0].time.lengthSeconds);
       let streamIndex: number;
       let isBufferAcceptable =
         _this._videoElement.buffered.length == 1 &&
@@ -658,16 +659,16 @@ export default class StreamController {
       if (_this._appendIndex < fragmentIndex) {
 
         // Abortttttt
-        for (streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
-          _this._streams[streamIndex].abortAll();
+        for (streamIndex = 0; streamIndex < _this.streams.length; streamIndex++) {
+          _this.streams[streamIndex].abortAll();
         }
       }
 
       if (_this._settings.manifest.mediaDuration > _this._settings.maxBufferSeconds && !isBufferAcceptable) {
         Utilities.log("Clearing buffer", _this._settings);
 
-        for (streamIndex = 0; streamIndex < _this._streams.length; streamIndex++) {
-          _this._streams[streamIndex].clearBuffer();
+        for (streamIndex = 0; streamIndex < _this.streams.length; streamIndex++) {
+          _this.streams[streamIndex].clearBuffer();
         }
       }
 

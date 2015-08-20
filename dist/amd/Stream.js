@@ -16,7 +16,7 @@ define(["require", "exports", './RequestManager', './Request', './EventGroup', '
             _this._appendTimeoutId = 0;
             _this._initializedQualityIndex = -1;
             _this._initRequestManager = new RequestManager_1.default(settings);
-            _this._requestManager = new RequestManager_1.default(settings);
+            _this.requestManager = new RequestManager_1.default(settings);
             _this._mediaSource = mediaSource;
             _this._videoElement = videoElement;
             _this._settings = settings;
@@ -40,7 +40,7 @@ define(["require", "exports", './RequestManager', './Request', './EventGroup', '
             var _forwardDownloadEvent = function (request) {
                 _this._events.raise(DashlingEnums_1.DashlingEvent.download, request);
             };
-            _this._events.on(_this._requestManager, DashlingEnums_1.DashlingEvent.download, _forwardDownloadEvent);
+            _this._events.on(_this.requestManager, DashlingEnums_1.DashlingEvent.download, _forwardDownloadEvent);
             _this._events.on(_this._initRequestManager, DashlingEnums_1.DashlingEvent.download, _forwardDownloadEvent);
         }
         Stream.prototype.dispose = function () {
@@ -48,7 +48,7 @@ define(["require", "exports", './RequestManager', './Request', './EventGroup', '
                 this._isDisposed = true;
                 this._events.dispose();
                 this._async.dispose();
-                this._requestManager.dispose();
+                this.requestManager.dispose();
                 this._initRequestManager.dispose();
             }
         };
@@ -70,7 +70,7 @@ define(["require", "exports", './RequestManager', './Request', './EventGroup', '
         };
         Stream.prototype.abortAll = function () {
             this._initRequestManager.abortAll();
-            this._requestManager.abortAll();
+            this.requestManager.abortAll();
         };
         Stream.prototype.clearBuffer = function () {
             // Any pending async appends should be cleared/canceled before clearing the buffer.
@@ -194,7 +194,7 @@ define(["require", "exports", './RequestManager', './Request', './EventGroup', '
             return this.bufferRate.average || 0;
         };
         Stream.prototype.getActiveRequestCount = function () {
-            return this._requestManager.getActiveRequestCount();
+            return this.requestManager.getActiveRequestCount();
         };
         Stream.prototype.getRequestStaggerTime = function () {
             // TODO Remove 1.4 magic ratio
@@ -259,7 +259,7 @@ define(["require", "exports", './RequestManager', './Request', './EventGroup', '
                 fragment.activeRequest = request;
                 fragment.requests.push(request);
                 Utilities_1.default.log("Download started: " + fragment.qualityId + " " + requestType + " " + "index=" + fragmentIndex + " time=" + (new Date().getTime() - _this._startTime) + "ms stagger=" + _this.getRequestStaggerTime() + "ms", _this._settings);
-                _this._requestManager.start(request);
+                _this.requestManager.start(request);
             }
             function _onSuccess(request) {
                 if (!_this._isDisposed) {
@@ -292,7 +292,7 @@ define(["require", "exports", './RequestManager', './Request', './EventGroup', '
         Stream.prototype.assessQuality = function () {
             var _this = this;
             var settings = _this._settings;
-            var bytesPerSecond = _this._requestManager.getAverageBytesPerSecond();
+            var bytesPerSecond = _this.requestManager.getAverageBytesPerSecond();
             var maxQuality = _this._streamInfo.qualities.length - 1;
             if (!bytesPerSecond) {
                 bytesPerSecond = parseFloat(localStorage.getItem(BANDWIDTH_LOCAL_STORAGE_KEY));
@@ -331,7 +331,7 @@ define(["require", "exports", './RequestManager', './Request', './EventGroup', '
             var segmentLength = _this._streamInfo.timeline[fragmentIndex || 0].lengthSeconds;
             var bandwidth = quality.bandwidth / 8;
             var totalBytes = bandwidth * segmentLength;
-            var bytesPerSecond = _this._requestManager.getAverageBytesPerSecond();
+            var bytesPerSecond = _this.requestManager.getAverageBytesPerSecond();
             if (!bytesPerSecond) {
                 bytesPerSecond = parseFloat(localStorage.getItem(BANDWIDTH_LOCAL_STORAGE_KEY));
             }

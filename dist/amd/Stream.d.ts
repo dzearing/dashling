@@ -1,10 +1,12 @@
 import Settings from './Settings';
+import RequestManager from './RequestManager';
 import MetricSet from './MetricSet';
 export default class Stream {
     fragments: any[];
     streamType: string;
     qualityIndex: number;
     bufferRate: MetricSet;
+    requestManager: RequestManager;
     private _isDisposed;
     private _events;
     private _async;
@@ -13,7 +15,6 @@ export default class Stream {
     private _appendTimeoutId;
     private _initializedQualityIndex;
     private _initRequestManager;
-    private _requestManager;
     private _mediaSource;
     private _videoElement;
     private _settings;
