@@ -35,6 +35,7 @@ export default class StreamController {
     getBufferRate(): number;
     getRemainingBuffer(offsetFromCurrentTime?: number): number;
     getTimeUntilUnderrun(offsetFromCurrentTime?: number): number;
+    reset(abortPendingRequests: boolean, clearBuffers: boolean): void;
     private _intializeVideoElement();
     private _initializeStreams(videoElement, mediaSource, settings);
     private _loadNextFragment();
@@ -84,7 +85,7 @@ export default class StreamController {
     private _getDownloadableIndexes(stream, range);
     private _setCanPlay(isAllowed);
     private _onVideoSeeking();
-    private _onThrottledSeek();
+    private _onThrottledSeek(forceReset?);
     private _onVideoError();
     private _onPauseStateChange();
     private _onVideoEnded();

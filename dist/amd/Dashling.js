@@ -60,6 +60,12 @@ define(["require", "exports", './Settings', './StreamController', './DashlingEnu
             this._mediaSource = null;
             this._setState(DashlingEnums_1.DashlingSessionState.idle);
         };
+        /** Abort all downloads and clear all buffers, useful if you want to reset and re-download */
+        Dashling.prototype.resetStreams = function () {
+            if (this.streamController) {
+                this.streamController.reset(true, true);
+            }
+        };
         Dashling.prototype.getRemainingBuffer = function () {
             return this.streamController ? this.streamController.getRemainingBuffer() : 0;
         };
@@ -79,6 +85,8 @@ define(["require", "exports", './Settings', './StreamController', './DashlingEnu
         Dashling.prototype._setState = function (state, errorType, errorMessage) {
             if (!this.isDisposed && this.state !== state) {
                 this.state = state;
+                this.lastErrorType = errorType;
+                this.lastErrorMessage = errorMessage;
                 this.lastError = errorType ? (errorType + " " + (errorMessage ? "(" + errorMessage + ")" : "")) : null;
                 // Stop stream controller immediately.
                 if (state === DashlingEnums_1.DashlingSessionState.error && this.streamController) {
@@ -92,6 +100,20 @@ define(["require", "exports", './Settings', './StreamController', './DashlingEnu
                     errorType: errorType,
                     errorMessage: errorMessage
                 });
+                if (this.videoElement) {
+                    switch (state) {
+                        case DashlingEnums_1.DashlingSessionState.initializing:
+                        case DashlingEnums_1.DashlingSessionState.buffering:
+                            EventGroup_1.default.raise(this.videoElement, 'waiting', null);
+                            break;
+                        case DashlingEnums_1.DashlingSessionState.playing:
+                            EventGroup_1.default.raise(this.videoElement, 'playing', null);
+                            break;
+                        case DashlingEnums_1.DashlingSessionState.error:
+                            EventGroup_1.default.raise(this.videoElement, 'error', null);
+                            break;
+                    }
+                }
             }
         };
         Dashling.prototype._initializeMediaSource = function (videoElement) {

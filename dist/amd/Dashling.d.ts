@@ -11,6 +11,8 @@ export default class Dashling {
     RequestState: typeof DashlingRequestState;
     state: DashlingSessionState;
     lastError: string;
+    lastErrorType: string;
+    lastErrorMessage: string;
     startTime: number;
     isDisposed: boolean;
     timeAtFirstCanPlay: number;
@@ -31,6 +33,8 @@ export default class Dashling {
     load(videoElement: HTMLVideoElement, url: string): void;
     /** Resets the dashling state. */
     reset(): void;
+    /** Abort all downloads and clear all buffers, useful if you want to reset and re-download */
+    resetStreams(): void;
     getRemainingBuffer(): number;
     getBufferRate(): number;
     getPlayingQuality(streamType: string): number;

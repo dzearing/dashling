@@ -26,9 +26,12 @@ define(["require", "exports", './DashlingEnums', './EventGroup'], function (requ
             if (!this._isDisposed) {
                 this._isDisposed = true;
                 if (this._xhr) {
-                    this.state = DashlingEnums_1.DashlingRequestState.aborted;
-                    this.isAborted = true;
-                    this._xhr.abort();
+                    if (this.state === DashlingEnums_1.DashlingRequestState.downloading) {
+                        this.state = DashlingEnums_1.DashlingRequestState.aborted;
+                        this.isAborted = true;
+                        this._xhr.abort();
+                        this._events.raise(Request.CompleteEvent, this);
+                    }
                     this._xhr = null;
                 }
                 if (this._retryTimeoutId) {

@@ -44,4 +44,12 @@ define(["require", "exports"], function (require, exports) {
     })(exports.DashlingRequestState || (exports.DashlingRequestState = {}));
     var DashlingRequestState = exports.DashlingRequestState;
     ;
+    (function (VideoElementError) {
+        VideoElementError[VideoElementError["MEDIA_ERR_ABORTED"] = 1] = "MEDIA_ERR_ABORTED";
+        VideoElementError[VideoElementError["MEDIA_ERR_NETWORK"] = 2] = "MEDIA_ERR_NETWORK";
+        VideoElementError[VideoElementError["MEDIA_ERR_DECODE"] = 3] = "MEDIA_ERR_DECODE";
+        VideoElementError[VideoElementError["MEDIA_ERR_SRC_NOT_SUPPORTED"] = 4] = "MEDIA_ERR_SRC_NOT_SUPPORTED";
+        VideoElementError[VideoElementError["MS_MEDIA_ERR_ENCRYPTED"] = 5] = "MS_MEDIA_ERR_ENCRYPTED";
+    })(exports.VideoElementError || (exports.VideoElementError = {}));
+    var VideoElementError = exports.VideoElementError;
 });

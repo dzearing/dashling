@@ -31,7 +31,7 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
             this._startTime = 0;
             this._videoElement = videoElement;
             this._playbackMonitorId = 0;
-            this._canPlay = false;
+            this._canPlay = true;
             this._timeAtStall = 0;
             this._intializeVideoElement();
             this._initializeStreams(videoElement, mediaSource, settings);
@@ -140,6 +140,9 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
                 }
             }
             return timeUntilUnderrun;
+        };
+        StreamController.prototype.reset = function (abortPendingRequests, clearBuffers) {
+            this._onThrottledSeek(true);
         };
         StreamController.prototype._intializeVideoElement = function () {
             var _this = this;
@@ -315,7 +318,9 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
                 }, 200);
             }
             if (!_this._canPlay) {
-                if (timeUntilUnderrun > _this._settings.safeBufferSeconds) {
+                var firstStream = _this.streams[0];
+                var fragmentLength = firstStream.fragments[0].time.lengthSeconds;
+                if ((timeUntilUnderrun > fragmentLength && _this.getBufferRate() > 1) || timeUntilUnderrun > _this._settings.safeBufferSeconds) {
                     this._setCanPlay(true);
                 }
                 else if (_this.getTimeUntilUnderrun(allowedSeekAhead) > _this._settings.safeBufferSeconds) {
@@ -477,7 +482,7 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
             this._settings.startTime = 0;
             this._seekingTimerId = this._async.setTimeout(this._onThrottledSeek, 300);
         };
-        StreamController.prototype._onThrottledSeek = function () {
+        StreamController.prototype._onThrottledSeek = function (forceReset) {
             var _this = this;
             if (!_this._isDisposed) {
                 var currentTime = _this._videoElement.currentTime;
@@ -488,26 +493,25 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
                     _this._videoElement.buffered.start(0) <= (Math.max(0, currentTime - 2)) &&
                     _this._videoElement.buffered.end(0) > currentTime;
                 Utilities_1.default.log("Throttled seek: " + _this._videoElement.currentTime, _this._settings);
-                // Clear letiables tracking seek.
+                // Clear tracking seek.
                 _this._seekingTimerId = 0;
                 _this._lastTimeBeforeSeek = 0;
                 clearTimeout(_this._nextRequestTimerId);
                 _this._nextRequestTimerId = 0;
-                // If seeking ahead of the append index, abort all.
-                if (_this._appendIndex < fragmentIndex) {
-                    // Abortttttt
-                    for (streamIndex = 0; streamIndex < _this.streams.length; streamIndex++) {
-                        _this.streams[streamIndex].abortAll();
-                    }
-                }
-                if (_this._settings.manifest.mediaDuration > _this._settings.maxBufferSeconds && !isBufferAcceptable) {
-                    Utilities_1.default.log("Clearing buffer", _this._settings);
-                    for (streamIndex = 0; streamIndex < _this.streams.length; streamIndex++) {
-                        _this.streams[streamIndex].clearBuffer();
-                    }
-                }
+                var shouldAbortPendingRequests = forceReset || (_this._appendIndex < fragmentIndex);
+                var shouldClearBuffers = forceReset || (_this._settings.manifest.mediaDuration > _this._settings.maxBufferSeconds && !isBufferAcceptable);
                 _this._appendIndex = fragmentIndex;
-                _this._appendNextFragment();
+                Utilities_1.default.log("Clearing buffer", this._settings);
+                for (var _i = 0, _a = this.streams; _i < _a.length; _i++) {
+                    var stream = _a[_i];
+                    if (shouldAbortPendingRequests) {
+                        stream.abortAll();
+                    }
+                    if (shouldClearBuffers) {
+                        stream.clearBuffer();
+                    }
+                }
+                this._appendNextFragment();
             }
         };
         StreamController.prototype._onVideoError = function () {

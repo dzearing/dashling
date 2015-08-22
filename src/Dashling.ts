@@ -1,6 +1,12 @@
 import Settings from './Settings';
 import StreamController from './StreamController';
-import { DashlingEvent, DashlingSessionState, DashlingRequestState, DashlingError } from './DashlingEnums';
+import {
+  DashlingEvent,
+  DashlingSessionState,
+  DashlingRequestState,
+  DashlingError,
+  VideoElementError
+} from './DashlingEnums';
 import Manifest from './Manifest';
 import ManifestParser from './ManifestParser';
 import EventGroup from './EventGroup';
@@ -15,7 +21,13 @@ export default class Dashling {
   public RequestState = DashlingRequestState;
 
   public state: DashlingSessionState;
+
+  // Deprecated in favor of type/message.
   public lastError: string;
+
+  public lastErrorType: string;
+  public lastErrorMessage: string;
+
   public startTime: number;
   public isDisposed: boolean;
   public timeAtFirstCanPlay: number;
@@ -97,6 +109,13 @@ export default class Dashling {
     this._setState(DashlingSessionState.idle);
   }
 
+  /** Abort all downloads and clear all buffers, useful if you want to reset and re-download */
+  public resetStreams() {
+    if (this.streamController) {
+      this.streamController.reset(true, true);
+    }
+  }
+
   public getRemainingBuffer() {
     return this.streamController ? this.streamController.getRemainingBuffer() : 0;
   }
@@ -122,6 +141,9 @@ export default class Dashling {
   private _setState(state: DashlingSessionState, errorType?: string, errorMessage?: string) {
     if (!this.isDisposed && this.state !== state) {
       this.state = state;
+      this.lastErrorType = errorType;
+      this.lastErrorMessage = errorMessage;
+
       this.lastError = errorType ? (errorType + " " + (errorMessage ? "(" + errorMessage + ")" : "")) : null;
 
       // Stop stream controller immediately.
@@ -140,6 +162,23 @@ export default class Dashling {
           errorType: errorType,
           errorMessage: errorMessage
         });
+
+      if (this.videoElement) {
+        switch (state) {
+          case DashlingSessionState.initializing:
+          case DashlingSessionState.buffering:
+            EventGroup.raise(this.videoElement, 'waiting', null);
+            break;
+
+          case DashlingSessionState.playing:
+            EventGroup.raise(this.videoElement, 'playing', null);
+            break;
+
+          case DashlingSessionState.error:
+            EventGroup.raise(this.videoElement, 'error', null);
+            break;
+          }
+      }
     }
   }
 

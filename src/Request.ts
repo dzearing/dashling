@@ -87,9 +87,12 @@ export default class Request {
       this._isDisposed = true;
 
       if (this._xhr) {
-        this.state = DashlingRequestState.aborted;
-        this.isAborted = true;
-        this._xhr.abort();
+        if (this.state === DashlingRequestState.downloading) {
+          this.state = DashlingRequestState.aborted;
+          this.isAborted = true;
+          this._xhr.abort();
+          this._events.raise(Request.CompleteEvent, this);
+        }
         this._xhr = null;
       }
 

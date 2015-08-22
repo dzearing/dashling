@@ -74,7 +74,7 @@ export default class StreamController {
     this._startTime = 0;
     this._videoElement = videoElement;
     this._playbackMonitorId = 0;
-    this._canPlay = false;
+    this._canPlay = true;
     this._timeAtStall = 0;
 
     this._intializeVideoElement();
@@ -215,6 +215,10 @@ export default class StreamController {
     }
 
     return timeUntilUnderrun;
+  }
+
+  public reset(abortPendingRequests: boolean, clearBuffers: boolean) {
+      this._onThrottledSeek(true);
   }
 
   private _intializeVideoElement() {
@@ -436,7 +440,10 @@ export default class StreamController {
     }
 
     if (!_this._canPlay) {
-      if (timeUntilUnderrun > _this._settings.safeBufferSeconds) {
+      let firstStream = _this.streams[0];
+      let fragmentLength = firstStream.fragments[0].time.lengthSeconds;
+
+      if ((timeUntilUnderrun > fragmentLength && _this.getBufferRate() > 1) || timeUntilUnderrun > _this._settings.safeBufferSeconds) {
         this._setCanPlay(true);
       } else if (_this.getTimeUntilUnderrun(allowedSeekAhead) > _this._settings.safeBufferSeconds) {
         // Wiggle ahead the current time.
@@ -634,7 +641,7 @@ export default class StreamController {
     this._seekingTimerId = this._async.setTimeout(this._onThrottledSeek, 300);
   }
 
-  private _onThrottledSeek() {
+  private _onThrottledSeek(forceReset?: boolean) {
     let _this = this;
 
     if (!_this._isDisposed) {
@@ -649,31 +656,30 @@ export default class StreamController {
 
       Utilities.log("Throttled seek: " + _this._videoElement.currentTime, _this._settings);
 
-      // Clear letiables tracking seek.
+      // Clear tracking seek.
       _this._seekingTimerId = 0;
       _this._lastTimeBeforeSeek = 0;
       clearTimeout(_this._nextRequestTimerId);
       _this._nextRequestTimerId = 0;
 
-      // If seeking ahead of the append index, abort all.
-      if (_this._appendIndex < fragmentIndex) {
-
-        // Abortttttt
-        for (streamIndex = 0; streamIndex < _this.streams.length; streamIndex++) {
-          _this.streams[streamIndex].abortAll();
-        }
-      }
-
-      if (_this._settings.manifest.mediaDuration > _this._settings.maxBufferSeconds && !isBufferAcceptable) {
-        Utilities.log("Clearing buffer", _this._settings);
-
-        for (streamIndex = 0; streamIndex < _this.streams.length; streamIndex++) {
-          _this.streams[streamIndex].clearBuffer();
-        }
-      }
+      let shouldAbortPendingRequests = forceReset || (_this._appendIndex < fragmentIndex);
+      let shouldClearBuffers = forceReset || (_this._settings.manifest.mediaDuration > _this._settings.maxBufferSeconds && !isBufferAcceptable);
 
       _this._appendIndex = fragmentIndex;
-      _this._appendNextFragment();
+
+      Utilities.log("Clearing buffer", this._settings);
+
+      for (let stream of this.streams) {
+        if (shouldAbortPendingRequests) {
+          stream.abortAll();
+        }
+
+        if (shouldClearBuffers) {
+          stream.clearBuffer();
+        }
+      }
+
+      this._appendNextFragment();
     }
   }
 
