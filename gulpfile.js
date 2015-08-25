@@ -7,6 +7,11 @@ var karma = require('gulp-karma');
 var coveralls = require('gulp-coveralls');
 var jshint = require('gulp-jshint');
 var stylish = require('jshint-stylish');
+var ts = require('gulp-typescript');
+var merge = require('merge2');
+var browserify = require('browserify');
+var source = require('vinyl-source-stream');
+var buffer = require('vinyl-buffer');
 
 var paths = {
     scripts: inDirectory('src/', [
@@ -42,12 +47,39 @@ gulp.task('clean', function() {
         .pipe(clean());
 });
 
-
 gulp.task('jshint', function() {
     return gulp.src(paths.scripts)
         .pipe(jshint())
         .pipe(jshint.reporter(stylish))
         .pipe(jshint.reporter('fail'));
+});
+
+gulp.task('typescript', ['clean'], function(cb) {
+    var tsResult = gulp.src('src/*.ts')
+        .pipe(ts({
+            module: 'amd',
+            declaration: true,
+            target: 'ES5'
+        }));
+
+    return merge([
+      tsResult.dts.pipe(gulp.dest('dist/amd')),
+      tsResult.js.pipe(gulp.dest('dist/amd'))
+    ]);
+});
+
+gulp.task('browserify', ['typescript'], function() {
+  var b = browserify({
+    entries: './dist/amd/Dashling.js',
+    debug: true
+  });
+
+  b.require('./dist/amd/Dashling.js', { expose: 'Dashling'});
+
+  return b.bundle()
+    .pipe(source('dashling.js'))
+    .pipe(buffer())
+    .pipe(gulp.dest('./dist/'));
 });
 
 gulp.task('scripts', ['clean', 'jshint', 'testscripts'], function(cb) {
@@ -86,6 +118,7 @@ gulp.task('watch', function() {
     gulp.watch(paths.testFiles, ['scripts']);
 });
 
-gulp.task('default', ['jshint', 'scripts', 'test'], function() {
+// gulp.task('default', ['jshint', 'scripts', 'test'], function() {
+gulp.task('default', ['typescript'], function() {
 
 });

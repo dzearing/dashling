@@ -1,6 +1,9 @@
-var _instance = 0;
+import Dashling from './Dashling';
+import { DashlingSessionState } from './DashlingEnums';
 
-var RequestStates = {
+let _instance = 0;
+
+let RequestStates = {
   pending: "pending",
   downloading: "downloading",
   downloaded: "downloaded",
@@ -8,45 +11,67 @@ var RequestStates = {
   error: "error"
 };
 
-window.DashMonitor = function() {
-  var _this = this;
+interface IMonitorMetric {
+  title: string;
+  value: string;
+}
 
-  this.id = "DashMonitorView-" + _instance++;
-  this._rowElements = {};
-  this.dataContext = {};
-  //this.dataContext = _createTestData();
+interface IMonitorContext {
+  state: DashlingSessionState;
+  metrics: IMonitorMetric[];
+  streams: { [key: string]: any };
+  duration: number;
+}
 
-  this._updateSeekBar = _bind(this, this._updateSeekBar);
-  this._onSessionChanged = _bind(this, this._onSessionChanged);
-};
+export default class DashlingMonitor {
+  public id: string;
+  public isActive: boolean;
+  public isVisible: boolean;
+  public element: HTMLElement;
+  public qualityContainer: any;
 
-window.DashMonitor.prototype = {
-  id: "",
-  isActive: false,
-  isVisible: true,
-  dataContext: null,
-  element: null,
-  qualityContainer: null,
+  public subElements: {
+    metrics: HTMLElement,
+    audioElement: HTMLElement,
+    audioMetrics: HTMLElement,
+    audioQualities: HTMLElement,
+    audioSeekBar: HTMLElement,
+    videoElement: HTMLElement,
+    videoMetrics: HTMLElement,
+    videoQualities: HTMLElement,
+    videoSeekBar: HTMLElement,
+    key: HTMLElement
+  };
 
-  _metricCount: 0,
-  _video: null,
+  private _dataContext: IMonitorContext;
+  private _rowElements: { [key: string]: HTMLElement };
+  private _metricCount: number;
+  private _video: any;
+  private _interval: number;
+  private _videoElement: HTMLVideoElement;
+  private _dashling: Dashling;
 
-  attachTo: function(element) {
-    var div = ce("div");
+  constructor() {
+    this.id = "DashMonitorView-" + _instance++;
+    this._rowElements = {};
 
-    div.innerHTML = this.renderHtml();
+    // TODO: remove
+    this._updateSeekBar = _bind(this, this._updateSeekBar);
+    this._onSessionChanged = _bind(this, this._onSessionChanged);
 
-    if (this.element) {
-      element.replaceChild(div.firstChild, this.element);
-    } else {
-      element.appendChild(div.firstChild);
-    }
+    this.isActive = false;
+    this.isVisible = true;
+    this._dataContext = null;
+    this.element = null;
+    this.qualityContainer = null;
+    this._metricCount = 0;
+    this._videoElement = null;
 
-    this.activate();
-  },
+    this.reset();
+  }
 
-  dispose: function() {
-    var _this = this;
+  public dispose() {
+    let _this = this;
 
     if (_this._interval) {
       clearInterval(_this._interval);
@@ -63,10 +88,24 @@ window.DashMonitor.prototype = {
       _this._dashling.removeEventListener(_this._dashling.Event.sessionStateChange, _this._onSessionChanged);
       _this._dashling = null;
     }
-  },
+  }
 
-  observe: function(dashling, videoElement) {
-    var _this = this;
+  public attachTo(element: HTMLElement) {
+    let div = _ce("div");
+
+    div.innerHTML = this.renderHtml();
+
+    if (this.element) {
+      element.replaceChild(div.firstChild, this.element);
+    } else {
+      element.appendChild(div.firstChild);
+    }
+
+    this.activate();
+  }
+
+  public observe(dashling: Dashling, videoElement: HTMLVideoElement) {
+    let _this = this;
 
     // Clear any existing observing stuff.
     _this.dispose();
@@ -82,50 +121,51 @@ window.DashMonitor.prototype = {
       dashling.addEventListener(dashling.Event.sessionStateChange, _this._onSessionChanged);
       _this._onSessionChanged();
     }
-  },
+  }
 
-  _onSessionChanged: function() {
-    var _this = this;
-    var dashling = _this._dashling;
-    var state = dashling.state;
+  private _onSessionChanged() {
+    let _this = this;
+    let dashling = _this._dashling;
+    let state = dashling.state;
 
-    if (state == dashling.SessionState.error || state == dashling.SessionState.idle) {
+    if (state == DashlingSessionState.error || state == DashlingSessionState.idle) {
       clearInterval(_this._interval);
       _this._interval = 0;
       _this.setDataContext(_this._getStats(dashling));
-    } else if (dashling.state > dashling.SessionState.idle && !_this._interval) {
+    } else if (dashling.state > DashlingSessionState.idle && !_this._interval) {
       _this._interval = setInterval(function() {
         if (_this.isVisible) {
           _this.setDataContext(_this._getStats(dashling));
         }
       }, 100);
     }
-  },
+  }
 
-  reset: function() {
+  public reset() {
+    this._dataContext = this._createContext();
+
     if (this.element) {
-      this.dataContext = {};
-      this.attachTo(this.element.parentNode);
+      this.attachTo(this.element.parentElement);
     }
-  },
+  }
 
-  setVisibility: function(isVisible) {
+  public setVisibility(isVisible: boolean) {
     if (isVisible != this.isVisible) {
       this.isVisible = isVisible;
       if (this.isActive) {
-        this._update(this.dataContext);
+        this._update();
       }
     }
-  },
+  }
 
-  setDataContext: function(dataContext) {
-    this.dataContext = dataContext;
+  public setDataContext(dataContext: any) {
+    this._dataContext = dataContext;
 
-    this._update(this.dataContext);
-  },
+    this._update();
+  }
 
-  renderHtml: function() {
-    var html = '<div id="' + this.id + '" class="c-DashMonitor">' +
+  public renderHtml() {
+    let html = '<div id="' + this.id + '" class="c-DashMonitor">' +
       '<ul class="streamMetrics"></ul>' +
       '<div class="audio streamData">' +
       '<span class="streamTitle">Audio</span>' +
@@ -153,87 +193,84 @@ window.DashMonitor.prototype = {
       "</div>";
 
     return html;
-  },
+  }
 
-  activate: function() {
-    var element = this.element = _qs("#" + this.id);
+  public activate() {
+    let element = this.element = _qs("#" + this.id);
 
     this.subElements = {
       metrics: _qs(".streamMetrics", element),
-      audio: {
-        element: _qs(".audio"),
-        metrics: _qs(".audio .streamMetrics", element),
-        qualities: _qs(".audio .qualities", element),
-        seekBar: _qs(".audio .seekBar", element)
-      },
-      video: {
-        element: _qs(".video"),
-        metrics: _qs(".video .streamMetrics", element),
-        qualities: _qs(".video .qualities", element),
-        seekBar: _qs(".video .seekBar", element)
-      },
+      audioElement: _qs(".audio"),
+      audioMetrics: _qs(".audio .streamMetrics", element),
+      audioQualities: _qs(".audio .qualities", element),
+      audioSeekBar: _qs(".audio .seekBar", element),
+      videoElement: _qs(".video"),
+      videoMetrics: _qs(".video .streamMetrics", element),
+      videoQualities: _qs(".video .qualities", element),
+      videoSeekBar: _qs(".video .seekBar", element),
       key: _qs(".key")
     };
 
     this.isActive = true;
 
-    this._update(this.dataContext);
-  },
+    this._update();
+  }
 
-  deactivate: function() {
+  public deactivate() {
     this.subElements = null;
     this.isActive = false;
-  },
+  }
 
-  _updateSeekBar: function() {
-    var _this = this;
-    var video = _this._videoElement;
+  private _updateSeekBar() {
+    let _this = this;
+    let video = _this._videoElement;
 
     if (video) {
-      var percentage = (100 * video.currentTime / video.duration) + "%";
+      let percentage = (100 * video.currentTime / video.duration) + "%";
 
-      _this.subElements.audio.seekBar.style.left = percentage;
-      _this.subElements.video.seekBar.style.left = percentage;
+      _this.subElements.audioSeekBar.style.left = percentage;
+      _this.subElements.videoSeekBar.style.left = percentage;
     }
-  },
+  }
 
-  _update: function(dataContext) {
-    var isStarted = dataContext.state !== undefined && dataContext.state != this._dashling.SessionState.idle;
+  private _update() {
+    let dataContext = this._dataContext;
+    let isStarted = dataContext.state !== undefined && this._dashling && dataContext.state !== DashlingSessionState.idle;
 
     if (this.isActive) {
-      var subElements = this.subElements;
+      let subElements = this.subElements;
 
       _toggleClass(this.element, "isVisible", isStarted && this.isVisible);
 
       this._updateMetrics(subElements.metrics, dataContext.metrics);
 
-      var audio = (dataContext && dataContext.streams && dataContext.streams.audio) || {};
-      var video = (dataContext && dataContext.streams && dataContext.streams.video) || {};
+      let audio = (dataContext && dataContext.streams && dataContext.streams['audio']) || {};
+      let video = (dataContext && dataContext.streams && dataContext.streams['video']) || {};
 
-      _toggleClass(subElements.audio.element, "isVisible", !! (audio.metrics || audio.qualities));
-      _toggleClass(subElements.video.element, "isVisible", !! (video.metrics || video.qualities));
+      _toggleClass(subElements.audioElement, "isVisible", !! (audio.metrics || audio.qualities));
+      _toggleClass(subElements.videoElement, "isVisible", !! (video.metrics || video.qualities));
       _toggleClass(subElements.key, "isVisible", !! (audio.qualities || video.qualities));
 
-      this._updateMetrics(subElements.audio.metrics, audio.metrics);
-      this._updateQualities(subElements.audio.qualities, audio.qualities);
+      this._updateMetrics(subElements.audioMetrics,  audio.metrics);
+      this._updateQualities(subElements.audioQualities, audio.qualities);
 
-      this._updateMetrics(subElements.video.metrics, video.metrics);
-      this._updateQualities(subElements.video.qualities, video.qualities);
+      this._updateMetrics(subElements.videoMetrics, video.metrics);
+      this._updateQualities(subElements.videoQualities, video.qualities);
     }
-  },
+  }
 
-  _updateMetrics: function(metricListElement, metrics) {
+  private _updateMetrics(metricListElement: any, metrics: any) {
     _toggleClass(metricListElement, "isVisible", !! metrics);
 
     if (metrics) {
-      var metricLookup = metricListElement._metricLookup = metricListElement._metricLookup || {};
+      let metricLookup = metricListElement._metricLookup = metricListElement._metricLookup || {};
 
-      for (var i = 0; i < metrics.length; i++) {
-        var metric = metrics[i];
-        var metricElement = metricLookup[metric.title];
+      for (let i = 0; i < metrics.length; i++) {
+        let metric = metrics[i];
+        let metricElement = metricLookup[metric.title];
 
         if (!metricElement) {
-          metricElement = ce("li");
+          metricElement = _ce("li");
           metricElement.innerHTML = '<span class="metricTitle">' + metric.title + '</span><span class="metricValue"></span>';
 
           _qs(".metricTitle", metricElement).textContent = metric.title;
@@ -245,29 +282,29 @@ window.DashMonitor.prototype = {
         metricElement.textContent = metric.value;
       }
     } else {}
-  },
+  }
 
-  _updateQualities: function(qualityListElement, qualities) {
+  private _updateQualities(qualityListElement: any, qualities: any) {
     _toggleClass(qualityListElement, "isVisible", !! qualities);
 
     if (qualities) {
-      var qualityRowLookup = qualityListElement._qualityRowLookup = qualityListElement._qualityRowLookup || {};
+      let qualityRowLookup: any = qualityListElement._qualityRowLookup = qualityListElement._qualityRowLookup || {};
 
-      for (var qualityIndex = 0; qualityIndex < qualities.length; qualityIndex++) {
-        var quality = qualities[qualityIndex];
+      for (let qualityIndex = 0; qualityIndex < qualities.length; qualityIndex++) {
+        let quality = qualities[qualityIndex];
 
         if (quality) {
-          var qualityRow = qualityRowLookup[qualityIndex];
+          let qualityRow = qualityRowLookup[qualityIndex];
 
           if (!qualityRow) {
-            qualityRow = qualityRowLookup[qualityIndex] = ce("div", "row");
-            ce("div", "rowHeader", quality.title, qualityRow);
-            ce("div", "rowFragments", null, qualityRow);
+            qualityRow = qualityRowLookup[qualityIndex] = _ce("div", "row");
+            _ce("div", "rowHeader", quality.title, qualityRow);
+            _ce("div", "rowFragments", null, qualityRow);
 
             qualityRow.qualityIndex = quality.index;
 
-            for (var i = 0; i < qualityListElement.childNodes.length; i++) {
-              if (quality.index > qualityListElement.childNodes[i].qualityIndex) {
+            for (let i = 0; i < qualityListElement.childNodes.length; i++) {
+              if (quality.index > Number(qualityListElement.childNodes[i]['qualityIndex'])) {
                 qualityListElement.insertBefore(qualityRow, qualityListElement.childNodes[i]);
                 break;
               }
@@ -283,22 +320,22 @@ window.DashMonitor.prototype = {
         }
       }
     }
-  },
+  }
 
-  _updateFragments: function(fragmentListElement, fragments) {
+  private _updateFragments(fragmentListElement: any, fragments: any) {
     _toggleClass(fragmentListElement, "isVisible", !! fragments);
 
     if (fragments) {
-      var fragmentListLookup = fragmentListElement._fragmentListLookup = fragmentListElement._fragmentListLookup || {};
-      var newFragmentListLookup = {};
-      var videoDuration = this.dataContext.duration;
+      let fragmentListLookup = fragmentListElement._fragmentListLookup = fragmentListElement._fragmentListLookup || {};
+      let newFragmentListLookup: { [key: number]: HTMLElement } = {};
+      let videoDuration = this._dataContext.duration;
 
-      for (var fragmentIndex = 0; fragmentIndex < fragments.length; fragmentIndex++) {
-        var fragment = fragments[fragmentIndex];
-        var fragmentElement = fragmentListLookup[fragment.index];
+      for (let fragmentIndex = 0; fragmentIndex < fragments.length; fragmentIndex++) {
+        let fragment = fragments[fragmentIndex];
+        let fragmentElement = fragmentListLookup[fragment.index];
 
         if (!fragmentElement) {
-          fragmentElement = ce("div", "rowRequest", null, fragmentListElement);
+          fragmentElement = _ce("div", "rowRequest", null, fragmentListElement);
           fragmentElement.style.left = (100 * fragment.start / videoDuration) + "%";
           fragmentElement.style.width = (100 * fragment.length / videoDuration) + "%";
         } else {
@@ -312,23 +349,34 @@ window.DashMonitor.prototype = {
 
       fragmentListElement._fragmentListLookup = newFragmentListLookup;
 
-      for (var i in fragmentListLookup) {
+      for (let i in fragmentListLookup) {
         fragmentListElement.removeChild(fragmentListLookup[i]);
       }
     }
-  },
+  }
 
-  _getStats: function(player) {
-    var context = {};
-    var controller = player._streamController;
-    var manifest = player.settings.manifest;
+  private _createContext(): IMonitorContext {
+    return {
+      state: DashlingSessionState.idle,
+      metrics: [],
+      streams: {
+        audio: null,
+        video: null
+      },
+      duration: 0
+    };
+  }
+
+  private _getStats(player: Dashling) {
+    let context = this._createContext();
+    let controller = player.streamController;
+    let manifest = player.settings.manifest;
 
     context.state = player.state;
-    context.metrics = [];
 
     context.metrics.push({
       title: "State",
-      value: _findInEnum(player.state, this._dashling.SessionState)
+      value: DashlingSessionState[player.state]
     });
 
     context.metrics.push({
@@ -342,13 +390,13 @@ window.DashMonitor.prototype = {
     });
 
     if (manifest && controller) {
-      var fragmentList = [];
+      let fragmentList: any[] = [];
 
-      for (var streamIndex = 0; streamIndex < controller._streams.length; streamIndex++) {
-        fragmentList.push(controller._streams[streamIndex].fragments);
+      for (let streamIndex = 0; streamIndex < controller.streams.length; streamIndex++) {
+        fragmentList.push(controller.streams[streamIndex].fragments);
       }
 
-      var qualityDictionary = {};
+      let qualityDictionary = {};
 
       context.duration = manifest.mediaDuration;
 
@@ -359,7 +407,7 @@ window.DashMonitor.prototype = {
 
       context.metrics.push({
         title: "Stalls",
-        value: controller._stalls || null
+        value: String(controller.stalls) || ''
       });
 
       context.metrics.push({
@@ -382,52 +430,51 @@ window.DashMonitor.prototype = {
         value: _round(player.getRemainingBuffer(), 2, 2) + " s"
       });
 
-      var timeUntilStall = controller ? controller.getTimeUntilUnderrun() : 0;
+      let timeUntilStall = controller ? controller.getTimeUntilUnderrun() : 0;
 
       context.metrics.push({
         title: "Time until stall",
         value: timeUntilStall < Number.MAX_VALUE ? _round(timeUntilStall, 2, 2) + " s" : ""
       });
 
-      context.streams = {};
-
-      for (var streamIndex = 0; streamIndex < controller._streams.length; streamIndex++) {
-        var stream = controller._streams[streamIndex];
-        var contextStream = {
+      for (let streamIndex = 0; streamIndex < controller.streams.length; streamIndex++) {
+        let stream = controller.streams[streamIndex];
+        let contextStream: { metrics: IMonitorMetric[], qualities: any[] } = {
           metrics: [],
           qualities: []
         };
+
         context.streams[stream.streamType] = contextStream;
-        var val;
 
         contextStream.metrics.push({
           title: "Quality",
-          value: stream.qualityIndex
+          value: String(stream.qualityIndex)
         });
 
-        val = stream._requestManager.getAverageWait();
+        let val = stream.requestManager.getAverageWait();
+
         contextStream.metrics.push({
           title: "Avg wait",
-          value: val ? Math.round(val, 2) + " ms" : null
+          value: val ? _round(val, 2) + " ms" : null
         });
 
-        val = stream._requestManager.getAverageReceive();
+        val = stream.requestManager.getAverageReceive();
         contextStream.metrics.push({
           title: "Avg receive",
-          value: val ? Math.round(val, 2) + " ms" : null
+          value: val ? _round(val, 2) + " ms" : null
         });
 
-        val = stream._requestManager.getAverageBytesPerSecond();
+        val = stream.requestManager.getAverageBytesPerSecond();
         contextStream.metrics.push({
           title: "Avg bandwidth",
           value: val ? _formatBandwidth(val) : null
         });
 
-        for (var fragmentIndex = 0; fragmentIndex < stream.fragments.length; fragmentIndex++) {
-          var fragment = stream.fragments[fragmentIndex];
+        for (let fragmentIndex = 0; fragmentIndex < stream.fragments.length; fragmentIndex++) {
+          let fragment = stream.fragments[fragmentIndex];
 
           if (fragment.activeRequest) {
-            var contextQuality = contextStream.qualities[fragment.qualityIndex];
+            let contextQuality = contextStream.qualities[fragment.qualityIndex];
 
             if (!contextQuality) {
               contextQuality = contextStream.qualities[fragment.qualityIndex] = {
@@ -437,7 +484,7 @@ window.DashMonitor.prototype = {
               };
             }
 
-            var state = _findInEnum(fragment.state, this._dashling.RequestState);
+            let state = _findInEnum(fragment.state, this._dashling.RequestState);
 
             if (fragment.state == this._dashling.RequestState.downloading && fragment.activeRequest.timeAtFirstByte == -1) {
               state = "waiting";
@@ -458,76 +505,18 @@ window.DashMonitor.prototype = {
 
     return context;
   }
-};
-
-/* // Test data
-function _createTestData() {
-  return {
-    duration: 52.33333,
-
-    metrics: {
-      "Buffer rate": "12",
-    },
-
-    streams: {
-      audio: {
-        metrics: [{
-          title: "test1",
-          value: "val1"
-        }, {
-          title: "test2",
-          value: "val2"
-        }],
-        qualities: [{
-          index: 1,
-          title: "medium",
-          fragments: [{
-            start: 0,
-            length: 5,
-            state: "downloading"
-          }, {
-            start: 5,
-            length: 5,
-            state: "waiting"
-          }]
-        }, {
-          index: 0,
-          title: "low",
-          fragments: [{}, {}]
-        }]
-      },
-
-      video: {
-        metrics: [{
-          title: "test1",
-          value: "val1"
-        }, {
-          title: "test2",
-          value: "val2"
-        }],
-        qualities: [{
-          title: "video med",
-          fragments: [{}, {}]
-        }, {
-          title: "video low",
-          fragments: [{}, {}]
-        }]
-      }
-    }
-  };
 }
-*/
 
 // Utility functions.
 
-function _qs(selector, parentElement) {
-  parentElement = parentElement || document;
+function _qs(selector: string, parentElement?: HTMLElement): HTMLElement {
+  parentElement = parentElement || <any>document;
 
-  return parentElement.querySelector(selector);
+  return <HTMLElement>parentElement.querySelector(selector);
 }
 
-function ce(tag, className, text, parentEl) {
-  var el = document.createElement(tag);
+function _ce(tag: string, className?: string, text?: string, parentEl?: HTMLElement) {
+  let el = document.createElement(tag);
 
   className && (el.className = className);
   text && (el.textContent = text);
@@ -536,17 +525,18 @@ function ce(tag, className, text, parentEl) {
   return el;
 }
 
-function _findInEnum(val, en) {
-  for (var i in en) {
-    if (en[i] == val) {
-      return i;
+function _findInEnum(value: any, enumeration: any) {
+  for (let propName in enumeration) {
+    if (enumeration[propName] === value) {
+      return propName;
     }
   }
+
   return "";
 }
 
-function _round(number, decimals, padded) {
-  var value = parseFloat(number.toFixed(decimals));
+function _round(number: number, decimals: number, padded?: number) {
+  let value = String(parseFloat(number.toFixed(decimals)));
 
   if (padded) {
     value = "" + value;
@@ -562,10 +552,10 @@ function _round(number, decimals, padded) {
   return value;
 }
 
-function _formatBandwidth(bytesPerSecond) {
-  var bitsPerKilobit = 1000;
-  var bitsPerMegabit = bitsPerKilobit * bitsPerKilobit;
-  var bitsPerSecond = bytesPerSecond * 8;
+function _formatBandwidth(bytesPerSecond: number): string {
+  let bitsPerKilobit = 1000;
+  let bitsPerMegabit = bitsPerKilobit * bitsPerKilobit;
+  let bitsPerSecond = bytesPerSecond * 8;
 
   if (bitsPerSecond < bitsPerKilobit) {
     return bitsPerSecond + " bps";
@@ -576,11 +566,11 @@ function _formatBandwidth(bytesPerSecond) {
   }
 }
 
-function _toggleClass(element, className, isEnabled) {
-  var classes = element.className.trim().split(" ");
-  var classesTable = {};
-  var i;
-  var fullName = "";
+function _toggleClass(element: HTMLElement, className: string, isEnabled?: boolean) {
+  let classes = element.className.trim().split(" ");
+  let classesTable: { [key: string]: boolean } = {};
+  let i: number;
+  let fullName = "";
 
   for (i = 0; i < classes.length; i++) {
     if (classes[i]) {
@@ -596,14 +586,14 @@ function _toggleClass(element, className, isEnabled) {
     delete classesTable[className];
   }
 
-  for (i in classesTable) {
-    fullName += i + " ";
+  for (let className in classesTable) {
+    fullName += className + " ";
   }
 
   element.className = fullName.trim();
 }
 
-function _bind(obj, func) {
+function _bind(obj: any, func: () => void) {
   return function() {
     return func.apply(obj, arguments);
   }

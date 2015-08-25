@@ -1,6 +1,6 @@
 {
   "name": "dashling",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "homepage": "http://dzearing.github.io/dashling",
   "author": {
     "name": "David Zearing",
@@ -11,28 +11,36 @@
     "type": "git",
     "url": "git://github.com/dzearing/dashling.git"
   },
-  "licenses": [{
-    "type": "MIT",
-    "url": "https://github.com/dzearing/dashling/blob/gh-pages/LICENSE"
-  }],
+  "licenses": [
+    {
+      "type": "MIT",
+      "url": "https://github.com/dzearing/dashling/blob/gh-pages/LICENSE"
+    }
+  ],
   "scripts": {
-    "test": "gulp covertest"
+    "test": "gulp",
+    "test2": "gulp covertest"
   },
   "devDependencies": {
+    "browserify": "^11.0.1",
     "gulp": "^3.5.5",
-    "gulp-concat": "^2.1.7",
-    "gulp-uglify": "^0.2.1",
-    "gulp-rename": "^1.2.0",
-    "gulp-karma": "0.0.4",
-    "gulp-coveralls": "^0.1.2",
     "gulp-clean": "^0.2.4",
+    "gulp-concat": "^2.1.7",
+    "gulp-coveralls": "^0.1.2",
     "gulp-jshint": "^1.5.3",
-    "qunitjs": "~1.14.0",
-    "phantomjs": "^1.9.7-3",
+    "gulp-karma": "0.0.4",
+    "gulp-rename": "^1.2.0",
+    "gulp-typescript": "^2.8.0",
+    "gulp-uglify": "^0.2.1",
+    "jshint-stylish": "^0.1.5",
     "karma": "^0.12.3",
-    "karma-phantomjs-launcher": "0.1.2",
     "karma-coverage": "^0.2.1",
+    "karma-phantomjs-launcher": "0.1.2",
     "karma-qunit": "^0.1.1",
-    "jshint-stylish": "^0.1.5"
+    "merge2": "^0.3.6",
+    "phantomjs": "^1.9.7-3",
+    "qunitjs": "~1.14.0",
+    "vinyl-buffer": "^1.0.0",
+    "vinyl-source-stream": "^1.1.0"
   }
 }
