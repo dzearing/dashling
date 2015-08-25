@@ -18,7 +18,8 @@
     }
   ],
   "scripts": {
-    "test": "" // gulp covertest"
+    "test": "gulp",
+    "test2": "gulp covertest"
   },
   "devDependencies": {
     "browserify": "^11.0.1",

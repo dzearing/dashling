@@ -15,7 +15,6 @@ export default class Utilities {
     };
   }
 
-  //TODO: dashling settings.
   public static log(message: string, settings?: Settings) {
     if (!settings || settings.logToConsole) {
       console.log(message);
