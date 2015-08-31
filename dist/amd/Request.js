@@ -30,6 +30,9 @@ define(["require", "exports", './DashlingEnums', './EventGroup'], function (requ
                         this.state = DashlingEnums_1.DashlingRequestState.aborted;
                         this.isAborted = true;
                         this._xhr.abort();
+                        if (this._options.onError) {
+                            this._options.onError(this);
+                        }
                         this._events.raise(Request.CompleteEvent, this);
                     }
                     this._xhr = null;

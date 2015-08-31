@@ -14,7 +14,6 @@ define(["require", "exports"], function (require, exports) {
                 return func.apply(obj, arguments);
             };
         };
-        //TODO: dashling settings.
         Utilities.log = function (message, settings) {
             if (!settings || settings.logToConsole) {
                 console.log(message);
