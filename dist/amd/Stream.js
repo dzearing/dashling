@@ -1,5 +1,6 @@
-define(["require", "exports", './RequestManager', './Request', './EventGroup', './Utilities', './Async', './MetricSet', './DashlingEnums'], function (require, exports, RequestManager_1, Request_1, EventGroup_1, Utilities_1, Async_1, MetricSet_1, DashlingEnums_1) {
-    var BANDWIDTH_LOCAL_STORAGE_KEY = 'Dashling.Stream.bytesPerSecond';
+define(["require", "exports", './RequestManager', './Request', './EventGroup', './Utilities', './Async', './MetricSet', './Storage', './DashlingEnums'], function (require, exports, RequestManager_1, Request_1, EventGroup_1, Utilities_1, Async_1, MetricSet_1, Storage_1, DashlingEnums_1) {
+    var STORAGE_PREFIX = 'Dashling.Stream.';
+    var BANDWIDTH_LOCAL_STORAGE_KEY = 'bytesPerSecond';
     var Stream = (function () {
         function Stream(streamType, mediaSource, videoElement, settings) {
             var _this = this;
@@ -7,6 +8,7 @@ define(["require", "exports", './RequestManager', './Request', './EventGroup', '
             var fragmentCount = streamInfo.timeline.length;
             _this._events = new EventGroup_1.default(_this);
             _this._async = new Async_1.default(_this);
+            _this._storage = new Storage_1.default(STORAGE_PREFIX);
             _this.fragments = [];
             _this.streamType = streamType;
             _this.qualityIndex = Math.max(0, Math.min(streamInfo.qualities.length - 1, settings.targetQuality[streamType]));
@@ -295,10 +297,10 @@ define(["require", "exports", './RequestManager', './Request', './EventGroup', '
             var bytesPerSecond = _this.requestManager.getAverageBytesPerSecond();
             var maxQuality = _this._streamInfo.qualities.length - 1;
             if (!bytesPerSecond) {
-                bytesPerSecond = parseFloat(localStorage.getItem(BANDWIDTH_LOCAL_STORAGE_KEY));
+                bytesPerSecond = parseFloat(this._storage.getItem(BANDWIDTH_LOCAL_STORAGE_KEY));
             }
             else if (this.streamType === "video") {
-                localStorage.setItem(BANDWIDTH_LOCAL_STORAGE_KEY, String(bytesPerSecond));
+                this._storage.setItem(BANDWIDTH_LOCAL_STORAGE_KEY, String(bytesPerSecond));
             }
             if (!settings.isABREnabled || !bytesPerSecond) {
                 _this.qualityIndex = Math.min(_this._streamInfo.qualities.length - 1, settings.targetQuality[_this.streamType]);
@@ -333,10 +335,10 @@ define(["require", "exports", './RequestManager', './Request', './EventGroup', '
             var totalBytes = bandwidth * segmentLength;
             var bytesPerSecond = _this.requestManager.getAverageBytesPerSecond();
             if (!bytesPerSecond) {
-                bytesPerSecond = parseFloat(localStorage.getItem(BANDWIDTH_LOCAL_STORAGE_KEY));
+                bytesPerSecond = parseFloat(this._storage.getItem(BANDWIDTH_LOCAL_STORAGE_KEY));
             }
             else if (this.streamType === "video") {
-                localStorage.setItem(BANDWIDTH_LOCAL_STORAGE_KEY, String(bytesPerSecond));
+                this._storage.setItem(BANDWIDTH_LOCAL_STORAGE_KEY, String(bytesPerSecond));
             }
             var averageBytesPerSecond = bytesPerSecond || _this._settings.defaultBandwidth;
             return totalBytes / averageBytesPerSecond;

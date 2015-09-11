@@ -7,6 +7,7 @@ export default class Stream {
     qualityIndex: number;
     bufferRate: MetricSet;
     requestManager: RequestManager;
+    private _storage;
     private _isDisposed;
     private _events;
     private _async;

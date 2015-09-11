@@ -6,6 +6,7 @@ import EventGroup from './EventGroup';
 import Utilities from './Utilities';
 import Async from './Async';
 import MetricSet from './MetricSet';
+import Storage from './Storage';
 import {
   DashlingEvent,
   DashlingError,
@@ -13,7 +14,8 @@ import {
   DashlingRequestState
 } from './DashlingEnums';
 
-const BANDWIDTH_LOCAL_STORAGE_KEY = 'Dashling.Stream.bytesPerSecond';
+const STORAGE_PREFIX = 'Dashling.Stream.';
+const BANDWIDTH_LOCAL_STORAGE_KEY = 'bytesPerSecond';
 
 export default class Stream {
   public fragments: any[];
@@ -22,6 +24,7 @@ export default class Stream {
   public bufferRate: MetricSet;
   public requestManager: RequestManager;
 
+  private _storage: Storage;
   private _isDisposed: boolean;
   private _events: EventGroup;
   private _async: Async;
@@ -47,7 +50,7 @@ export default class Stream {
 
     _this._events = new EventGroup(_this);
     _this._async = new Async(_this);
-
+    _this._storage = new Storage(STORAGE_PREFIX);
     _this.fragments = [];
     _this.streamType = streamType;
     _this.qualityIndex = Math.max(0, Math.min(streamInfo.qualities.length - 1, settings.targetQuality[streamType]));
@@ -399,9 +402,9 @@ export default class Stream {
     var maxQuality = _this._streamInfo.qualities.length - 1;
 
     if (!bytesPerSecond) {
-      bytesPerSecond = parseFloat(localStorage.getItem(BANDWIDTH_LOCAL_STORAGE_KEY));
+      bytesPerSecond = parseFloat(this._storage.getItem(BANDWIDTH_LOCAL_STORAGE_KEY));
     } else if (this.streamType === "video") {
-      localStorage.setItem(BANDWIDTH_LOCAL_STORAGE_KEY, String(bytesPerSecond));
+      this._storage.setItem(BANDWIDTH_LOCAL_STORAGE_KEY, String(bytesPerSecond));
     }
 
     if (!settings.isABREnabled || !bytesPerSecond) {
@@ -442,9 +445,9 @@ export default class Stream {
     let bytesPerSecond = _this.requestManager.getAverageBytesPerSecond();
 
     if (!bytesPerSecond) {
-      bytesPerSecond = parseFloat(localStorage.getItem(BANDWIDTH_LOCAL_STORAGE_KEY));
+      bytesPerSecond = parseFloat(this._storage.getItem(BANDWIDTH_LOCAL_STORAGE_KEY));
     } else if (this.streamType === "video") {
-      localStorage.setItem(BANDWIDTH_LOCAL_STORAGE_KEY, String(bytesPerSecond));
+      this._storage.setItem(BANDWIDTH_LOCAL_STORAGE_KEY, String(bytesPerSecond));
     }
 
     let averageBytesPerSecond = bytesPerSecond || _this._settings.defaultBandwidth;
