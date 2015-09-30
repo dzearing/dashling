@@ -3,9 +3,13 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
     var PERMITTED_GAP_SECONDS_BETWEEN_RANGES = 0.06;
     // When we try to calculate which fragment a "currentTime" value aligns on, we subtract this value from currentTime first.
     var SEEK_TIME_BUFFER_SECONDS = 0.5;
-    var MEDIASOURCE_READYSTATE_CLOSED = 0;
-    var MEDIASOURCE_READYSTATE_OPEN = 1;
-    var MEDIASOURCE_READYSTATE_ENDED = 2;
+    var MediaSourceReadyState;
+    (function (MediaSourceReadyState) {
+        // The string values are used by IE instead of the numeric values.
+        MediaSourceReadyState[MediaSourceReadyState["closed"] = 0] = "closed";
+        MediaSourceReadyState[MediaSourceReadyState["open"] = 1] = "open";
+        MediaSourceReadyState[MediaSourceReadyState["ended"] = 2] = "ended";
+    })(MediaSourceReadyState || (MediaSourceReadyState = {}));
     var StreamController = (function () {
         function StreamController(videoElement, mediaSource, settings) {
             this._events = new EventGroup_1.default(this);
@@ -233,7 +237,7 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
             var streamIndex;
             if (!_this._isDisposed) {
                 var currentTime = _this._settings.startTime || _this._videoElement.currentTime;
-                if (streams && streams.length && _this._mediaSource && _this._mediaSource.readyState !== MEDIASOURCE_READYSTATE_CLOSED) {
+                if (streams && streams.length && _this._mediaSource && !_this._isMediaSourceReadyState(_this._mediaSource.readyState, MediaSourceReadyState.closed)) {
                     var streamsAppendable = true;
                     while (_this._appendIndex < streams[0].fragments.length) {
                         // Try to append the current index.
@@ -280,7 +284,7 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
                             break;
                         }
                     }
-                    if (_this._appendIndex == streams[0].fragments.length && _this._mediaSource.readyState === MEDIASOURCE_READYSTATE_OPEN) {
+                    if (_this._appendIndex == streams[0].fragments.length && _this._isMediaSourceReadyState(_this._mediaSource.readyState, MediaSourceReadyState.open)) {
                         _this._mediaSource.endOfStream();
                     }
                     _this._loadNextFragment();
@@ -535,6 +539,9 @@ define(["require", "exports", './EventGroup', './Async', './Stream', './MetricSe
             if (this._videoElement.playbackRate != expectedRate) {
                 this._videoElement.playbackRate = this._videoElement.defaultPlaybackRate = expectedRate;
             }
+        };
+        StreamController.prototype._isMediaSourceReadyState = function (value, state) {
+            return value === state || value === MediaSourceReadyState[state];
         };
         return StreamController;
     })();
