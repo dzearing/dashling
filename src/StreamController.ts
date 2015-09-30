@@ -18,9 +18,12 @@ const PERMITTED_GAP_SECONDS_BETWEEN_RANGES = 0.06;
 // When we try to calculate which fragment a "currentTime" value aligns on, we subtract this value from currentTime first.
 const SEEK_TIME_BUFFER_SECONDS = 0.5;
 
-const MEDIASOURCE_READYSTATE_CLOSED = 0;
-const MEDIASOURCE_READYSTATE_OPEN = 1;
-const MEDIASOURCE_READYSTATE_ENDED = 2;
+enum MediaSourceReadyState {
+  // The string values are used by IE instead of the numeric values.
+  closed = 0,
+  open = 1,
+  ended = 2
+}
 
 export default class StreamController {
   public streams: Stream[];
@@ -332,7 +335,7 @@ export default class StreamController {
     if (!_this._isDisposed) {
       let currentTime = _this._settings.startTime || _this._videoElement.currentTime;
 
-      if (streams && streams.length && _this._mediaSource && _this._mediaSource.readyState !== MEDIASOURCE_READYSTATE_CLOSED) {
+      if (streams && streams.length && _this._mediaSource && !_this._isMediaSourceReadyState(_this._mediaSource.readyState, MediaSourceReadyState.closed)) {
         let streamsAppendable = true;
 
         while (_this._appendIndex < streams[0].fragments.length) {
@@ -392,7 +395,7 @@ export default class StreamController {
           }
         }
 
-        if (_this._appendIndex == streams[0].fragments.length && _this._mediaSource.readyState === MEDIASOURCE_READYSTATE_OPEN) {
+        if (_this._appendIndex == streams[0].fragments.length && _this._isMediaSourceReadyState(_this._mediaSource.readyState, MediaSourceReadyState.open)) {
           _this._mediaSource.endOfStream();
         }
 
@@ -708,6 +711,10 @@ export default class StreamController {
     if (this._videoElement.playbackRate != expectedRate) {
       this._videoElement.playbackRate = this._videoElement.defaultPlaybackRate = expectedRate;
     }
+  }
+
+  private _isMediaSourceReadyState(value: string | MediaSourceReadyState, state: MediaSourceReadyState) {
+    return value === state || value === MediaSourceReadyState[state];
   }
 }
 
