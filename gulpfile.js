@@ -57,6 +57,7 @@ gulp.task('jshint', function() {
 gulp.task('typescript', ['clean'], function(cb) {
     var tsResult = gulp.src('src/*.ts')
         .pipe(ts({
+            typescript: require('typescript'),
             module: 'amd',
             declaration: true,
             target: 'ES5'

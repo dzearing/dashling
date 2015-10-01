@@ -90,4 +90,5 @@ export default class StreamController {
     private _onPauseStateChange();
     private _onVideoEnded();
     private _onVideoRateChange();
+    private _isMediaSourceReadyState(value, state);
 }

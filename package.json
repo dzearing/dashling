@@ -1,6 +1,6 @@
 {
   "name": "dashling",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "homepage": "http://dzearing.github.io/dashling",
   "author": {
     "name": "David Zearing",
@@ -38,6 +38,7 @@
     "karma-phantomjs-launcher": "0.1.2",
     "karma-qunit": "^0.1.1",
     "merge2": "^0.3.6",
+    "typescript": "~1.5.0",
     "phantomjs": "^1.9.7-3",
     "qunitjs": "~1.14.0",
     "vinyl-buffer": "^1.0.0",
