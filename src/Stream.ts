@@ -201,7 +201,15 @@ export default class Stream {
               Utilities.log("Append started: " + _this.streamType + " " + request.qualityId + " " + request.requestType + " " + (request.fragmentIndex !== undefined ? "index " + request.fragmentIndex : ""), _this._settings);
               buffer.appendBuffer(request.data);
             } catch (e) {
-              _onAppendError(DashlingError.sourceBufferAppendException, e);
+              let exception: DOMException = e;
+
+              if (exception.code === DOMException.QUOTA_EXCEEDED_ERR) {
+                Utilities.log("Append failed due to quota exception; trying again momentarily");
+                buffer.removeEventListener("update", _onAppendComplete);
+                _this._appendTimeoutId = setTimeout(_appendNextEntry, 500);
+              } else {
+                _onAppendError(DashlingError.sourceBufferAppendException, e);
+              }
             }
           } else {
             // We need to give a small slice of time because the video's buffered region doesn't update immediately after
