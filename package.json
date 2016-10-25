@@ -27,7 +27,7 @@
     "gulp-clean": "^0.2.4",
     "gulp-concat": "^2.1.7",
     "gulp-coveralls": "^0.1.2",
-    "gulp-jshint": "^1.5.3",
+    "gulp-jshint": "^2.0.2",
     "gulp-karma": "0.0.4",
     "gulp-rename": "^1.2.0",
     "gulp-typescript": "^2.8.0",
