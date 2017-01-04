@@ -22,7 +22,7 @@
     "test2": "gulp covertest"
   },
   "devDependencies": {
-    "browserify": "^11.0.1",
+    "browserify": "^13.2.0",
     "gulp": "^3.5.5",
     "gulp-clean": "^0.2.4",
     "gulp-concat": "^2.1.7",
