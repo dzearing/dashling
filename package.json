@@ -33,7 +33,7 @@
     "gulp-typescript": "^2.8.0",
     "gulp-uglify": "^0.2.1",
     "jshint-stylish": "^0.1.5",
-    "karma": "^0.12.3",
+    "karma": "^1.5.0",
     "karma-coverage": "^0.2.1",
     "karma-phantomjs-launcher": "0.1.2",
     "karma-qunit": "^0.1.1",
