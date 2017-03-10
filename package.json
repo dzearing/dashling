@@ -35,7 +35,7 @@
     "jshint-stylish": "^0.1.5",
     "karma": "^0.12.3",
     "karma-coverage": "^0.2.1",
-    "karma-phantomjs-launcher": "0.1.2",
+    "karma-phantomjs-launcher": "1.0.3",
     "karma-qunit": "^0.1.1",
     "merge2": "^0.3.6",
     "typescript": "~1.5.0",
