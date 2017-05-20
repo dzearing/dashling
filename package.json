@@ -31,7 +31,7 @@
     "gulp-karma": "0.0.4",
     "gulp-rename": "^1.2.0",
     "gulp-typescript": "^2.8.0",
-    "gulp-uglify": "^0.2.1",
+    "gulp-uglify": "^3.0.0",
     "jshint-stylish": "^0.1.5",
     "karma": "^0.12.3",
     "karma-coverage": "^0.2.1",
