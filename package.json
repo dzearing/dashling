@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "browserify": "^11.0.1",
-    "gulp": "^3.5.5",
+    "gulp": "^4.0.2",
     "gulp-clean": "^0.2.4",
     "gulp-concat": "^2.1.7",
     "gulp-coveralls": "^0.1.2",
